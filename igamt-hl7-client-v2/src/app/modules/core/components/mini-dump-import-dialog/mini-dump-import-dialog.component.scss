@@ -1,0 +1,17 @@
+.import-step-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 1rem 0 0;
+}
+
+.import-step {
+  padding: 0.35rem 0;
+}
+
+.import-step-active {
+  font-weight: 600;
+}
+
+.import-step-failed {
+  color: #c0392b;
+}

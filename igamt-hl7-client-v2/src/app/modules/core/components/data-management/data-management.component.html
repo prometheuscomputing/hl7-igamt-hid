@@ -43,13 +43,6 @@
       </div>
       <div class="card-body">
         <div class="form-group">
-          <label>Import Mode</label>
-          <select class="form-control" [(ngModel)]="importOptions.mode" [disabled]="importLoading">
-            <option value="MERGE">Merge missing resources only</option>
-            <option value="OVERRIDE">Override (delete before import)</option>
-          </select>
-        </div>
-        <div class="form-group">
           <label>Archive</label>
           <div class="input-group">
             <div class="custom-file">
@@ -61,9 +54,9 @@
             </div>
           </div>
         </div>
-        <div class="alert alert-warning" *ngIf="importOptions.mode === 'OVERRIDE' && !importLoading">
+        <div class="alert alert-warning" *ngIf="!importLoading">
           <i class="fa fa-exclamation-triangle mr-1"></i>
-          Override deletes existing resources owned by the IG before import.
+          Import replaces existing resources with the same identifiers.
         </div>
         <button class="btn btn-primary" type="button" (click)="openImportDialog()" [disabled]="!selectedFile || importLoading">
           <i class="fa fa-spinner fa-spin mr-1" *ngIf="importLoading"></i>

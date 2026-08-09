@@ -5,7 +5,14 @@ import { Observable } from 'rxjs';
 export interface IMiniDumpOptions {
   archiveName?: string;
   format?: 'JSON' | 'BSON' | 'BOTH';
-  mode?: 'OVERRIDE' | 'MERGE';
+  mode?: 'OVERRIDE';
+}
+
+export interface IMiniDumpValidationResult {
+  igCount: number;
+  referencedImageCount: number;
+  includedImageCount: number;
+  exportedBy?: string;
 }
 
 @Injectable({
@@ -25,16 +32,16 @@ export class MiniDumpService {
     return this.http.get('/api/account/mini-dump', { responseType: 'blob', params });
   }
 
+  validateMiniDump(file: File, options: IMiniDumpOptions = {}): Observable<IMiniDumpValidationResult> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http.post<IMiniDumpValidationResult>('/api/account/mini-dump/validate', formData);
+  }
+
   importMiniDump(file: File, options: IMiniDumpOptions = {}): Observable<void> {
     const formData = new FormData();
     formData.append('file', file, file.name);
-
-    let params = new HttpParams();
-    if (options.mode) {
-      params = params.set('mode', options.mode);
-    }
-
+    const params = new HttpParams().set('mode', 'OVERRIDE');
     return this.http.post<void>('/api/account/mini-dump', formData, { params });
   }
 }
-

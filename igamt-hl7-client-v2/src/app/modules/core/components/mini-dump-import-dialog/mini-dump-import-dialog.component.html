@@ -1,0 +1,42 @@
+<h2 mat-dialog-title>Import Archive</h2>
+
+<mat-dialog-content>
+  <p class="text-muted mb-3">
+    IGAMT validates the archive first. Import is all-or-nothing — if any check fails, nothing is saved.
+  </p>
+
+  <p-progressBar mode="indeterminate" *ngIf="working"></p-progressBar>
+
+  <ul class="import-step-list">
+    <li *ngFor="let step of steps" [class]="'import-step import-step-' + step.status">
+      <i class="fa mr-2" [ngClass]="{
+        'fa-spinner fa-spin': step.status === 'active',
+        'fa-check text-success': step.status === 'done',
+        'fa-times text-danger': step.status === 'failed',
+        'fa-circle-o': step.status === 'pending'
+      }"></i>
+      <span>{{ step.label }}</span>
+    </li>
+  </ul>
+
+  <div class="alert alert-info mt-3" *ngIf="validationSummary && !errorMessage">
+    <div><strong>{{ validationSummary.igCount }}</strong> implementation guide(s)</div>
+    <div><strong>{{ validationSummary.referencedImageCount }}</strong> referenced image(s)</div>
+    <div><strong>{{ validationSummary.includedImageCount }}</strong> image file(s) in archive</div>
+    <div *ngIf="validationSummary.exportedBy">Exported by <strong>{{ validationSummary.exportedBy }}</strong></div>
+  </div>
+
+  <div class="alert alert-danger mt-3" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <div class="alert alert-success mt-3" *ngIf="completed">
+    Import completed successfully. All resources and referenced images were restored.
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions style="justify-content: flex-end;">
+  <button type="button" class="btn btn-sm btn-info" (click)="close()" [disabled]="working">
+    {{ completed ? 'Close' : 'Cancel' }}
+  </button>
+</mat-dialog-actions>

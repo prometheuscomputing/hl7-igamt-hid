@@ -2,6 +2,7 @@ package gov.nist.hit.hl7.igamt.web.app.account;
 
 import gov.nist.hit.hl7.igamt.common.base.model.DownloadFile;
 import gov.nist.hit.hl7.igamt.common.base.model.ResponseMessage;
+import gov.nist.hit.hl7.igamt.minidump.model.MiniDumpValidationResult;
 import gov.nist.hit.hl7.igamt.minidump.service.MiniDumpService;
 import java.io.IOException;
 import java.util.Date;
@@ -40,6 +41,14 @@ public class MiniDumpController {
     response.setContentType(file.getContentType());
     response.setHeader("Content-Disposition", "attachment; filename=" + file.getFileName());
     FileCopyUtils.copy(file.getStream(), response.getOutputStream());
+  }
+
+  @PostMapping(path = "/validate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @PreAuthorize("isAuthenticated()")
+  public MiniDumpValidationResult validateMiniDump(Authentication authentication,
+                                                   @RequestPart("file") MultipartFile file) throws IOException {
+    String username = authentication.getName();
+    return miniDumpService.validateUserData(username, file.getInputStream());
   }
 
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

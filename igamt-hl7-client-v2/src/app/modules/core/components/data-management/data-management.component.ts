@@ -2,11 +2,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { Store } from '@ngrx/store';
-import { ConfirmDialogComponent, IConfirmDialogData } from '../../../dam-framework/components/fragments/confirm-dialog/confirm-dialog.component';
 import { Message, MessageType } from '../../../dam-framework/models/messages/message.class';
 import { MessageService } from '../../../dam-framework/services/message.service';
 import { TurnOffLoader, TurnOnLoader } from '../../../dam-framework/store/loader/loader.actions';
 import { IMiniDumpOptions, MiniDumpService } from '../../services/mini-dump.service';
+import { MiniDumpImportDialogComponent } from '../mini-dump-import-dialog/mini-dump-import-dialog.component';
 
 @Component({
   selector: 'app-data-management',
@@ -21,7 +21,7 @@ export class DataManagementComponent {
     format: 'JSON',
     archiveName: '',
   };
-  importOptions: IMiniDumpOptions = { mode: 'MERGE' };
+  readonly importOptions: IMiniDumpOptions = { mode: 'OVERRIDE' };
   selectedFile: File | null = null;
 
   constructor(private miniDumpService: MiniDumpService, private store: Store<any>, private messageService: MessageService, private dialog: MatDialog) {
@@ -33,16 +33,15 @@ export class DataManagementComponent {
       this.toast(MessageType.FAILED, 'Select an archive before continuing');
       return;
     }
-    const modeLabel = this.importOptions.mode === 'OVERRIDE'
-      ? 'OVERRIDE – all matching documents will be deleted before import'
-      : 'MERGE – only missing documents will be added';
-    const data: IConfirmDialogData = {
-      action: 'Import',
-      question: `You are about to import "${this.selectedFile.name}" in ${modeLabel} mode. This operation may take a while. Do you want to continue?`,
-    };
-    this.dialog.open(ConfirmDialogComponent, { width: '480px', data }).afterClosed().subscribe((confirmed) => {
-      if (confirmed) {
-        this.import();
+    this.importLoading = true;
+    this.dialog.open(MiniDumpImportDialogComponent, {
+      width: '560px',
+      disableClose: true,
+      data: { file: this.selectedFile, options: this.importOptions },
+    }).afterClosed().subscribe((completed) => {
+      this.importLoading = false;
+      if (completed) {
+        this.selectedFile = null;
       }
     });
   }
@@ -92,28 +91,6 @@ export class DataManagementComponent {
     if (input.files && input.files.length) {
       this.selectedFile = input.files[0];
     }
-  }
-
-
-  import(): void {
-    if (!this.selectedFile) {
-      return;
-    }
-    this.importLoading = true;
-    this.store.dispatch(new TurnOnLoader({ blockUI: true }));
-    this.miniDumpService.importMiniDump(this.selectedFile, this.importOptions).subscribe(
-      () => {
-        this.store.dispatch(new TurnOffLoader());
-        this.toast(MessageType.SUCCESS, 'Import completed successfully. All resources have been restored.');
-        this.importLoading = false;
-        this.selectedFile = null;
-      },
-      (err: HttpErrorResponse) => {
-        this.store.dispatch(new TurnOffLoader());
-        this.store.dispatch(this.messageService.actionFromError(err));
-        this.importLoading = false;
-      },
-    );
   }
 
   clearImportFile(): void {

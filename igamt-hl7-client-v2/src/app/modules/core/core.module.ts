@@ -3,6 +3,7 @@ import { HttpClientModule } from '@angular/common/http';
 import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatDialogModule } from '@angular/material/dialog';
 import { EffectsModule } from '@ngrx/effects';
 import { StoreModule } from '@ngrx/store';
 import { CardModule } from 'primeng/card';
@@ -16,6 +17,7 @@ import { ApiKeyManagementComponent } from './components/api-key-management/api-k
 import { ConfigurationDialogComponent } from './components/configuration-dialog/configuration-dialog.component';
 import { CreateApiKeyComponent } from './components/create-api-key/create-api-key.component';
 import { DataManagementComponent } from './components/data-management/data-management.component';
+import { MiniDumpImportDialogComponent } from './components/mini-dump-import-dialog/mini-dump-import-dialog.component';
 import { ErrorPageComponent } from './components/error-page/error-page.component';
 import { FooterComponent } from './components/footer/footer.component';
 import { HeaderComponent } from './components/header/header.component';
@@ -42,11 +44,13 @@ import { MiniDumpService } from './services/mini-dump.service';
     ApiKeyManagementComponent,
     CreateApiKeyComponent,
     DataManagementComponent,
+    MiniDumpImportDialogComponent,
   ],
   imports: [
     CommonModule,
     HttpClientModule,
     FormsModule,
+    MatDialogModule,
     CardModule,
     TableModule,
     ProgressBarModule,
