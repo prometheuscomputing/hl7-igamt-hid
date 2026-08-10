@@ -121,7 +121,7 @@ export class CodeSetServiceService {
   }
 
   verifyCodeSet(codeSetId: string, codeSetVersionId: string): Observable<IVerificationEnty[]> {
-    return this.http.post<IVerificationEnty[]>(`/api/code-set/${codeSetId}/code-set-version/${codeSetVersionId}/verify`, {});
+    return this.http.post<IVerificationEnty[]>(`api/code-set/${codeSetId}/code-set-version/${codeSetVersionId}/verify`, {});
   }
 
 }
