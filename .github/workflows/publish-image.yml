@@ -42,6 +42,16 @@ jobs:
           java-version: "8"
           cache: maven
 
+      - name: Check out hl7-auth-hid (auth-utils dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: prometheuscomputing/hl7-auth-hid
+          ref: transition
+          path: hl7-auth-hid
+
+      - name: Install auth-utils into local Maven repo
+        run: mvn -f hl7-auth-hid/pom.xml install -pl auth-utils -am -DskipTests -B
+
       - name: Maven package
         run: mvn clean install -DskipTests -B
 
