@@ -116,7 +116,7 @@ export class EntityBrowseDialogComponent implements OnInit {
   getTreeByScope(scope: BrowserScope) {
     this.scope = scope;
 
-    this.http.get<IBrowserTreeNode[]>('/api/browser/' + scope).pipe(
+    this.http.get<IBrowserTreeNode[]>('api/browser/' + scope).pipe(
       map((nodes) => {
         const n = this.processNodes(nodes);
         this.browserTree = [

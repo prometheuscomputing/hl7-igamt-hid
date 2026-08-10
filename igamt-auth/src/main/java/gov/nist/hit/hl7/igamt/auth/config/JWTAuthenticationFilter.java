@@ -33,7 +33,9 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
     } catch (Exception e) {
       // Clear cookie
       Cookie authCookie = new Cookie("authCookie", "");
-      authCookie.setPath("/api");
+      // Include the context path so the path matches the cookie that was
+      // issued. Empty at the root context, so this keeps the previous "/api".
+      authCookie.setPath(request.getContextPath() + "/api");
       authCookie.setMaxAge(0);
       response.addCookie(authCookie);
       // Clear Security Context

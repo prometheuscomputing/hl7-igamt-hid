@@ -40,8 +40,8 @@ import { IExportConfigurationGlobal } from './../../export-configuration/models/
 })
 export class IgService {
 
-  readonly EXPORT_URL = '/api/export/ig/';
-  readonly IG_END_POINT = '/api/igdocuments/';
+  readonly EXPORT_URL = 'api/export/ig/';
+  readonly IG_END_POINT = 'api/igdocuments/';
   readonly CONFIGURATION = '/configuration/';
 
   constructor(private http: HttpClient, private location: LocationStrategy) {
@@ -301,7 +301,7 @@ export class IgService {
     form.append('file', file);
     return this.http.post<{
       link: string,
-    }>('/api/storage/upload', form);
+    }>('api/storage/upload', form);
   }
 
   saveMetadata(id: string, metadata: IMetadata): Observable<Message<any>> {
@@ -422,7 +422,7 @@ export class IgService {
   }
 
   loadDomain(username: string, password: string, tool: IConnectingInfo): Observable<any[]> {
-    return this.http.get<any[]>('/api/testing/domains', this.getGvtOptions(username, password, tool));
+    return this.http.get<any[]>('api/testing/domains', this.getGvtOptions(username, password, tool));
   }
 
   getGvtOptions(username: string, password: string, tool: IConnectingInfo) {
@@ -450,7 +450,7 @@ export class IgService {
     targetDomain: string,
   ) {
     return this.http.post(
-      '/api/testing/' + igId + '/push/' + targetDomain,
+      'api/testing/' + igId + '/push/' + targetDomain,
       {
         selected: selectedIds,
         externalValueSetsExportMode: externalValueSetExportConfiguration.externalValueSetsExportMode,
@@ -476,7 +476,7 @@ export class IgService {
   importFromFile(documentId, resourceType: Type, targetType: Type, file: any) {
     const form: FormData = new FormData();
     form.append('file', file);
-    return this.http.post<Message<IAddResourceFromFile>>('/api/igdocuments/' + documentId + '/valuesets/uploadCSVFile', form);
+    return this.http.post<Message<IAddResourceFromFile>>('api/igdocuments/' + documentId + '/valuesets/uploadCSVFile', form);
   }
 
   getDisplay(id: string, delta: boolean) {

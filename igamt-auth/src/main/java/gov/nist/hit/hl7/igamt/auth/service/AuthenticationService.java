@@ -37,8 +37,8 @@ import java.util.ArrayList;
  *
  */
 public interface AuthenticationService {
-  public ConnectionResponseMessage<UserResponse> connect(HttpServletResponse response,
-      LoginRequest user) throws AuthenticationException;
+  public ConnectionResponseMessage<UserResponse> connect(HttpServletRequest req,
+      HttpServletResponse response, LoginRequest user) throws AuthenticationException;
 
   public ConnectionResponseMessage<UserResponse> register(RegistrationRequest user)
       throws AuthenticationException;

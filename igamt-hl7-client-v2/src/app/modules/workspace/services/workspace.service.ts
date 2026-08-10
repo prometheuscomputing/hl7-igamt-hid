@@ -50,7 +50,7 @@ export interface IWorkspacePublish {
 })
 export class WorkspaceService {
 
-  readonly WORKSPACE_END_POINT = '/api/workspace/';
+  readonly WORKSPACE_END_POINT = 'api/workspace/';
 
   constructor(
     private http: HttpClient,
