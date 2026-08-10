@@ -158,7 +158,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	}
 
 	@Override
-	public ConnectionResponseMessage<UserResponse> connect(HttpServletResponse response, LoginRequest user)
+	public ConnectionResponseMessage<UserResponse> connect(HttpServletRequest req,
+			HttpServletResponse response, LoginRequest user)
 			throws AuthenticationException {
 		try {
 			HttpHeaders headers = new HttpHeaders();
@@ -175,7 +176,12 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 				if (call.getHeaders().containsKey("Authorization")) {
 					headers.add(HttpHeaders.CONTENT_TYPE, "application/json; charset=UTF-8");
 					Cookie authCookie = new Cookie("authCookie", call.getHeaders().get("Authorization").get(0));
-					authCookie.setPath("/api");
+					// Scope the cookie to this application's own API path. Without the
+					// context path a browser will not send it back when the application
+					// is served under a prefix, so every authenticated call after login
+					// is rejected. Empty at the root context, so behaviour is unchanged
+					// there.
+					authCookie.setPath(req.getContextPath() + "/api");
 					authCookie.setMaxAge(SecurityConstants.EXPIRATION_DATE - 20);
 					response.setContentType("application/json");
 					response.addCookie(authCookie);
