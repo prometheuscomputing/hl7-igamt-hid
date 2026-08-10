@@ -199,7 +199,7 @@ export class ExportToolComponent implements OnInit {
       excluded: 0,
       snapshot: 0,
     };
-    this.http.post<any>('/api/igdocuments/' + this.data.igId + '/preverification', { ids: this.ids, exportType: this.tool.label }).pipe(
+    this.http.post<any>('api/igdocuments/' + this.data.igId + '/preverification', { ids: this.ids, exportType: this.tool.label }).pipe(
       flatMap((result) => {
         const report = result.verificationIssues;
         const externalValueSetExportModes = result.externalValueSetExportModes || {};

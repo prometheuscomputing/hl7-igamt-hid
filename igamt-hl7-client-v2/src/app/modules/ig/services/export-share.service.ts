@@ -8,7 +8,7 @@ import { IShareExportConfiguration } from '../components/ig-share-link-dialog/ig
   providedIn: 'root',
 })
 export class ExportShareService {
-  readonly IG_API_BASE = '/api/igdocuments/';
+  readonly IG_API_BASE = 'api/igdocuments/';
   readonly SHARE_LINK = '/sharelink/';
   constructor(private http: HttpClient) { }
 

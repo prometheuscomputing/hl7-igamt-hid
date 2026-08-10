@@ -124,7 +124,7 @@ export class IgTocFilterService {
       return this.store.select(selectLoadedDocumentInfo).pipe(
         take(1),
         mergeMap((x) => {
-          return this.http.post<IResourceFilter>('/api/igdocuments/' + x.documentId + '/filter/', this.getFilterInput(config));
+          return this.http.post<IResourceFilter>('api/igdocuments/' + x.documentId + '/filter/', this.getFilterInput(config));
         }));
     } else {
       return of({
@@ -141,7 +141,7 @@ export class IgTocFilterService {
     return this.store.select(selectLoadedDocumentInfo).pipe(
       take(1),
       mergeMap((x) => {
-        return this.http.post<IResourceFilter>('/api/igdocuments/' + x.documentId + '/filter/', {
+        return this.http.post<IResourceFilter>('api/igdocuments/' + x.documentId + '/filter/', {
           conformanceProfiles: [conformanceProfileId],
           usageFilter: {
             allow: true,

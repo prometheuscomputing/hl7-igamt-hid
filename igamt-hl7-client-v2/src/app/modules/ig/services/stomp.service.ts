@@ -133,7 +133,7 @@ export class DocumentSessionStompService {
   }
 
   private connect(session: IDocumentSessionId): Observable<DocumentSessionMessageManager> {
-    const socket = new SockJS('/api/ig-ws', [], {
+    const socket = new SockJS('api/ig-ws', [], {
       sessionId: () => {
         return session.uid;
       },
