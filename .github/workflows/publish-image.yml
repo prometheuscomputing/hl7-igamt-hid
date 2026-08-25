@@ -33,7 +33,7 @@ jobs:
         working-directory: igamt-hl7-client-v2
         run: |
           npm install
-          npm run aot
+          npm run build-prod
 
       - name: Set up Java 8
         uses: actions/setup-java@v4
