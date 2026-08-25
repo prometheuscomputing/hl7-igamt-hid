@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import javax.servlet.http.Cookie;
@@ -37,6 +38,7 @@ public class TokenAuthenticationService {
   Environment env;
 
 
+  @SuppressWarnings("unchecked")
   public UsernamePasswordAuthenticationToken getAuthentication(HttpServletRequest request)
       throws ExpiredJwtException, UnsupportedJwtException, MalformedJwtException,
       SignatureException, IllegalArgumentException, FileNotFoundException, NoSuchAlgorithmException,
@@ -48,22 +50,25 @@ public class TokenAuthenticationService {
       Claims claims = Jwts.parser().setSigningKey(crypto.pub(env.getProperty("key.public")))
           .parseClaimsJws(token.getValue()).getBody();
       String username = claims.getSubject();
-      System.out.println(username);
-      ArrayList<Map<String, String>> roles = (ArrayList<Map<String, String>>) claims.get("roles");
+      List<Map<String, String>> roles = (List<Map<String, String>>) claims.get("roles");
+
+      // A token with no roles claim used to NPE here, which the filter turned
+      // into "clear the cookie and refuse the request". Keep that outcome, but
+      // reach it deliberately: IllegalArgumentException is already the filter's
+      // bad-token branch, so behaviour is unchanged and nothing silently
+      // authenticates with an empty authority set.
+      if (roles == null || roles.isEmpty()) {
+        throw new IllegalArgumentException("authCookie carries no roles claim");
+      }
 
       Collection<GrantedAuthority> authorities = new ArrayList<>();
-      roles.forEach(r -> {
-        System.out.println(r);
-        authorities.add(new SimpleGrantedAuthority(r.get("authority")));
-      });
-      UsernamePasswordAuthenticationToken authenticatedUser =
-          new UsernamePasswordAuthenticationToken(username, token.getValue(), authorities);
-      return authenticatedUser;
+      for (Map<String, String> role : roles) {
+        authorities.add(new SimpleGrantedAuthority(role.get("authority")));
+      }
+      return new UsernamePasswordAuthenticationToken(username, token.getValue(), authorities);
     } else {
       return null;
     }
   }
-
-
 
 }
