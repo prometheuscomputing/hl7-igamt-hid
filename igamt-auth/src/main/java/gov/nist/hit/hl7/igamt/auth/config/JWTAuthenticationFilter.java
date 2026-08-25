@@ -11,6 +11,7 @@ import javax.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -34,7 +35,18 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
   protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
     try {
       UsernamePasswordAuthenticationToken authentication = tokenService.getAuthentication(request);
-      SecurityContextHolder.getContext().setAuthentication(authentication);
+      // Install a context built from scratch instead of writing through whatever
+      // instance getContext() returns. Under concurrent load that instance is not
+      // always private to this request, and writing the no-cookie null through it
+      // intermittently stripped the authentication out of another request that was
+      // between its authorization check and its controller. That is the
+      // "session expired"/"login required on refresh" report: page boots race their
+      // own cookie-less asset and ig-ws requests against the authenticated API
+      // calls. Replacing the thread's reference mutates nothing shared, and the
+      // per-request outcome is unchanged: no cookie still means anonymous.
+      SecurityContext freshContext = SecurityContextHolder.createEmptyContext();
+      freshContext.setAuthentication(authentication);
+      SecurityContextHolder.setContext(freshContext);
     } catch (JwtException | IllegalArgumentException badToken) {
       // The token itself is expired, malformed or not signed by us. Dropping the cookie
       // is the right answer: it will never verify, so keeping it only makes the user
