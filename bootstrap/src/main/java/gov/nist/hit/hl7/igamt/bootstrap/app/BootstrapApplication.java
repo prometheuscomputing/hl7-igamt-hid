@@ -936,13 +936,13 @@ public class BootstrapApplication implements CommandLineRunner {
 	}
 
 
-	@PostConstruct
-	void unArchiveIGs() throws ForbiddenOperationException, WorkspaceNotFound {
-		Ig ig = this.igService.findById("65f1ceb08b87bc0007c39d89");
-
-		this.dataFixer.unArchiveIGs(ig);
-		this.dataFixer.addToWorkspaceFolder(ig.getId(), "650dd3ed8b87bc0006f3c172", "6ada831d-7ed1-4393-9f06-9edd17b97a17");
-	}
+	//@PostConstruct
+	//void unArchiveIGs() throws ForbiddenOperationException, WorkspaceNotFound {
+	//	Ig ig = this.igService.findById("65f1ceb08b87bc0007c39d89");
+	//
+	//	this.dataFixer.unArchiveIGs(ig);
+	//	this.dataFixer.addToWorkspaceFolder(ig.getId(), "650dd3ed8b87bc0006f3c172", "6ada831d-7ed1-4393-9f06-9edd17b97a17");
+	//}
 	
 
 }
