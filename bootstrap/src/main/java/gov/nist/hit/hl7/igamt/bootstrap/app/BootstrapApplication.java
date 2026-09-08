@@ -259,9 +259,18 @@ public class BootstrapApplication implements CommandLineRunner {
 		mailSender.setHost(env.getProperty(EMAIL_HOST));
 		mailSender.setPort(Integer.valueOf(env.getProperty(EMAIL_PORT)));
 		mailSender.setProtocol(env.getProperty(EMAIL_PROTOCOL));
+		// A relay that authenticates needs a login and a TLS upgrade; an open
+		// relay needs neither. Both come from configuration so one build serves
+		// either.
+		String username = env.getProperty("email.username");
+		if (username != null && !username.isEmpty()) {
+			mailSender.setUsername(username);
+			mailSender.setPassword(env.getProperty("email.password"));
+		}
 		Properties javaMailProperties = new Properties();
-		//    javaMailProperties.setProperty("email.smtp.auth", env.getProperty(EMAIL_SMTP_AUTH));
-		//    javaMailProperties.setProperty("mail.debug", env.getProperty(EMAIL_DEBUG));
+		javaMailProperties.setProperty("mail.smtp.auth", env.getProperty("email.smtp.auth", "false"));
+		javaMailProperties.setProperty("mail.smtp.starttls.enable", env.getProperty("email.starttls.enable", "false"));
+		javaMailProperties.setProperty("mail.debug", env.getProperty("email.debug", "false"));
 
 		mailSender.setJavaMailProperties(javaMailProperties);
 		return mailSender;
