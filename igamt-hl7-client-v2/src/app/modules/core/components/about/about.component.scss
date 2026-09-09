@@ -1,0 +1,19 @@
+@import '../../../../../assets/variables';
+
+.about-page {
+  @extend %page-wrapper;
+  overflow: auto;
+}
+
+.about-page .card {
+  margin-bottom: 15px;
+}
+
+.about-page .card-body p {
+  text-align: left;
+  margin: 0 0 12px;
+}
+
+.about-page .card-body p:last-child {
+  margin-bottom: 0;
+}
