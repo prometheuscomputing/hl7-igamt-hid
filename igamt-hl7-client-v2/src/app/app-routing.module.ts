@@ -3,6 +3,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { ApiKeyManagementComponent } from './modules/core/components/api-key-management/api-key-management.component';
 import { CreateApiKeyComponent } from './modules/core/components/create-api-key/create-api-key.component';
 import { ErrorPageComponent } from './modules/core/components/error-page/error-page.component';
+import { AboutComponent } from './modules/core/components/about/about.component';
 import { HomeComponent } from './modules/core/components/home/home.component';
 import { NewPasswordComponent } from './modules/core/components/new-password/new-password.component';
 import { RegisterComponent } from './modules/core/components/register/register.component';
@@ -36,6 +37,10 @@ const routes: Routes = [
   {
     path: 'home',
     component: HomeComponent,
+  },
+  {
+    path: 'about',
+    component: AboutComponent,
   },
   {
     path: 'register',
