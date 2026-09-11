@@ -11,6 +11,7 @@ import { RegistrationEffects } from '../../root-store/registration/registration.
 import { UserProfileEffects } from '../../root-store/user-profile/user-profile.effects';
 import { DamAuthenticationModule, DamMessagesModule } from '../dam-framework/dam-framework.module';
 import { SharedModule } from '../shared/shared.module';
+import { AboutComponent } from './components/about/about.component';
 import { ApiKeyManagementComponent } from './components/api-key-management/api-key-management.component';
 import { ConfigurationDialogComponent } from './components/configuration-dialog/configuration-dialog.component';
 import { CreateApiKeyComponent } from './components/create-api-key/create-api-key.component';
@@ -26,6 +27,7 @@ import { UserProfileComponent } from './components/user-profile/user-profile.com
 
 @NgModule({
   declarations: [
+    AboutComponent,
     HeaderComponent,
     FooterComponent,
     RegisterComponent,
@@ -66,6 +68,7 @@ import { UserProfileComponent } from './components/user-profile/user-profile.com
     }),
   ],
   exports: [
+    AboutComponent,
     HeaderComponent,
     FooterComponent,
     RegisterComponent,

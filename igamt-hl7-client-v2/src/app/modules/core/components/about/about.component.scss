@@ -1,0 +1,26 @@
+// Standard Disclaimer and Notices, same panel layout as the other SITT tools.
+.about-page {
+  margin: 0;
+  padding: 25px;
+}
+.about-panel {
+  background: #fff;
+  border: 1px solid #bce8f1;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  h5 {
+    background: #337ab7;
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    margin: 0;
+    padding: 10px 15px;
+    border-radius: 3px 3px 0 0;
+  }
+  p {
+    margin: 12px 15px;
+    text-align: left;
+    color: #333;
+  }
+  p:last-child { margin-bottom: 15px; }
+}

@@ -1,23 +1,98 @@
 @import '../../../../../assets/variables';
 @import '../../../../../assets/navbar';
 
+// SITT chrome (the fleet template, ported from GVT): navy band, teal kicker,
+// gold tool title, "Hosted by Valitheus" lockup top-right.
 .toolbar {
-  background-color: $nist_light_yellow;
+  background-color: $nist_dark_blue;
+  padding: 0;
+  height: $header_toolname_height + px;
+  display: block;
 }
 
-.toolbar-name {
-  position: absolute;
-  font-weight: 400;
-  margin-left: 20px;
-  font-size: 25px;
-  color: black !important;
-  bottom: 0;
-  padding: 0;
+#appheader {
+  font-family: Verdana, Geneva, sans-serif;
+  font-weight: 700;
+  height: 100%;
+  position: relative;
+}
+
+.appheader-title {
+  display: inline-block;
+  text-decoration: none;
+  cursor: pointer;
+  &:hover, &:focus { text-decoration: none; }
+}
+
+#programbrand {
+  display: block;
+  margin: 9px 0 6px 10px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 2.6px;
+  text-transform: uppercase;
+  line-height: 1;
+  color: #9fe4d8;
+  white-space: nowrap;
+  .pb-tick {
+    display: inline-block;
+    width: 26px;
+    height: 4px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #0F766E, #2DD4BF);
+    vertical-align: middle;
+    margin-right: 8px;
+    margin-bottom: 2px;
+  }
+  .pb-text { display: inline-block; vertical-align: middle; }
+}
+
+#apptitle {
+  display: inline-block;
+  margin: 0 0 5px 10px;
+  font-size: 30px;
+  line-height: 1.1;
+  color: $nist_dark_yellow;
+  white-space: nowrap;
+}
+
+.hosted-lockup-wrap {
+  float: right;
+  text-align: right;
+  margin: 10px 14px 0 0;
+}
+
+.mb {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+  line-height: 1;
+  vertical-align: middle;
+  margin-left: 32px;
+  padding-left: 26px;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  &:hover, &:focus { text-decoration: none; }
+  .mb-eyebrow {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  .vt-mark { display: inline-block; vertical-align: middle; }
+  .vt-word {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2.4px;
+    color: #fff;
+    .vt-word-accent { color: #2dd4bf; }
+  }
 }
 
 .nav-links-bar {
   background-color: $nist_dark_yellow;
-  margin-top: 61px;
+  margin-top: $header_toolname_height + px;
   padding: 0px 0px 0px 0px;
   justify-content: space-between;
   -webkit-box-shadow: 0px 3px 5px -2px rgba(0, 0, 0, 0.75);
@@ -26,7 +101,7 @@
 }
 
 .nav-progress-bar {
-  margin-top: 105px;
+  margin-top: $header_toolname_height + $header_links_height - 2 + px;
   padding: 0px 0px 0px 0px;
   -webkit-box-shadow: 0px 3px 5px -2px rgba(0, 0, 0, 0.75);
   -moz-box-shadow: 0px 3px 5px -2px rgba(0, 0, 0, 0.75);
@@ -35,9 +110,8 @@
 
 
 .toolname-abbrv {
-  //font-weight: 500;
-  //font-size: 20px;
-  color: #ff6f6f;
+  font-size: 12px;
+  color: #ff4d4d;
 }
 
 

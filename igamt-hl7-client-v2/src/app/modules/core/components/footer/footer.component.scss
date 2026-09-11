@@ -1,0 +1,45 @@
+// Branded footer strip (fleet template): attribution bottom-left, the
+// Prometheus lockup bottom-right, on the same light ground as the page.
+#footer {
+  background-color: #f7f7f7;
+  font-family: Verdana, Geneva, sans-serif;
+  .managed-by {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    border-top: 1px solid rgba(2, 26, 76, 0.12);
+    padding: 11px 20px 8px;
+  }
+  .prev-nist {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    line-height: 1;
+    color: #8a93a3;
+  }
+  .mb {
+    display: inline-flex;
+    align-items: center;
+    gap: 11px;
+    text-decoration: none;
+    line-height: 1;
+    &:hover, &:focus { text-decoration: none; }
+    .mb-eyebrow {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 2.4px;
+      text-transform: uppercase;
+      color: #8a93a3;
+    }
+    .mb-name {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      color: #021a4c;
+    }
+  }
+}
