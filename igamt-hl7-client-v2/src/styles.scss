@@ -82,7 +82,12 @@ body {
 .page-container-layout {
   display: grid;
   grid-template-columns: [page-content] 1fr;
-  grid-template-rows: [content-row] auto;
+  grid-template-rows: [content-row] auto [footer-row] auto;
+}
+
+.page-footer {
+  grid-column: page-content;
+  grid-row: footer-row;
 }
 
 .page-content {

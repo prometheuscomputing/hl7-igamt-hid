@@ -8,8 +8,13 @@
         <router-outlet></router-outlet>
       </div>
 
+      <!-- Footer: a second grid row, so it follows the content instead of
+           sitting at the bottom of the viewport-high container and painting
+           over pages longer than the viewport. -->
+      <div *ngIf="!fullscreen" class="page-footer">
+        <app-footer></app-footer>
+      </div>
+
     </div>
   </block-ui>
-<!-- Footer -->
-<app-footer *ngIf="!fullscreen"></app-footer>
 <ng2-toasty [position]="'top-right'"></ng2-toasty>
