@@ -10,15 +10,24 @@
   display: block;
 }
 
+// Flex row so the title never wraps under the lockup: the tool title at 26px
+// plus the lockup is wider than a 1400px viewport, and as inline-block the
+// title dropped below the floated lockup and under the nav bar.
 #appheader {
   font-family: Verdana, Geneva, sans-serif;
   font-weight: 700;
   height: 100%;
   position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: flex-start;
 }
 
 .appheader-title {
-  display: inline-block;
+  order: 0;
+  min-width: 0;
+  display: block;
   text-decoration: none;
   cursor: pointer;
   &:hover, &:focus { text-decoration: none; }
@@ -48,16 +57,19 @@
 }
 
 #apptitle {
-  display: inline-block;
+  display: block;
   margin: 0 0 5px 10px;
-  font-size: 30px;
+  font-size: 26px;
   line-height: 1.1;
   color: $nist_dark_yellow;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hosted-lockup-wrap {
-  float: right;
+  order: 1;
+  flex: 0 0 auto;
   text-align: right;
   margin: 10px 14px 0 0;
 }
