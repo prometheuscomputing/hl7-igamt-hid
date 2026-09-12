@@ -83,6 +83,11 @@ body {
   display: grid;
   grid-template-columns: [page-content] 1fr;
   grid-template-rows: [content-row] auto [footer-row] auto;
+  // The container used to be exactly viewport-high (height: 100%), which put
+  // the footer row at the bottom of the viewport over any page longer than
+  // that. Let it grow with the content; the page scrolls as before.
+  height: auto;
+  min-height: 100%;
 }
 
 .page-footer {
