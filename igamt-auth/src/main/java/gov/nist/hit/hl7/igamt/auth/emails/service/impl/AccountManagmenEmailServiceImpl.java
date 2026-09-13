@@ -50,7 +50,9 @@ public class AccountManagmenEmailServiceImpl implements AccountManagmenEmailServ
     msg.setTo(email);
     msg.setSubject("IGAMT Registration");
     msg.setText(
-        "Dear " + fullname + " \n\n" + "****" + "Welcome To the NIST IGAMT Implementation Guide Authoring and Management " + "" + "\n\n" + "IGAMT TEAM");
+        "Dear " + fullname + " \n\n" + "Welcome to the Implementation Guide Authoring and Management Tool (IGAMT)." + "\n\n"
+            + "IGAMT is part of the Standards & Interoperability Testing Tools (SITT), hosted by Valitheus." + "\n\n"
+            + "Sincerely, " + "\n\n" + "The IGAMT Team");
 
     try {
       this.mailSender.send(msg);
@@ -81,8 +83,9 @@ public class AccountManagmenEmailServiceImpl implements AccountManagmenEmailServ
     SimpleMailMessage msg = new SimpleMailMessage(this.templateMessage);
     msg.setTo(email);
     msg.setSubject("IGAMT Password Reset Success Notification");
-    msg.setText("Dear " + fullname + " \n\n" + "****"
-        + "Your Password has been successfully reseted " + "" + "\n\n" + "IGAMT TEAM");
+    msg.setText("Dear " + fullname + " \n\n"
+        + "Your password has been reset successfully." + "\n\n"
+        + "Sincerely, " + "\n\n" + "The IGAMT Team");
 
     try {
       this.mailSender.send(msg);
@@ -120,7 +123,7 @@ public class AccountManagmenEmailServiceImpl implements AccountManagmenEmailServ
         + "You password reset request has been processed.\n"
         + "Copy and paste the following url to your browser to initiate the password change:\n"
         + url + " \n\n" + "Sincerely, " + "\n\n" + "The IGAMT Team" + "\n\n"
-        + "P.S: If you need help, contact us at 'robert.snelick@nist.gov'");
+        + "P.S: If you need help, contact us at 'contact@valitheus.com'");
 
     try {
       this.mailSender.send(msg);
