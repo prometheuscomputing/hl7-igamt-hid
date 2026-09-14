@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { Component, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material';
 import { Store } from '@ngrx/store';
@@ -53,6 +54,7 @@ export class IgShareLinkDialogComponent {
     private dialog: MatDialog,
     private store: Store<any>,
     private igService: IgService,
+    private location: Location,
     @Inject(MAT_DIALOG_DATA) public data: any,
   ) {
     this.links = [];
@@ -64,9 +66,14 @@ export class IgShareLinkDialogComponent {
         ...this.data.links[id],
       });
     }
-    const host = window.location.protocol + '//' + window.location.host;
     const linkType = this.isDifferential ? 'differential' : '';
-    this.base = host + '/public/ig/' + this.igId + '/' + linkType + (linkType ? '/' : '');
+    this.base = this.publicUrl('public/ig/' + this.igId + '/' + linkType + (linkType ? '/' : ''));
+  }
+
+  // The public page is served by this application, so the link has to carry the
+  // application's base path (for example /igamt/), not just the host.
+  publicUrl(path: string): string {
+    return window.location.protocol + '//' + window.location.host + this.location.prepareExternalUrl(path);
   }
 
   create() {
@@ -115,8 +122,7 @@ export class IgShareLinkDialogComponent {
   }
 
   copy(item: IShareLink) {
-    const host = window.location.protocol + '//' + window.location.host;
-    const url = host + '/public/ig/' + this.igId + '/' + item.id;
+    const url = this.publicUrl('public/ig/' + this.igId + '/' + item.id);
     window.navigator['clipboard'].writeText(url);
     this.copied[item.id] = true;
     setTimeout(() => {
