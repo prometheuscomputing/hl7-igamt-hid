@@ -51,7 +51,10 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
       // The token itself is expired, malformed or not signed by us. Dropping the cookie
       // is the right answer: it will never verify, so keeping it only makes the user
       // hit a 403 on every request with no way back to the login screen.
-      LOG.debug("Rejecting authCookie: {}", badToken.getMessage());
+      // Visible at the default log level on purpose: a rejected token is what the
+      // user experiences as "session timed out", and without the reason and the
+      // request it happened on there is nothing to diagnose.
+      LOG.warn("Rejecting authCookie on {} {}: {}", request.getMethod(), request.getRequestURI(), badToken.getMessage());
       clearAuthCookie(request, response);
       SecurityContextHolder.clearContext();
     } catch (Exception verificationFailed) {

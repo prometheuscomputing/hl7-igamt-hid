@@ -133,7 +133,10 @@ export class DocumentSessionStompService {
   }
 
   private connect(session: IDocumentSessionId): Observable<DocumentSessionMessageManager> {
-    const socket = new SockJS('api/ig-ws', [], {
+    // SockJS resolves a relative URL against the page, not the <base href>, so
+    // inside an IG (/ig/<id>) it used to ask for /ig/<id>/api/ig-ws and every
+    // transport failed. Resolve it against the application's base instead.
+    const socket = new SockJS(new URL('api/ig-ws', document.baseURI).href, [], {
       sessionId: () => {
         return session.uid;
       },
