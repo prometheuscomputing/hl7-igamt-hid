@@ -875,7 +875,7 @@ public class BootstrapApplication implements CommandLineRunner {
 	//@PostConstruct
 	void updatePHinvads() throws ForbiddenOperationException{
 		List<Valueset> phinvads = this.valuesetService.findByDomainInfoScope(Scope.PHINVADS.toString());
-		String url = "https://hl7v2-codesets-adapter.nist.gov/api/v1/phinvads/codesets/";
+		String url = "https://tools.valitheus.com/codeset/api/v1/phinvads/codesets/";
 		for ( Valueset vs : phinvads) {
 			vs.setUrl(url + vs.getOid());
 			vs.setSourceType(SourceType.EXTERNAL_TRACKED);
