@@ -76,15 +76,6 @@
   align-items: center;
 }
 
-.appheader-about {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  color: rgba(255, 255, 255, 0.8);
-  text-decoration: none;
-  cursor: pointer;
-  &:hover, &:focus, &.active { color: #fff; text-decoration: none; }
-}
 
 .mb {
   display: inline-flex;
