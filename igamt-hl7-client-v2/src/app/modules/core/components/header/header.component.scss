@@ -1,8 +1,10 @@
 @import '../../../../../assets/variables';
 @import '../../../../../assets/navbar';
 
-// SITT chrome (the fleet template, ported from GVT): navy band, teal kicker,
-// gold tool title, "Hosted by Valitheus" lockup top-right.
+// SITT chrome inside the original 61px title band: kicker and tool title on
+// the left, About and the "Hosted by Valitheus" lockup on the right. The band
+// height, the nav bar and everything below are untouched; the editor layout
+// (TOC pane, tree tables, banner, bottom dropdowns) depends on them.
 .toolbar {
   background-color: $nist_dark_blue;
   padding: 0;
@@ -10,24 +12,22 @@
   display: block;
 }
 
-// Flex row so the title never wraps under the lockup: the tool title at 26px
-// plus the lockup is wider than a 1400px viewport, and as inline-block the
-// title dropped below the floated lockup and under the nav bar.
 #appheader {
   font-family: Verdana, Geneva, sans-serif;
   font-weight: 700;
   height: 100%;
-  position: relative;
   display: flex;
   flex-wrap: nowrap;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  padding: 0 14px 0 12px;
 }
 
 .appheader-title {
-  order: 0;
   min-width: 0;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-decoration: none;
   cursor: pointer;
   &:hover, &:focus { text-decoration: none; }
@@ -35,54 +35,65 @@
 
 #programbrand {
   display: block;
-  margin: 9px 0 6px 10px;
-  font-size: 15px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 2.6px;
+  letter-spacing: 2.2px;
   text-transform: uppercase;
   line-height: 1;
   color: #9fe4d8;
   white-space: nowrap;
+  margin-bottom: 6px;
   .pb-tick {
     display: inline-block;
-    width: 26px;
-    height: 4px;
+    width: 20px;
+    height: 3px;
     border-radius: 3px;
     background: linear-gradient(90deg, #0F766E, #2DD4BF);
     vertical-align: middle;
-    margin-right: 8px;
+    margin-right: 7px;
     margin-bottom: 2px;
   }
-  .pb-text { display: inline-block; vertical-align: middle; }
 }
 
 #apptitle {
   display: block;
-  margin: 0 0 5px 10px;
-  font-size: 26px;
-  line-height: 1.1;
+  font-size: 21px;
+  line-height: 1;
   color: $nist_dark_yellow;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.hosted-lockup-wrap {
-  order: 1;
+.toolname-abbrv {
+  font-size: 11px;
+  color: #ff4d4d;
+}
+
+.appheader-right {
   flex: 0 0 auto;
-  text-align: right;
-  margin: 10px 14px 0 0;
+  display: flex;
+  align-items: center;
+}
+
+.appheader-about {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  cursor: pointer;
+  &:hover, &:focus, &.active { color: #fff; text-decoration: none; }
 }
 
 .mb {
   display: inline-flex;
   align-items: center;
-  gap: 11px;
+  gap: 9px;
   text-decoration: none;
   line-height: 1;
-  vertical-align: middle;
-  margin-left: 32px;
-  padding-left: 26px;
+  margin-left: 22px;
+  padding-left: 22px;
   border-left: 1px solid rgba(255, 255, 255, 0.2);
   &:hover, &:focus { text-decoration: none; }
   .mb-eyebrow {
@@ -94,9 +105,9 @@
   }
   .vt-mark { display: inline-block; vertical-align: middle; }
   .vt-word {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 2.4px;
+    letter-spacing: 2.2px;
     color: #fff;
     .vt-word-accent { color: #2dd4bf; }
   }
@@ -104,7 +115,7 @@
 
 .nav-links-bar {
   background-color: $nist_dark_yellow;
-  margin-top: $header_toolname_height + px;
+  margin-top: 61px;
   padding: 0px 0px 0px 0px;
   justify-content: space-between;
   -webkit-box-shadow: 0px 3px 5px -2px rgba(0, 0, 0, 0.75);
@@ -113,17 +124,9 @@
 }
 
 .nav-progress-bar {
-  margin-top: $header_toolname_height + $header_links_height - 2 + px;
+  margin-top: 105px;
   padding: 0px 0px 0px 0px;
   -webkit-box-shadow: 0px 3px 5px -2px rgba(0, 0, 0, 0.75);
   -moz-box-shadow: 0px 3px 5px -2px rgba(0, 0, 0, 0.75);
   box-shadow: 0px 3px 5px -2px rgba(0, 0, 0, 0.75);
 }
-
-
-.toolname-abbrv {
-  font-size: 12px;
-  color: #ff4d4d;
-}
-
-
