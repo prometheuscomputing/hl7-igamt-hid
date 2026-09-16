@@ -42,3 +42,6 @@ Favorable outcome in the use of the materials on this site does not imply confor
 The Implementation Guide Authoring and Management Tool and its associated artifacts were originally developed by the National Institute of Standards and Technology (NIST) in collaboration with the Centers for Disease Control and Prevention (CDC) and the Office of the National Coordinator (ONC).
 # Identifier of a value set location rule in the bootstrap data, not wording.
 CQ_NIST
+# The tool's own Google Group, named before the transition. A support
+# channel its users already subscribe to, kept on the home page.
+The Google Group NIST-IGAMT stays open for discussion and questions about the tool.

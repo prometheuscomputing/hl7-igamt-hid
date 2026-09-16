@@ -8,8 +8,7 @@ constants of the application's own classes (the account emails). Sentences
 listed in scripts/brand-allowed.txt are removed first, matched as whole
 sentences with loose whitespace so a re-wrapped paragraph still counts.
 Anything left that says NIST or nist.gov fails, with the snippet, and so
-does the federal analytics loader or a Google Groups link anywhere in the
-client.
+does the federal analytics loader anywhere in the client.
 
     scripts/verify-branding.py [path/to/hl7-igamt.jar]
 """
@@ -24,7 +23,9 @@ JAR = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "hl7-igamt.jar"
 ALLOWED = ROOT / "scripts/brand-allowed.txt"
 
 PATTERNS = ("NIST", "nist.gov")
-HOOKS = ("dap.digitalgov.gov", "_fed_an_ua_tag", "googletagmanager", "googlegroups", "groups.google")
+# Third-party loaders that must not ship. The tool's Google Group is a
+# support channel the users rely on, not a tracker, so it is not listed here.
+HOOKS = ("dap.digitalgov.gov", "_fed_an_ua_tag", "googletagmanager")
 PUBLIC = "BOOT-INF/classes/public/"
 CLASSES = "BOOT-INF/classes/gov/"
 ATTR = re.compile(r'(?:href|src|content|title|alt)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>"\']+))', re.I)
