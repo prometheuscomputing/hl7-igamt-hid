@@ -53,17 +53,21 @@ docker pull ghcr.io/prometheuscomputing/hl7-igamt-hid:2.11.0-transition.1
 
 ## Runtime configuration
 
-Not baked into the image:
+Not baked into the image. `docker/entrypoint.sh` reads these when the
+container starts and passes them to the application as system properties:
 
 | Variable | Purpose |
 |----------|---------|
-| `KEY_PUBLIC_FILE` | Path to DER public key (Compose mounts `./keys/publicKey.txt`) |
-| `SERVER_SERVLET_CONTEXT_PATH` | Default `/igamt` |
+| `SERVER_SERVLET_CONTEXT_PATH` | Path the application serves at, e.g. `/igamt`. The entrypoint also sets the client's `<base href>` to match, so the bundles resolve under that path. Default `/`. |
 | `DB_HOST`, `DB_PORT`, `MONGO_INITDB_DATABASE` | IGAMT MongoDB (**7**) |
+| `SPRING_DATA_MONGODB_USERNAME`, `SPRING_DATA_MONGODB_PASSWORD`, `SPRING_DATA_MONGODB_AUTHENTICATION_DATABASE` | MongoDB credentials when the server has authorization enabled; leave unset for a credential-free server |
+| `KEY_PUBLIC_B64` or `KEY_PUBLIC_FILE` | The auth service's public key, which verifies every login token. Either the key itself, base64, written to the file at start, or a mounted DER file (default path `/usr/local/hl7-igamt/publicKey.txt`). The container refuses to start without one: with no key, login succeeds and every authenticated call answers 403. |
 | `AUTH_HOST` | hl7-auth service URL |
-| `HOST_URL`, `VOCAB_URL` | Public URLs |
+| `HOST_URL`, `VOCAB_URL` | Public URL of this instance (password reset links) and the vocabulary service |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_PROTOCOL`, `EMAIL_SMTP_AUTH`, `EMAIL_STARTTLS_ENABLE`, `EMAIL_DEBUG`, `EMAIL_FROM`, `EMAIL_ADMIN`, `EMAIL_SUBJECT`, `EMAIL_USERNAME`, `EMAIL_PASSWORD` | Account emails; the defaults in `application.yml` point at localhost and no-reply addresses, so nothing is sent until these are set |
+| `PROFILE` | Spring profile, default `prod` |
 
-The public key file must match hl7-auth's signing key. In `healthit-local-setup/igamt/`, run `./generate-keys.sh` — it updates `.env` and `keys/publicKey.txt` together.
+The public key must match hl7-auth's signing key. In `healthit-local-setup/igamt/`, run `./generate-keys.sh` — it updates `.env` and `keys/publicKey.txt` together.
 
 For IDE runs, the matching public key is under `.local/etc/hit/auth/publicKey.txt` — see **`BUILD.md`**.
 

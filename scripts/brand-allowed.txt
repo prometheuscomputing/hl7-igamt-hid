@@ -1,0 +1,44 @@
+# Approved sentences and titles that may name NIST. One complete sentence per
+# line (a document title may be a single file name); fragments are rejected by scripts/verify-branding.py because a fragment
+# would also erase the start of an unapproved sentence.
+As of August 2026, the National Institute of Standards and Technology (NIST), is no longer funding the project, and ongoing support for the tools is funded by the Centers for Disease Control and Prevention (CDC) and Office of the National Coordinator (ONC) for Health Information Technology, a component of the U.S.
+As of August 2026, the National Institute of Standards and Technology (NIST), is no longer funding the project, and ongoing support for the tools is funded by the Office of the National Coordinator for Health Information Technology, a component of the U.S.
+As of August 2026, the National Institute of Standards and Technology (NIST), is no longer funding the project, and ongoing support for this tool is funded by the Office of the National Coordinator for Health Information Technology, a component of the U.S.
+Favorable outcome in the use of the test materials on this site does not imply conformance recognition or endorsement by NIST, CDC, ONC, AIRA, or Prometheus Computing, LLC.
+Favorable outcome in the use of the test materials on this site does not imply conformance recognition or endorsement by NIST, ONC, or Prometheus Computing, LLC.
+Four validators for HL7 Clinical Document Architecture (CDA) documents, carried over from the NIST CDA Guideline Validation site and now operated as part of the SITT suite:
+IN NO EVENT SHALL NIST, CDC, ONC, AIRA, OR PROMETHEUS COMPUTING, LLC BE LIABLE FOR ANY DAMAGES, INCLUDING, BUT NOT LIMITED TO, DIRECT, INDIRECT, SPECIAL, OR CONSEQUENTIAL DAMAGES, ARISING OUT OF, RESULTING FROM, OR IN ANY WAY CONNECTED WITH THIS SOFTWARE, WHETHER OR NOT BASED UPON WARRANTY, CONTRACT, TORT, OR OTHERWISE, WHETHER OR NOT INJURY WAS SUSTAINED BY PERSONS OR PROPERTY OR OTHERWISE, AND WHETHER OR NOT LOSS WAS SUSTAINED FROM, OR AROSE OUT OF THE RESULTS OF, OR USE OF, THE SOFTWARE OR SERVICES PROVIDED HEREUNDER.
+IN NO EVENT SHALL NIST, ONC, OR PROMETHEUS COMPUTING, LLC BE LIABLE FOR ANY DAMAGES, INCLUDING, BUT NOT LIMITED TO, DIRECT, INDIRECT, SPECIAL, OR CONSEQUENTIAL DAMAGES, ARISING OUT OF, RESULTING FROM, OR IN ANY WAY CONNECTED WITH THIS SOFTWARE, WHETHER OR NOT BASED UPON WARRANTY, CONTRACT, TORT, OR OTHERWISE, WHETHER OR NOT INJURY WAS SUSTAINED BY PERSONS OR PROPERTY OR OTHERWISE, AND WHETHER OR NOT LOSS WAS SUSTAINED FROM, OR AROSE OUT OF THE RESULTS OF, OR USE OF, THE SOFTWARE OR SERVICES PROVIDED HEREUNDER.
+Information provided in the tool does not imply endorsement of any particular product, service, organization, company, information provider, or content by NIST, CDC, ONC, AIRA, or Prometheus Computing, LLC.
+NIST Acknowledgement
+NIST Errata and Clarifications Guidelines 2025
+NIST, CDC, ONC, AIRA, and Prometheus Computing, LLC appreciate acknowledgment if the software is used.
+NIST, ONC, and Prometheus Computing, LLC appreciate acknowledgment if the software is used.
+Neither NIST nor Prometheus Computing, LLC assumes responsibility for its use by other parties, and no guarantees, expressed or implied, are made about its quality, reliability, or any other characteristic.
+Permission in the United States and in foreign countries, to the extent that NIST, the CDC, ONC, AIRA, Prometheus Computing, LLC, or the U.S.
+Permission in the United States and in foreign countries, to the extent that NIST, the ONC, Prometheus Computing, LLC, or the U.S.
+Previously known as the NIST tools
+Prometheus Computing LLC, CDC, ONC, AIRA, NIST, and any stakeholder responsible for, participating in, or having participated in sponsoring the program under which the tools are funded are not responsible for user-provided or organization-provided content that is uploaded, entered, shared, stored, or transmitted in violation of applicable law, regulation, policy, contract, privacy requirement, security requirement, data-use restriction, or organizational rule.
+Prometheus Computing LLC, CDC, ONC, AIRA, NIST, and any stakeholder responsible for, participating in, or having participated in sponsoring the program under which the tools are funded do not obtain ownership of that content and may not use it for any unrelated business, commercial, or organizational purpose outside the operation, support, maintenance, migration, security, and administration of the tools.
+Pursuant to Title 17, United States Code, Section 105, works created by NIST employees within the scope of their employment are not subject to copyright protection in the United States and reside in the public domain.
+Such access does not transfer ownership of user-provided or organization-provided content to Prometheus Computing LLC, CDC, ONC, AIRA, NIST, or any stakeholder responsible for, participating in, or having participated in sponsoring the program under which the tools are funded.
+The HL7 v2 General Validation Tool, its validation engine, and the test scopes, test data, and associated artifacts it hosts were originally developed by the National Institute of Standards and Technology (NIST) in collaboration with the Centers for Disease Control and Prevention (CDC) and the public health, laboratory, and standards organizations whose test scopes the tool serves.
+The National Health Care Surveys validators were developed at the National Institute of Standards and Technology (NIST) by employees of the Federal Government in the course of their official duties and are in the public domain (17 U.S.C. § 105).
+The Test Case Authoring and Management Tool and its associated artifacts were originally developed by the National Institute of Standards and Technology (NIST) in collaboration with the Centers for Disease Control and Prevention (CDC) and the Office of the National Coordinator (ONC).
+The former "NIST Tools" have been rebranded as the Standards & Interoperability Testing Tools (SITT).
+The former "NIST Tools" have been rebranded as the Standards and Interoperability Testing Tools (SITT).
+This Test Suite, the test data, and associated artifacts were originally developed by the National Institute of Standards and Technology (NIST) in collaboration with the Centers for Disease Control and Prevention (CDC) and the American Immunization Registries Association (AIRA).
+This Test Suite, the test data, and associated artifacts were originally developed by the National Institute of Standards and Technology (NIST) in collaboration with the Centers for Disease Control and Prevention (CDC).
+This Test Tool, the test data, and associated artifacts were originally developed by the National Institute of Standards and Technology (NIST) in collaboration with the Centers for Disease Control and Prevention (CDC).
+This software was originally developed by employees and contractors of the National Institute of Standards and Technology (NIST), an agency of the United States Federal Government.
+This software was originally developed by employees and contractors of the National Institute of Standards and Technology (NIST).
+NIST Errata and Clarifications Guidelines
+NIST ELR Normative Test Process Document
+NIST_ELR_Normative_Test_Process_Document
+NIST ELR Quick Guide
+NIST ELR_Tool_Tutorial
+Installation Guide - NIST HL7v2 Validation Tools
+Favorable outcome in the use of the materials on this site does not imply conformance recognition or endorsement by NIST, CDC, ONC, AIRA, or Prometheus Computing, LLC.
+The Implementation Guide Authoring and Management Tool and its associated artifacts were originally developed by the National Institute of Standards and Technology (NIST) in collaboration with the Centers for Disease Control and Prevention (CDC) and the Office of the National Coordinator (ONC).
+# Identifier of a value set location rule in the bootstrap data, not wording.
+CQ_NIST

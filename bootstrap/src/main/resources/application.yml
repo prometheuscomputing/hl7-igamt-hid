@@ -34,22 +34,22 @@ auth:
   url: http://localhost:8090
   
 vocabulary:
-    url: http://hit-dev-admin.nist.gov:8095/vocabulary-service/
+    url: http://localhost:9000/vocab/
    
 email:
    port: 25
    protocol: smtp
-   host: smtp.nist.gov
-   admin: robert.snelick@nist.gov
-   from: hl7-igamt@nist.gov
-   subject: NIST HL7 Auth Notification
+   host: localhost
+   admin: noreply@valitheus.local
+   from: noreply@valitheus.local
+   subject: IGAMT Notification
    
 gvt:
    export-endpoint: api/cf/hl7v2/management/uploadZip
    create-domain-endpoint: api/domains/new
    domain-endpoint: api/domains/findByUser
    login-endpoint: api/accounts/login
-   apps: GVT|https://hl7v2-gvt.nist.gov/gvt/;GVT-DEV|https://gvt-dev.nist.gov/gvt/;IZ-TOOL-DEV|https://hit-dev.nist.gov:8098/iztool/;IZ-TOOL|https://hl7v2-iz-r1-5-testing.nist.gov/iztool/
+   apps: GVT|https://tools.valitheus.com/gvt/
 
 host:
    url: http://localhost:8090
