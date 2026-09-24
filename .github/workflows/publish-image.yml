@@ -59,6 +59,15 @@ jobs:
           java-version: "8"
           cache: maven
 
+      # Resolve every dependency and plugin from our Nexus only. This replaces
+      # the settings.xml setup-java just wrote (a GitHub Packages server entry
+      # nothing here deploys to), and it applies to both Maven runs below,
+      # including the hl7-auth-hid build.
+      - name: Maven settings
+        run: |
+          mkdir -p ~/.m2
+          cp .github/maven/settings.xml ~/.m2/settings.xml
+
       - name: Check out hl7-auth-hid (auth-utils dependency)
         uses: actions/checkout@v4
         with:
