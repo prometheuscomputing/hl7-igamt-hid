@@ -18,6 +18,6 @@ export class FileUploadService {
     formData.append('segmentPathId', segmentPathId);
     formData.append('conformanceProfileId', conformanceProfileId);
     formData.append('format', format);
-    return this.http.post<Message<IVerificationEnty[]>>(`/api/import/co-constraints-table`, formData);
+    return this.http.post<Message<IVerificationEnty[]>>(`api/import/co-constraints-table`, formData);
   }
 }

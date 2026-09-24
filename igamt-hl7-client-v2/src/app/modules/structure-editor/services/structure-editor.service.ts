@@ -46,7 +46,7 @@ export class StructureEditorService {
   }
 
   getResourcesDisplay(type: Type, version: string, scope: Scope): Observable<IDisplayElement[]> {
-    return this.http.get<IDisplayElement[]>(`/api/structure-editor/structure/resources/${type}/${scope}/${version}`);
+    return this.http.get<IDisplayElement[]>(`api/structure-editor/structure/resources/${type}/${scope}/${version}`);
   }
 
   getMessageStructureById(id: string): Observable<IMessageStructure> {
@@ -66,7 +66,7 @@ export class StructureEditorService {
   }
 
   getResourceValueSets(type: Type, id: string): Observable<IDisplayElement[]> {
-    return this.http.get<IDisplayElement[]>(`/api/structure-editor/valueSets/${type}/${id}`);
+    return this.http.get<IDisplayElement[]>(`api/structure-editor/valueSets/${type}/${id}`);
   }
 
   createMessageStructure(request: ICreateMessageStructure): Observable<IMessageStructureAndDisplay> {

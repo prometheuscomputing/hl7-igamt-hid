@@ -43,12 +43,12 @@ export class VerifyIgDialogComponent implements OnInit {
 
     if (this.data && this.data.igId) {
       if (this.data.type === 'Verification') {
-        this.http.get<any[]>('/api/igdocuments/' + this.data.igId + '/verification').subscribe((x) => {
+        this.http.get<any[]>('api/igdocuments/' + this.data.igId + '/verification').subscribe((x) => {
           this.reports = x;
           this.errorCounts = this.countErrors(this.reports);
         });
       } else if (this.data.type === 'Compliance') {
-        this.http.get<any[]>('/api/igdocuments/' + this.data.igId + '/compliance').subscribe((x) => {
+        this.http.get<any[]>('api/igdocuments/' + this.data.igId + '/compliance').subscribe((x) => {
           this.reports = x;
         });
       }

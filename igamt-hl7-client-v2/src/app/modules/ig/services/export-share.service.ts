@@ -8,12 +8,12 @@ import { IShareExportConfiguration } from '../components/ig-share-link-dialog/ig
   providedIn: 'root',
 })
 export class ExportShareService {
-  readonly IG_API_BASE = '/api/igdocuments/';
+  readonly IG_API_BASE = 'api/igdocuments/';
   readonly SHARE_LINK = '/sharelink/';
   constructor(private http: HttpClient) { }
 
   getShareLinks(igId: string): Observable<Record<string, IShareExportConfiguration>> {
-    return this.http.get<Record<string, IShareExportConfiguration>>(this.IG_API_BASE + igId + this.SHARE_LINK);
+    return this.http.get<Record<string, IShareExportConfiguration>>(this.IG_API_BASE + igId + this.SHARE_LINK + '?differential=false');
   }
 
   createLink(igId: string, configuration: IShareExportConfiguration): Observable<Message<string>> {
@@ -28,4 +28,23 @@ export class ExportShareService {
     return this.http.delete<Message<string>>(this.IG_API_BASE + igId + this.SHARE_LINK + linkId);
   }
 
+  // Differential share link methods
+  getDifferentialShareLinks(igId: string): Observable<Record<string, IShareExportConfiguration>> {
+    return this.http.get<Record<string, IShareExportConfiguration>>(this.IG_API_BASE + igId + this.SHARE_LINK + '?differential=true');
+  }
+
+  createDifferentialLink(igId: string, configuration: IShareExportConfiguration): Observable<Message<string>> {
+    return this.http.post<Message<string>>(this.IG_API_BASE + igId + this.SHARE_LINK, { ...configuration, differential: true });
+  }
+
+  saveDifferentialLink(igId: string, linkId: string, configuration: IShareExportConfiguration): Observable<Message<string>> {
+    return this.http.post<Message<string>>(this.IG_API_BASE + igId + this.SHARE_LINK + linkId, { ...configuration, differential: true });
+  }
+
+  deleteDifferentialLink(igId: string, linkId: string): Observable<Message<string>> {
+    return this.http.delete<Message<string>>(this.IG_API_BASE + igId + this.SHARE_LINK + linkId + '?differential=true');
+  }
+
 }
+
+
