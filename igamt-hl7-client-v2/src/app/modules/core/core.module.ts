@@ -19,6 +19,7 @@ import { DataManagementComponent } from './components/data-management/data-manag
 import { ErrorPageComponent } from './components/error-page/error-page.component';
 import { FooterComponent } from './components/footer/footer.component';
 import { HeaderComponent } from './components/header/header.component';
+import { AboutComponent } from './components/about/about.component';
 import { HomeComponent } from './components/home/home.component';
 import { NewPasswordComponent } from './components/new-password/new-password.component';
 import { RegisterComponent } from './components/register/register.component';
@@ -37,6 +38,7 @@ import { MiniDumpService } from './services/mini-dump.service';
     UserManagementComponent,
     NewPasswordComponent,
     HomeComponent,
+    AboutComponent,
     ErrorPageComponent,
     ConfigurationDialogComponent,
     ApiKeyManagementComponent,
@@ -79,6 +81,7 @@ import { MiniDumpService } from './services/mini-dump.service';
     SharedModule,
     ProgressBarModule,
     HomeComponent,
+    AboutComponent,
     ErrorPageComponent,
     ConfigurationDialogComponent,
     ApiKeyManagementComponent,

@@ -179,7 +179,7 @@ export class ExportXmlDialogComponent {
       snapshot: 0,
     };
     this.displayTable = false;
-    this.http.post<any>('/api/igdocuments/' + this.data.igId + '/preverification', { ids: this.ids, exportType: 'xml' }).pipe(
+    this.http.post<any>('api/igdocuments/' + this.data.igId + '/preverification', { ids: this.ids, exportType: 'xml' }).pipe(
       flatMap((result) => {
         const report = result.verificationIssues;
         const externalValueSetExportModes = result.externalValueSetExportModes || {};

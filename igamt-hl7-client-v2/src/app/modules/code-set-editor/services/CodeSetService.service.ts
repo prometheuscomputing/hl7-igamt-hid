@@ -21,7 +21,7 @@ export class CodeSetServiceService {
   ) {
   }
 
-  readonly CODE_SET_END_POINT = '/api/code-set/';
+  readonly CODE_SET_END_POINT = 'api/code-set/';
   readonly CODE_SET_VERSION_END_POINT = '/code-set-version/';
 
   saveDashBoard(id: string, data: ICodeSetInfo): Observable<Message<string>> {
@@ -121,7 +121,7 @@ export class CodeSetServiceService {
   }
 
   verifyCodeSet(codeSetId: string, codeSetVersionId: string): Observable<IVerificationEnty[]> {
-    return this.http.post<IVerificationEnty[]>(`/api/code-set/${codeSetId}/code-set-version/${codeSetVersionId}/verify`, {});
+    return this.http.post<IVerificationEnty[]>(`api/code-set/${codeSetId}/code-set-version/${codeSetVersionId}/verify`, {});
   }
 
 }

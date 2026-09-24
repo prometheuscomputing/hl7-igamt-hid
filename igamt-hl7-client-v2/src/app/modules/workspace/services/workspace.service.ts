@@ -50,7 +50,7 @@ export interface IWorkspacePublish {
 })
 export class WorkspaceService {
 
-  readonly WORKSPACE_END_POINT = '/api/workspace/';
+  readonly WORKSPACE_END_POINT = 'api/workspace/';
 
   constructor(
     private http: HttpClient,
@@ -147,19 +147,19 @@ export class WorkspaceService {
   }
 
   cloneToWorkspace(info: IWorkspaceClone): Observable<IWorkspaceInfo> {
-    return this.http.post<IWorkspaceInfo>(this.WORKSPACE_END_POINT + '/clone', info);
+    return this.http.post<IWorkspaceInfo>(this.WORKSPACE_END_POINT + 'clone', info);
   }
 
   moveIg(info: IWorkspaceMove): Observable<IWorkspaceInfo> {
-    return this.http.post<IWorkspaceInfo>(this.WORKSPACE_END_POINT + '/move', info);
+    return this.http.post<IWorkspaceInfo>(this.WORKSPACE_END_POINT + 'move', info);
   }
 
   publishIg(info: IWorkspacePublish): Observable<IWorkspaceInfo> {
-    return this.http.post<IWorkspaceInfo>(this.WORKSPACE_END_POINT + '/publish', info);
+    return this.http.post<IWorkspaceInfo>(this.WORKSPACE_END_POINT + 'publish', info);
   }
 
   deleteFromWorkspace(documentId: string, documentType: Type, wsId: string, folderId: string): Observable<IWorkspaceInfo> {
-    return this.http.delete<IWorkspaceInfo>(this.WORKSPACE_END_POINT + `/${wsId}/folder/${folderId}/document/${documentType}/${documentId}`);
+    return this.http.delete<IWorkspaceInfo>(this.WORKSPACE_END_POINT + `${wsId}/folder/${folderId}/document/${documentType}/${documentId}`);
   }
 
 }
