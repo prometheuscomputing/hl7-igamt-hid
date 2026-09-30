@@ -60,6 +60,7 @@ import {
   DamMessagesModule
 } from "../dam-framework/dam-framework.module";
 import { IgListItemCardComponent } from "../ig/components/ig-list-item-card/ig-list-item-card.component";
+import { SelectMessageSnippetDialogComponent } from "../ig/components/select-message-snippet-dialog/select-message-snippet-dialog.component";
 import {
   ActiveUsersListComponent,
   FirstLetterPipe
@@ -307,7 +308,8 @@ import { SlicingViewerDialogComponent } from "./components/slicing-viewer-dialog
     ImportFromProviderComponent,
     GroupValueSetComponent,
     ExternalVsMetadataComponent,
-    SlicingViewerDialogComponent
+    SlicingViewerDialogComponent,
+    SelectMessageSnippetDialogComponent
   ],
   providers: [StoreResourceRepositoryService, ConfirmationService],
   imports: [
@@ -518,7 +520,8 @@ import { SlicingViewerDialogComponent } from "./components/slicing-viewer-dialog
     ExternalVsCodesFetchComponent,
     FetchCodesDialogComponent,
     FileInputComponent,
-    GroupValueSetComponent
+    GroupValueSetComponent,
+    SelectMessageSnippetDialogComponent
   ],
   entryComponents: [
     ResourcePickerComponent,
@@ -566,7 +569,8 @@ import { SlicingViewerDialogComponent } from "./components/slicing-viewer-dialog
     FetchCodesDialogComponent,
     ImportFromProviderComponent,
     GroupValueSetComponent,
-    SlicingViewerDialogComponent
+    SlicingViewerDialogComponent,
+    SelectMessageSnippetDialogComponent
   ]
 })
 export class SharedModule {

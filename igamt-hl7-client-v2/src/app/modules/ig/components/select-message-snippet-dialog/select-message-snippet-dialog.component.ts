@@ -1,9 +1,10 @@
 import { Component, Inject, OnInit } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { IAvailableMessage } from '../ig-message-section-editor/ig-message-section-editor.component';
+import { IAvailableMessage } from '../../../example-messages/domain/example-messages.model';
 
 export interface ISelectMessageSnippetDialogData {
   availableMessages: IAvailableMessage[];
+  confirmLabel?: string;
 }
 
 export interface ISelectMessageSnippetDialogResult {

@@ -29,6 +29,13 @@ export interface IExampleMessageSnippet {
     narrativeHTML: string;
 }
 
+export interface IAvailableMessage {
+    id: string;
+    name: string;
+    profileName: string;
+    snippets: IExampleMessageSnippet[];
+}
+
 export interface ISnippetValidationInfo {
     snippetId: string;
     snippetName: string;

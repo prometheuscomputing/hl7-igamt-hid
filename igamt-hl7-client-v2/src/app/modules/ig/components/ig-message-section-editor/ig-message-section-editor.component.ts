@@ -16,18 +16,11 @@ import { Type } from '../../../shared/constants/type.enum';
 import { EditorID } from '../../../shared/models/editor.enum';
 import { IgService } from '../../services/ig.service';
 import { ExampleMessagesService } from '../../../example-messages/services/example-messages.service';
-import { IExampleMessageDTO, IExampleMessageSnippet, MessageElement } from '../../../example-messages/domain/example-messages.model';
+import { IAvailableMessage, IExampleMessageDTO, IExampleMessageSnippet, MessageElement } from '../../../example-messages/domain/example-messages.model';
 import { CodemirrorComponent } from '@ctrl/ngx-codemirror';
 import * as CodeMirror from 'codemirror';
 import { ConfirmDialogComponent } from '../../../dam-framework/components/fragments/confirm-dialog/confirm-dialog.component';
 import { SelectMessageSnippetDialogComponent, ISelectMessageSnippetDialogResult } from '../select-message-snippet-dialog/select-message-snippet-dialog.component';
-
-export interface IAvailableMessage {
-  id: string;
-  name: string;
-  profileName: string;
-  snippets: IExampleMessageSnippet[];
-}
 
 @Component({
   selector: 'app-ig-message-section-editor',

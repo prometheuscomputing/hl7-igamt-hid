@@ -77,8 +77,9 @@ public class FroalaSerializationUtil {
     Elements elements4 = doc.select("h4");
     elements4.tagName("p").attr("style",
         "display: block;font-size: 10.0pt;margin-left: 0;margin-right: 0;font-weight: bold;");
-    Elements elementsPre = doc.select("pre");
+    Elements elementsPre = doc.select("pre:not(.fr-exmsg-body)");
     elementsPre.tagName("p").attr("class", "codeParagraph");
+    doc.select("button.fr-exmsg-remove").remove();
     for (org.jsoup.nodes.Element elementImg : doc.select("img")) {
       try {
         if (elementImg.attr("src") != null && !"".equals(elementImg.attr("src"))) {

@@ -40,6 +40,6 @@
 </mat-dialog-content>
 <mat-dialog-actions style="justify-content: flex-end;">
   <button (click)="cancel()" class="btn btn-sm btn-secondary" style="margin-right: 5px;">Cancel</button>
-  <button (click)="confirm()" [disabled]="!selectedNode" class="btn btn-sm btn-primary">Attach</button>
+  <button (click)="confirm()" [disabled]="!selectedNode" class="btn btn-sm btn-primary">{{ data.confirmLabel || 'Attach' }}</button>
 </mat-dialog-actions>
 
