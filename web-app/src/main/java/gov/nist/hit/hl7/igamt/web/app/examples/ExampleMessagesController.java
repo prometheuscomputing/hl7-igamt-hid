@@ -6,6 +6,7 @@ import gov.nist.hit.hl7.igamt.examples.domain.IgExampleMessages;
 import gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet;
 import gov.nist.hit.hl7.igamt.examples.dto.*;
 import gov.nist.hit.hl7.igamt.examples.dto.parser.MessageModel;
+import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageValidationService;
 import gov.nist.hit.hl7.igamt.examples.service.ExampleMessagesService;
 import gov.nist.hit.hl7.igamt.examples.service.MessageParserService;
 import gov.nist.hit.hl7.igamt.examples.service.SnippetRenderService;
@@ -25,6 +26,8 @@ public class ExampleMessagesController {
     MessageParserService messageParserService;
     @Autowired
     SnippetRenderService snippetRenderService;
+    @Autowired
+    ExampleMessageValidationService exampleMessageValidationService;
 
     @RequestMapping(value = "/api/example-messages/{id}", method = RequestMethod.GET, produces = {"application/json" })
     public @ResponseBody
@@ -141,6 +144,18 @@ public class ExampleMessagesController {
     ) throws Exception {
         ExampleMessage exampleMessage = this.exampleMessagesService.getExampleMessage(id, messageId);
         return messageParserService.parseMessage(id, exampleMessage.getProfileId(), exampleMessage.getMessage());
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/validate", method = RequestMethod.POST, produces = {"application/json" })
+    public @ResponseBody
+    ExampleMessageValidationResult validateMessage(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @RequestBody(required = false) ValidateMessageDTO validateMessageDTO,
+            Authentication authentication
+    ) {
+        String er7 = validateMessageDTO != null ? validateMessageDTO.getMessage() : null;
+        return exampleMessageValidationService.validate(id, messageId, er7);
     }
 
     /**

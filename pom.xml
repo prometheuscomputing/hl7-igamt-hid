@@ -140,4 +140,27 @@
         <module>workspace</module>
   </modules>
 
+	<repositories>
+		<repository>
+			<id>hit-nexus</id>
+			<url>https://hit-nexus.nist.gov/repository/releases</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>hit-nexus-snapshots</id>
+			<url>https://hit-nexus.nist.gov/repository/snapshots</url>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
+
 </project>

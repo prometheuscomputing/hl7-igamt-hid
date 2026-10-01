@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { IExampleMessageDTO, IgExampleMessages } from '../domain/example-messages.model';
+import { IExampleMessageDTO, IExampleMessageValidationResult, IgExampleMessages } from '../domain/example-messages.model';
 import { IMessage } from '../../dam-framework/models/messages/message.class';
 
 export interface ICreateExampleMessageSnippetRequest {
@@ -59,6 +59,10 @@ export class ExampleMessagesService {
 
   public parseExampleMessage(id: string, messageId: string): Observable<any[]> {
     return this.http.get<any[]>(`api/example-messages/${id}/message/${messageId}/parse`);
+  }
+
+  public validateExampleMessage(id: string, messageId: string, message: string): Observable<IExampleMessageValidationResult> {
+    return this.http.post<IExampleMessageValidationResult>(`api/example-messages/${id}/message/${messageId}/validate`, { message });
   }
 
   public createExampleMessageSnippet(id: string, messageId: string, data: ICreateExampleMessageSnippetRequest): Observable<IMessage<IgExampleMessages>> {

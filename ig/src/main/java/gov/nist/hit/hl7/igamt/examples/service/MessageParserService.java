@@ -31,15 +31,39 @@ public class MessageParserService {
     IgService igService;
 
     public MessageModel parseMessage(String igId, String profileId, String er7Message) throws Exception {
-        Ig ig = igService.findById(igId);
-        IgDataModel igDataModel = igService.generateDataModel(ig);
-        Document document = xmlSerializeService.serializeProfileToDoc(igDataModel);
-        String xmlString = document.toXML();
-        InputStream profileStream = IOUtils.toInputStream(xmlString);
-        Profile profile = XMLDeserializer.deserialize(profileStream).get();
-        JParser p = new JParser();
-        Message message = p.jparse(er7Message, profile.getMessage(profileId));
-        return parse(message);
+        try {
+            Ig ig = igService.findById(igId);
+            IgDataModel igDataModel = igService.generateDataModel(ig);
+            Document document = xmlSerializeService.serializeProfileToDoc(igDataModel);
+            String xmlString = document.toXML();
+            InputStream profileStream = IOUtils.toInputStream(xmlString);
+            Profile profile = XMLDeserializer.deserialize(profileStream).get();
+            JParser p = new JParser();
+            Message message = p.jparse(er7Message, profile.getMessage(profileId));
+            return parse(message);
+        } catch (Exception e) {
+            throw new Exception(describeParseFailure(e), e);
+        } catch (Throwable t) {
+            throw new Exception(describeParseFailure(t), new Exception(t));
+        }
+    }
+
+    private String describeParseFailure(Throwable t) {
+        String detail = null;
+        Throwable current = t;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && !message.trim().isEmpty()) {
+                if (detail == null
+                        || message.contains("document is invalid")
+                        || message.contains("cvc-identity-constraint")
+                        || message.contains("Key '")) {
+                    detail = message.trim();
+                }
+            }
+            current = current.getCause();
+        }
+        return detail != null ? detail : "Failed to parse the example message.";
     }
 
     private MessageModel parse(Message message) {

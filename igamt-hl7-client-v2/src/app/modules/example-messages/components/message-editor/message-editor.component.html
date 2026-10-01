@@ -24,9 +24,9 @@
                 </ul>
             </div>
 
-            <div style="display: flex; width: 100%; height: 500px; gap: 8px;">
+            <div class="message-workspace">
 
-                <div style="width: 400px; border: 1px solid lightgray; display: flex; flex-direction: column;">
+                <div class="message-tree-panel">
                     <div style="height: auto; border-bottom: 1px solid lightgray; box-shadow: 0px 3px 5px -2px rgba(0, 0, 0, 0.75); z-index: 1;">
                         <div style="height: 40px; display: flex; align-items: center; justify-content: center;">
                             Message Tree
@@ -48,6 +48,15 @@
                     <div style="flex: 1; background-color: rgb(246, 246, 246); position: relative; overflow: hidden;">
                         <div *ngIf="!loading && staleMessageTree" class="stale-overlay">
                             <span style="text-align: center;">Save or Create message to see parsed content.</span>
+                        </div>
+                        <div *ngIf="!loading && !staleMessageTree && parseError" class="stale-overlay parse-error-overlay">
+                            <div class="parse-error">
+                                <div class="parse-error-title">
+                                    <i class="fa fa-exclamation-circle"></i>
+                                    Could not parse message
+                                </div>
+                                <pre>{{ parseError }}</pre>
+                            </div>
                         </div>
                         <div *ngIf="loading" style="height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; position: absolute;">
                             <mat-spinner *ngIf="loading" class="verification-progress" diameter="45"></mat-spinner>
@@ -76,7 +85,16 @@
                     </div>
                 </div>
 
-                <div style="flex: 1; width: 100%; overflow: hidden; border: 1px solid lightgray;">
+                <div class="message-content-panel">
+                    <div class="message-content-header">
+                        <span><i class="fa fa-file-text-o"></i> Message Content</span>
+                        <button class="btn btn-sm btn-success" type="button"
+                                (click)="validateMessage()"
+                                [disabled]="validating || !message">
+                            <i class="fa" [ngClass]="validating ? 'fa-circle-o-notch fa-spin' : 'fa-check-circle'"></i>
+                            {{ validating ? 'Validating...' : 'Validate' }}
+                        </button>
+                    </div>
                     <ngx-codemirror
                         #codemirror
                         [(ngModel)]="message"
@@ -85,6 +103,125 @@
                         name="message"
                         [options]="messageEditorOptions"
                     ></ngx-codemirror>
+                </div>
+            </div>
+
+            <div class="validation-result-panel">
+                <div class="validation-result-header">
+                    <span><i class="fa fa-check-square-o"></i> Message Validation Result</span>
+                    <span class="validation-result-actions">
+                        <button *ngIf="validationResult && validationResult.html && !validationError"
+                                class="btn btn-xs btn-info" type="button"
+                                (click)="downloadReport()">
+                            <i class="fa fa-download"></i> Download Report
+                        </button>
+                        <span class="validation-result-hint">Context-free</span>
+                    </span>
+                </div>
+                <div class="validation-result-body">
+                    <div *ngIf="validating" class="validation-loading">
+                        <mat-spinner diameter="36"></mat-spinner>
+                    </div>
+                    <div *ngIf="!validating && validationError" class="alert alert-danger" role="alert">
+                        {{ validationError }}
+                    </div>
+                    <div *ngIf="!validating && !validationError && !validationResult" class="validation-empty">
+                        Click <strong>Validate</strong> to check this example message against the IG profile.
+                    </div>
+                    <ng-container *ngIf="!validating && !validationError && validationResult">
+                        <div class="validation-quiet-bar">
+                            <span class="validation-quiet-note">
+                                {{ validationResult.affirmatives || 0 }} affirmatives
+                                and {{ validationResult.informationals || 0 }} informationals
+                                are hidden
+                            </span>
+                            <label class="validation-quiet-toggle">
+                                <input type="checkbox" [(ngModel)]="showQuietDetections" />
+                                Show all detections
+                            </label>
+                        </div>
+                        <p-tabView [(activeIndex)]="validationTabIndex" styleClass="validation-result-tabs">
+                            <p-tabPanel>
+                                <ng-template pTemplate="header">
+                                    <span class="vr-pill vr-pill-errors">{{ validationResult.errors || 0 }}</span>
+                                    <span class="vr-label">Errors</span>
+                                </ng-template>
+                                <ng-container *ngTemplateOutlet="detectionTable; context: { $implicit: 'errors' }"></ng-container>
+                            </p-tabPanel>
+                            <p-tabPanel>
+                                <ng-template pTemplate="header">
+                                    <span class="vr-pill vr-pill-alerts">{{ validationResult.alerts || 0 }}</span>
+                                    <span class="vr-label">Alerts</span>
+                                </ng-template>
+                                <ng-container *ngTemplateOutlet="detectionTable; context: { $implicit: 'alerts' }"></ng-container>
+                            </p-tabPanel>
+                            <p-tabPanel>
+                                <ng-template pTemplate="header">
+                                    <span class="vr-pill vr-pill-warnings">{{ validationResult.warnings || 0 }}</span>
+                                    <span class="vr-label">Warnings</span>
+                                </ng-template>
+                                <ng-container *ngTemplateOutlet="detectionTable; context: { $implicit: 'warnings' }"></ng-container>
+                            </p-tabPanel>
+                            <p-tabPanel *ngIf="showQuietDetections">
+                                <ng-template pTemplate="header">
+                                    <span class="vr-pill vr-pill-affirmatives">{{ validationResult.affirmatives || 0 }}</span>
+                                    <span class="vr-label">Affirmatives</span>
+                                </ng-template>
+                                <ng-container *ngTemplateOutlet="detectionTable; context: { $implicit: 'affirmatives' }"></ng-container>
+                            </p-tabPanel>
+                            <p-tabPanel *ngIf="showQuietDetections">
+                                <ng-template pTemplate="header">
+                                    <span class="vr-pill vr-pill-informationals">{{ validationResult.informationals || 0 }}</span>
+                                    <span class="vr-label">Informationals</span>
+                                </ng-template>
+                                <ng-container *ngTemplateOutlet="detectionTable; context: { $implicit: 'informationals' }"></ng-container>
+                            </p-tabPanel>
+                            <p-tabPanel>
+                                <ng-template pTemplate="header">
+                                    <i class="fa fa-eye vr-report-icon"></i>
+                                    <span class="vr-label">Report</span>
+                                </ng-template>
+                                <div class="validation-report-toolbar">
+                                    <button class="btn btn-sm btn-info" type="button"
+                                            (click)="downloadReport()"
+                                            [disabled]="!validationResult || !validationResult.html">
+                                        <i class="fa fa-download"></i> Download HTML
+                                    </button>
+                                </div>
+                                <div #reportHost class="validation-report"
+                                     [innerHTML]="reportHtml()"
+                                     (click)="onReportClick($event)"></div>
+                            </p-tabPanel>
+                        </p-tabView>
+                    </ng-container>
+
+                    <ng-template #detectionTable let-kind>
+                        <div class="validation-table-wrap">
+                            <table class="validation-table">
+                                <thead>
+                                    <tr>
+                                        <th class="col-line">Line</th>
+                                        <th class="col-path">Path</th>
+                                        <th class="col-category">Category</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr *ngFor="let entry of entriesFor(kind)"
+                                        (click)="jumpToEntry(entry)"
+                                        [class.clickable]="entry.line">
+                                        <td class="col-line">{{ entry.line || '-' }}{{ entry.column ? ':' + entry.column : '' }}</td>
+                                        <td class="col-path">{{ entry.path }}</td>
+                                        <td>{{ entry.category }}</td>
+                                        <td>{{ entry.description }}</td>
+                                    </tr>
+                                    <tr *ngIf="entriesFor(kind).length === 0">
+                                        <td colspan="4" class="empty-row">No {{ kind }}.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </ng-template>
                 </div>
             </div>
 

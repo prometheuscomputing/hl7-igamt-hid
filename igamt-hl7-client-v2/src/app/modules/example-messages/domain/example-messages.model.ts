@@ -55,6 +55,26 @@ export interface IExampleMessageDTO {
     snippetValidations?: ISnippetValidationInfo[];
 }
 
+export interface IExampleMessageValidationEntry {
+    classification: string;
+    category: string;
+    description: string;
+    path: string;
+    line: number;
+    column: number;
+}
+
+export interface IExampleMessageValidationResult {
+    html: string;
+    error: string;
+    errors: number;
+    alerts: number;
+    warnings: number;
+    affirmatives: number;
+    informationals: number;
+    entries: IExampleMessageValidationEntry[];
+}
+
 export interface MessageElement {
     name: string;
     positionalPath: string;

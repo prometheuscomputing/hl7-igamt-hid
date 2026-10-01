@@ -4,8 +4,8 @@
 
 .message-editor {
     height: 100%;
-    width: 100%; 
-    overflow: hidden;
+    width: 100%;
+    overflow: auto;
 }
 
 .selected {
@@ -16,15 +16,391 @@
 }
 
 .stale-overlay {
-    height: 100%; 
-    width: 100%; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     position: absolute;
     opacity: 0.8;
     background-color: #fefefe;
     z-index: 2;
     padding: 50px;
     color: black;
+}
+
+.parse-error-overlay {
+    align-items: flex-start;
+    justify-content: flex-start;
+    opacity: 1;
+    overflow: auto;
+    background-color: #fff6f6;
+    padding: 16px;
+}
+
+.parse-error {
+    color: #a94442;
+    font-size: 13px;
+    line-height: 1.45;
+    width: 100%;
+}
+
+.parse-error-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.parse-error-title i {
+    margin-right: 6px;
+}
+
+.parse-error pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+    font-family: inherit;
+    font-size: 12px;
+}
+
+.message-workspace {
+    display: flex;
+    width: 100%;
+    height: 360px;
+    gap: 8px;
+}
+
+.message-tree-panel {
+    width: 400px;
+    border: 1px solid lightgray;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-content-panel {
+    flex: 1;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid lightgray;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-content-header {
+    height: 40px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid lightgray;
+    background: #f5f5f5;
+    font-weight: 600;
+}
+
+.message-content-panel ::ng-deep .CodeMirror {
+    height: 100%;
+}
+
+.validation-result-panel {
+    margin-top: 10px;
+    border: 1px solid #bce8f1;
+    border-radius: 3px;
+}
+
+.validation-result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #d9edf7;
+    border-bottom: 1px solid #bce8f1;
+    font-weight: 600;
+    color: #31708f;
+}
+
+.validation-result-hint {
+    font-weight: 400;
+    font-size: 12px;
+    color: #31708f;
+}
+
+.validation-result-body {
+    min-height: 180px;
+    background: #fff;
+}
+
+.validation-quiet-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 12px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e6edf3;
+    font-size: 12px;
+    color: #607d8b;
+}
+
+.validation-quiet-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-weight: 500;
+    color: #455a64;
+    cursor: pointer;
+}
+
+.validation-loading,
+.validation-empty {
+    min-height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    padding: 16px;
+}
+
+.validation-result-tabs {
+    ::ng-deep .ui-tabview-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 0;
+        padding: 8px 10px 0;
+        background: #f4f7fa;
+        border: none;
+        border-bottom: 1px solid #d6dee6;
+
+        > li {
+            margin: 0 !important;
+            float: none !important;
+
+            > a {
+                display: flex !important;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px !important;
+                border: 1px solid transparent !important;
+                border-bottom: none !important;
+                border-radius: 6px 6px 0 0;
+                background: transparent !important;
+                color: #44515c !important;
+            }
+
+            &.ui-state-active > a,
+            &.ui-tabs-selected > a {
+                background: #fff !important;
+                border-color: #d6dee6 !important;
+                color: #1f2d3a !important;
+                box-shadow: 0 -1px 0 #fff inset;
+            }
+        }
+    }
+
+    ::ng-deep .ui-tabview-panels {
+        padding: 0;
+        border: none;
+        background: #fff;
+    }
+
+    ::ng-deep .ui-tabview-panel {
+        padding: 0;
+    }
+}
+
+.vr-pill {
+    display: inline-flex;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 7px;
+    margin-right: 6px;
+    border-radius: 10px;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+
+.vr-label {
+    font-weight: 600;
+    font-size: 13px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.vr-report-icon {
+    color: #31708f;
+}
+
+.vr-pill-errors { background-color: #d9534f; }
+.vr-pill-alerts { background-color: #f0ad4e; }
+.vr-pill-warnings { background-color: #ec971f; }
+.vr-pill-affirmatives { background-color: #5cb85c; }
+.vr-pill-informationals { background-color: #5bc0de; }
+
+.validation-table-wrap {
+    max-height: 240px;
+    overflow: auto;
+}
+
+.validation-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.validation-table th {
+    position: sticky;
+    top: 0;
+    background: #f7f9fb;
+    border-bottom: 1px solid #d6dee6;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    color: #44515c;
+}
+
+.validation-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #eef2f5;
+    vertical-align: top;
+}
+
+.validation-table tbody tr:nth-child(even) {
+    background: #fafcfd;
+}
+
+.validation-table tbody tr.clickable:hover {
+    background: #eef6fc;
+    cursor: pointer;
+}
+
+.validation-table .col-line {
+    width: 72px;
+    white-space: nowrap;
+    color: #66757f;
+}
+
+.validation-table .col-path {
+    width: 180px;
+    font-family: Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+}
+
+.validation-table .col-category {
+    width: 140px;
+}
+
+.validation-table .empty-row {
+    text-align: center;
+    color: #888;
+    padding: 24px 10px;
+}
+
+.validation-result-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.validation-report-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 12px;
+    border-bottom: 1px solid #d6dee6;
+    background: #f7f9fb;
+}
+
+.validation-report {
+    background: #fff;
+    padding: 16px;
+    max-height: 480px;
+    overflow: auto;
+}
+
+.validation-report ::ng-deep {
+    .report-section {
+        margin-bottom: 20px;
+    }
+
+    .forumline {
+        background-color: #fff;
+        border: 1px solid #006699;
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .forumline td,
+    .forumline th {
+        padding: 8px;
+        vertical-align: top;
+    }
+
+    .maintitle {
+        font-weight: bold;
+        font-size: 22px;
+        font-family: Georgia, Verdana, serif;
+        color: #000;
+    }
+
+    .title-background {
+        background-color: #d9edf7;
+    }
+
+    .row1 {
+        font-weight: bold;
+        font-size: 15px;
+        color: #000;
+        background-color: #d9edf7;
+        width: 140px;
+    }
+
+    .row2 {
+        background-color: #f0f0f0;
+        width: 140px;
+    }
+
+    .row3 {
+        vertical-align: top;
+    }
+
+    .row5 {
+        font-weight: bold;
+        background-color: #ffd630;
+    }
+
+    .row6 {
+        background-color: #f0f0f0;
+    }
+
+    .border_bottom {
+        border-bottom: 1pt solid #006699;
+    }
+
+    .border_right {
+        border-right: 1pt solid #006699;
+    }
+
+    .alternate0 {
+        background: #fff;
+    }
+
+    .alternate1 {
+        background: #f0f0f0;
+    }
+
+    textarea {
+        width: 100%;
+        font-family: Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+        border: 1px solid #cfd8dc;
+        padding: 8px;
+        background: #fafcfd;
+    }
+
+    button {
+        margin-left: 8px;
+    }
 }

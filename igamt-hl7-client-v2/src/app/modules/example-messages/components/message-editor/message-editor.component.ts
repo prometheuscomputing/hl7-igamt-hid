@@ -1,6 +1,8 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatDialog } from '@angular/material';
 import { ActivatedRoute } from '@angular/router';
+import { saveAs } from 'file-saver';
 import { Actions } from '@ngrx/effects';
 import { Action, Store } from '@ngrx/store';
 import * as _ from 'lodash';
@@ -20,8 +22,9 @@ import { MessageService } from 'src/app/modules/dam-framework/services/message.s
 import { TreeComponent, TreeNode } from 'angular-tree-component';
 import { CodemirrorComponent } from '@ctrl/ngx-codemirror';
 import * as CodeMirror from 'codemirror';
-import { IExampleMessageSnippet, MessageElement } from '../../domain/example-messages.model';
+import { IExampleMessageSnippet, IExampleMessageValidationEntry, IExampleMessageValidationResult, MessageElement } from '../../domain/example-messages.model';
 import { CreateDialogComponent } from '../create-dialog/create-dialog.component';
+import { VALIDATION_REPORT_CSS, VALIDATION_REPORT_SCRIPT } from './validation-report.css';
 
 @Component({
   selector: 'app-message-editor',
@@ -48,6 +51,7 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     },
   };
   staleMessageTree = false;
+  parseError = '';
   highlighted: CodeMirror.TextMarker | null = null;
   selected: MessageElement | null = null;
   selectedElements: MessageElement[] = [];
@@ -59,9 +63,15 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   messageName: string = '';
   messageDescription: string = '';
   snippetValidationWarnings: { snippetName: string, brokenPaths: string[] }[] = [];
+  validating = false;
+  validationResult: IExampleMessageValidationResult = null;
+  validationError: string = '';
+  validationTabIndex = 0;
+  showQuietDetections = false;
 
   @ViewChild('codemirror') private codeEditor!: CodemirrorComponent;
   @ViewChild('treeroot') private parsedTree: TreeComponent;
+  @ViewChild('reportHost') private reportHost: ElementRef;
 
   constructor(
     actions$: Actions,
@@ -70,7 +80,8 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     private dialog: MatDialog,
     private froalaService: FroalaService,
     private messageService: MessageService,
-    private exampleMessagesService: ExampleMessagesService
+    private exampleMessagesService: ExampleMessagesService,
+    private sanitizer: DomSanitizer,
   ) {
     super({
       id: EditorID.EXAMPLE_MESSAGE,
@@ -368,22 +379,225 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
 
   async parseMessage() {
     this.loading = true;
+    this.parseError = '';
     this.messageHash = await this.getMessageHash();
+    try {
+      const igId = await this.igId$.pipe(take(1)).toPromise();
+      const parsed = await this.exampleMessagesService.parseExampleMessage(igId, this.messageId).toPromise();
+      this.parsed = parsed;
+      this.parseError = '';
+      await this.updateStaleMessageState();
+      this.highlightSnippetIfAvailable();
+    } catch (error) {
+      this.parsed = null;
+      this.parseError = this.extractParseError(error);
+      this.store.dispatch(this.messageService.actionFromError(error));
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private extractParseError(error: any): string {
+    if (error && error.error) {
+      if (typeof error.error === 'string' && error.error.trim()) {
+        return error.error;
+      }
+      if (error.error.text) {
+        return error.error.text;
+      }
+      if (error.error.message) {
+        return error.error.message;
+      }
+    }
+    if (error && error.message) {
+      return error.message;
+    }
+    return 'Failed to parse the example message.';
+  }
+
+  validateMessage() {
+    if (!this.message || !this.messageId) {
+      return;
+    }
+    this.validating = true;
+    this.validationError = '';
     this.igId$.pipe(
       take(1),
-      mergeMap((igId) => {
-        return this.exampleMessagesService.parseExampleMessage(igId, this.messageId).pipe(
-          map(async (parsed) => {
-            this.parsed = parsed;
-            await this.updateStaleMessageState();
-            this.highlightSnippetIfAvailable();
-          })
-        )
-      }),
+      mergeMap((igId) => this.exampleMessagesService.validateExampleMessage(igId, this.messageId, this.message)),
       finalize(() => {
-        this.loading = false;
-      })
-    ).subscribe();
+        this.validating = false;
+      }),
+    ).subscribe(
+      (result) => {
+        this.validationResult = result;
+        this.validationError = result && result.error ? result.error : '';
+        this.showQuietDetections = false;
+        if (!this.validationError) {
+          if (result.errors > 0) {
+            this.validationTabIndex = 0;
+          } else if (result.alerts > 0) {
+            this.validationTabIndex = 1;
+          } else if (result.warnings > 0) {
+            this.validationTabIndex = 2;
+          } else {
+            this.validationTabIndex = 3;
+          }
+        }
+      },
+      (error) => {
+        this.validationResult = null;
+        this.validationError = (error && error.error && (error.error.message || error.error.error)) || 'Validation failed';
+      },
+    );
+  }
+
+  entriesFor(kind: 'errors' | 'alerts' | 'warnings' | 'affirmatives' | 'informationals'): IExampleMessageValidationEntry[] {
+    if (!this.validationResult || !this.validationResult.entries) {
+      return [];
+    }
+    return this.validationResult.entries.filter((entry) => {
+      const classification = (entry.classification || '').toLowerCase();
+      if (kind === 'errors') {
+        return classification.indexOf('error') >= 0 && classification.indexOf('spec') < 0;
+      }
+      if (kind === 'alerts') {
+        return classification.indexOf('alert') >= 0;
+      }
+      if (kind === 'warnings') {
+        return classification.indexOf('warning') >= 0;
+      }
+      if (kind === 'affirmatives') {
+        return classification.indexOf('affirmative') >= 0;
+      }
+      return classification.indexOf('error') < 0
+        && classification.indexOf('alert') < 0
+        && classification.indexOf('warning') < 0
+        && classification.indexOf('affirmative') < 0;
+    });
+  }
+
+  jumpToEntry(entry: IExampleMessageValidationEntry) {
+    if (!entry || !entry.line || !this.codeEditor || !this.codeEditor.codeMirror) {
+      return;
+    }
+    const editor = this.codeEditor.codeMirror;
+    const doc = editor.getDoc();
+    const line = Math.max(entry.line - 1, 0);
+    const column = Math.max((entry.column || 1) - 1, 0);
+    const start = CodeMirror.Pos(line, column);
+    editor.focus();
+    doc.setCursor(start);
+    editor.scrollIntoView(start, 40);
+  }
+
+  reportHtml(): SafeHtml {
+    const body = this.reportBodyHtml();
+    if (!body) {
+      return '';
+    }
+    return this.sanitizer.bypassSecurityTrustHtml(body);
+  }
+
+  downloadReport() {
+    const body = this.reportBodyHtml();
+    if (!body) {
+      return;
+    }
+    const title = (this.messageName || 'example-message').replace(/[^\w.-]+/g, '_');
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+      + '<title>Message Validation Report</title>'
+      + '<style>' + VALIDATION_REPORT_CSS + '</style>'
+      + '<script>' + VALIDATION_REPORT_SCRIPT + '</script>'
+      + '</head><body>' + body + '</body></html>';
+    saveAs(new Blob([html], { type: 'text/html;charset=utf-8' }), title + '-validation-report.html');
+  }
+
+  onReportClick(event: Event) {
+    const host = this.reportHost && this.reportHost.nativeElement;
+    if (!host) {
+      return;
+    }
+    const target = event.target as HTMLElement;
+    if (!target) {
+      return;
+    }
+    if (target.tagName === 'INPUT') {
+      const input = target as HTMLInputElement;
+      const handler = input.getAttribute('onclick') || '';
+      const vis = handler.match(/toggle_visibility\('([^']+)'/);
+      if (vis) {
+        this.toggleById(host, vis[1], input.checked);
+        return;
+      }
+      const visC = handler.match(/toggle_visibilityC\('([^']+)'/);
+      if (visC) {
+        this.toggleByClass(host, visC[1], input.checked);
+      }
+      return;
+    }
+    if (target.tagName === 'BUTTON') {
+      const handler = target.getAttribute('onclick') || '';
+      const fi = handler.match(/fi\('([^']+)'/);
+      if (fi) {
+        this.toggleFailuresInterpretation(host, fi[1], target);
+        return;
+      }
+      const show = handler.match(/ShowSep\('([^']+)'/);
+      if (show) {
+        this.showMessageTable(host, 'msgC' + show[1], 'msgS' + show[1]);
+        return;
+      }
+      const hide = handler.match(/HideSep\('([^']+)'/);
+      if (hide) {
+        this.showMessageTable(host, 'msgS' + hide[1], 'msgC' + hide[1]);
+      }
+    }
+  }
+
+  private reportBodyHtml(): string {
+    if (!this.validationResult || !this.validationResult.html) {
+      return '';
+    }
+    const html = this.validationResult.html;
+    const body = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    return body ? body[1] : html;
+  }
+
+  private toggleById(host: HTMLElement, id: string, visible: boolean) {
+    const el = host.querySelector('#' + id) as HTMLElement;
+    if (el) {
+      el.style.display = visible ? '' : 'none';
+    }
+  }
+
+  private toggleByClass(host: HTMLElement, cls: string, visible: boolean) {
+    const nodes = host.getElementsByClassName(cls);
+    for (let i = 0; i < nodes.length; i++) {
+      (nodes[i] as HTMLElement).style.display = visible ? '' : 'none';
+    }
+  }
+
+  private toggleFailuresInterpretation(host: HTMLElement, id: string, button: HTMLElement) {
+    const div = host.querySelector('#' + id) as HTMLElement;
+    if (!div) {
+      return;
+    }
+    const hidden = div.style.display === 'none';
+    div.style.display = hidden ? '' : 'none';
+    if (button.childNodes[0]) {
+      button.childNodes[0].nodeValue = hidden ? ' Hide ' : ' View ';
+    }
+  }
+
+  private showMessageTable(host: HTMLElement, hideId: string, showId: string) {
+    const hide = host.querySelector('#' + hideId) as HTMLElement;
+    const show = host.querySelector('#' + showId) as HTMLElement;
+    if (hide) {
+      hide.style.display = 'none';
+    }
+    if (show) {
+      show.style.display = '';
+    }
   }
 
   async updateStaleMessageState() {
