@@ -20,12 +20,18 @@
   <ng-template #titleBar>
     <div style="display: flex; flex-direction: column; width: 100%; padding-right: 10px; padding-left: 5px;">
       <div style="display: flex; align-items: center;">
-        <div class="custom-ig-badge entity-badge-dark entity-badge-ig">IG</div>
-        <div style="margin-left: 5px; display: inline;">
-          <span class="title-text">
-            {{ title$ | async }}
-          </span>
+        <div style="flex: 1;">
+          <div class="custom-ig-badge entity-badge-dark entity-badge-ig">IG</div>
+          <div style="margin-left: 5px; display: inline;">
+            <span class="title-text">
+              {{ title$ | async }}
+            </span>
+          </div>
         </div>
+        <button *ngIf="igId$ | async as igId" [routerLink]="['/ig', igId]" class="btn btn-sm btn-primary">
+          <i class="fa fa-chevron-left"></i>
+          Open IG
+        </button>
       </div>
     </div>
   </ng-template>

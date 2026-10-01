@@ -19,6 +19,7 @@ export const EXAMPLE_MESSAGES_WIDGET_ID = 'EXAMPLE_MESSAGES_WIDGET_ID';
 export class ExampleMessagesContainerComponent extends DamWidgetComponent implements OnInit {
 
   title$: Observable<string>;
+  igId$: Observable<string>;
 
   constructor(
     store: Store<any>,
@@ -26,7 +27,10 @@ export class ExampleMessagesContainerComponent extends DamWidgetComponent implem
   ) {
     super(EXAMPLE_MESSAGES_WIDGET_ID, store, dialog);
     this.title$ = this.store.select(selectIgExampleMessages).pipe(
-      map((data) => data.title)
+      map((data) => data && data.title)
+    );
+    this.igId$ = this.store.select(selectIgExampleMessages).pipe(
+      map((data) => data && data.id)
     );
   }
 
