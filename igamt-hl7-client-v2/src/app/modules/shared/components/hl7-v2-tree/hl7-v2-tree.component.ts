@@ -1,4 +1,5 @@
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import * as _ from 'lodash';
 import { TreeNode } from 'primeng/primeng';
@@ -146,6 +147,7 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
   treeExpandedNodes: string[];
   resourceName: string;
   _resource: IResource;
+  highlightLocation: string;
 
   @Input()
   set resource(resource: IResource) {
@@ -156,7 +158,7 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
     this.close(this.s_resource);
     this.s_resource = this.treeService.getTree(this._resource, this.repository, this.viewOnly, true, (value) => {
       this.nodes = [...value];
-      this.recoverExpandState(this.nodes, this.treeExpandedNodes);
+      this.applyHighlight();
     });
     switch (this._resource.type) {
       case Type.DATATYPE:
@@ -190,6 +192,7 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
   cols: ColumnOptions;
   selectedColumns: ColumnOptions;
   s_resource: Subscription;
+  s_highlight: Subscription;
   context: IBindingContext;
   treeSubscriptions: Subscription[];
 
@@ -202,12 +205,47 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
 
   constructor(
     private dialog: MatDialog,
-    private treeService: Hl7V2TreeService) {
+    private treeService: Hl7V2TreeService,
+    private route: ActivatedRoute) {
     this.nodes = [];
     this.treeSubscriptions = [];
     this.treeExpandedNodes = [];
     this.changes = new EventEmitter<IChange>();
     this.changes$ = this.changes.asObservable();
+    this.s_highlight = this.route.queryParamMap.subscribe((params) => {
+      this.highlightLocation = params.get('location');
+      this.applyHighlight();
+    });
+  }
+
+  isHighlighted(pathId: string): boolean {
+    return !!this.highlightLocation && pathId === this.highlightLocation;
+  }
+
+  private applyHighlight() {
+    if (!this.nodes || this.nodes.length === 0) {
+      return;
+    }
+    if (this.highlightLocation) {
+      this.locationPrefixes(this.highlightLocation).forEach((prefix) => {
+        if (this.treeExpandedNodes.indexOf(prefix) < 0) {
+          this.treeExpandedNodes.push(prefix);
+        }
+      });
+    }
+    this.recoverExpandState(this.nodes, this.treeExpandedNodes);
+    this.refreshTree();
+  }
+
+  private locationPrefixes(location: string): string[] {
+    const parts = (location || '').split('-').filter((part) => !!part);
+    const prefixes: string[] = [];
+    let current = '';
+    for (let i = 0; i < parts.length; i++) {
+      current = current ? current + '-' + parts[i] : parts[i];
+      prefixes.push(current);
+    }
+    return prefixes;
   }
 
   close(s: Subscription) {
@@ -309,6 +347,7 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.close(this.s_resource);
+    this.close(this.s_highlight);
     for (const sub of this.treeSubscriptions) {
       this.close(sub);
     }

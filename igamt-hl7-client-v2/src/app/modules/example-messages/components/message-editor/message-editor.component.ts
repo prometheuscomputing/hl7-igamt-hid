@@ -1,7 +1,7 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatDialog } from '@angular/material';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { saveAs } from 'file-saver';
 import { Actions } from '@ngrx/effects';
 import { Action, Store } from '@ngrx/store';
@@ -22,8 +22,9 @@ import { MessageService } from 'src/app/modules/dam-framework/services/message.s
 import { TreeComponent, TreeNode } from 'angular-tree-component';
 import { CodemirrorComponent } from '@ctrl/ngx-codemirror';
 import * as CodeMirror from 'codemirror';
-import { IExampleMessageSnippet, IExampleMessageValidationEntry, IExampleMessageValidationResult, MessageElement } from '../../domain/example-messages.model';
+import { IExampleMessageLocation, IExampleMessageLocationContext, IExampleMessageSnippet, IExampleMessageValidationEntry, IExampleMessageValidationResult, MessageElement } from '../../domain/example-messages.model';
 import { CreateDialogComponent } from '../create-dialog/create-dialog.component';
+import { LocateContextDialogComponent } from '../locate-context-dialog/locate-context-dialog.component';
 import { VALIDATION_REPORT_CSS, VALIDATION_REPORT_SCRIPT } from './validation-report.css';
 
 @Component({
@@ -82,6 +83,7 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     private messageService: MessageService,
     private exampleMessagesService: ExampleMessagesService,
     private sanitizer: DomSanitizer,
+    private router: Router,
   ) {
     super({
       id: EditorID.EXAMPLE_MESSAGE,
@@ -476,6 +478,206 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     });
   }
 
+  openElementInIg(element: MessageElement) {
+    if (!element) {
+      return;
+    }
+    this.locateAndOpen(element.positionalPath, element.hl7Path);
+  }
+
+  validationEr7Path(entry: IExampleMessageValidationEntry): string {
+    return (entry && (entry.er7Path || entry.path)) || '';
+  }
+
+  validationIgPath(entry: IExampleMessageValidationEntry): string {
+    if (!entry) {
+      return '';
+    }
+    if (entry.igPath) {
+      return entry.igPath;
+    }
+    return this.normalizeHl7Path(this.validationEr7Path(entry));
+  }
+
+  openValidationInMessage(event: Event, entry: IExampleMessageValidationEntry) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!entry) {
+      return;
+    }
+    const parsed = this.findParsedForValidation(entry);
+    if (parsed) {
+      this.highlight(parsed);
+      this.revealInTree(parsed);
+      return;
+    }
+    this.jumpToEntry(entry);
+  }
+
+  openValidationInIg(event: Event, entry: IExampleMessageValidationEntry) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!entry) {
+      return;
+    }
+    const parsed = this.findParsedForValidation(entry);
+    this.locateAndOpen(
+      (parsed && parsed.positionalPath) || entry.positionalPath,
+      this.validationEr7Path(entry) || this.validationIgPath(entry),
+    );
+  }
+
+  private locateAndOpen(positionalPath: string, hl7Path: string) {
+    this.igId$.pipe(
+      take(1),
+      mergeMap((igId) => this.exampleMessagesService.locateExampleMessageElement(igId, this.messageId, positionalPath, hl7Path)),
+    ).subscribe(
+      (location) => this.navigateToIgLocation(location),
+      (error) => {
+        this.store.dispatch(this.messageService.actionFromError(error));
+      },
+    );
+  }
+
+  private navigateToIgLocation(location: IExampleMessageLocation) {
+    if (!location || location.error) {
+      this.store.dispatch(new Notify(new UserMessage(
+        MessageType.FAILED,
+        (location && location.error) || 'Could not locate this element in the IG.',
+      )));
+      return;
+    }
+    const contexts = location.contexts || [];
+    if (contexts.length > 1) {
+      this.dialog.open(LocateContextDialogComponent, {
+        data: location,
+        width: '460px',
+      }).afterClosed().pipe(take(1)).subscribe((context: IExampleMessageLocationContext) => {
+        if (context) {
+          this.goToIgResource(location.igId, context);
+        }
+      });
+      return;
+    }
+    const only = contexts.length === 1 ? contexts[0] : location;
+    this.goToIgResource(location.igId, only);
+  }
+
+  private goToIgResource(igId: string, target: { routeType: string; resourceId: string; location?: string }) {
+    if (!target || !target.routeType || !target.resourceId) {
+      this.store.dispatch(new Notify(new UserMessage(
+        MessageType.FAILED,
+        'Could not locate this element in the IG.',
+      )));
+      return;
+    }
+    this.router.navigate(
+      ['/ig', igId, target.routeType, target.resourceId, 'structure'],
+      { queryParams: target.location ? { location: target.location } : {} },
+    );
+  }
+
+  private findParsedForValidation(entry: IExampleMessageValidationEntry): MessageElement | null {
+    if (!entry) {
+      return null;
+    }
+    if (entry.positionalPath) {
+      const byPosition = this.findParsedMatchPath(entry.positionalPath, 'positionalPath', false);
+      if (byPosition) {
+        return byPosition;
+      }
+    }
+    const er7 = this.validationEr7Path(entry);
+    if (er7) {
+      const exact = this.findParsedMatchPath(er7, 'hl7Path', true);
+      if (exact) {
+        return exact;
+      }
+    }
+    const ig = this.validationIgPath(entry);
+    if (ig) {
+      return this.findParsedMatchPath(ig, 'hl7Path', true) || this.findParsedMatchPath(ig, 'profilePath', true);
+    }
+    return null;
+  }
+
+  private findParsedByHl7Path(hl7Path: string): MessageElement | null {
+    return this.findParsedMatchPath(hl7Path, 'hl7Path', true);
+  }
+
+  private findParsedMatchPath(path: string, field: 'hl7Path' | 'positionalPath' | 'profilePath', allowSuffix: boolean): MessageElement | null {
+    if (!path || !this.parsed) {
+      return null;
+    }
+    const visit = (node: any): MessageElement | null => {
+      if (!node) {
+        return null;
+      }
+      if (this.pathMatches(node[field], path, allowSuffix)) {
+        return node;
+      }
+      const children = node.children || [];
+      for (let i = 0; i < children.length; i++) {
+        const found = visit(children[i]);
+        if (found) {
+          return found;
+        }
+      }
+      return null;
+    };
+    if ((this.parsed as any).children) {
+      return visit(this.parsed);
+    }
+    const roots = this.parsed as any[];
+    for (let i = 0; i < roots.length; i++) {
+      const found = visit(roots[i]);
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  private pathMatches(candidate: string, target: string, allowSuffix: boolean): boolean {
+    if (!candidate || !target) {
+      return false;
+    }
+    if (candidate === target) {
+      return true;
+    }
+    const left = this.normalizeHl7Path(candidate);
+    const right = this.normalizeHl7Path(target);
+    if (left === right) {
+      return true;
+    }
+    if (!allowSuffix) {
+      return false;
+    }
+    return this.pathEndsWith(candidate, target)
+      || this.pathEndsWith(target, candidate)
+      || this.pathEndsWith(left, right)
+      || this.pathEndsWith(right, left);
+  }
+
+  private pathEndsWith(full: string, suffix: string): boolean {
+    if (!full || !suffix || full.length <= suffix.length) {
+      return false;
+    }
+    if (full.substring(full.length - suffix.length) !== suffix) {
+      return false;
+    }
+    const boundary = full.charAt(full.length - suffix.length - 1);
+    return boundary === '.' || boundary === '-';
+  }
+
+  private normalizeHl7Path(path: string): string {
+    return (path || '').replace(/\[\d+]/g, '').trim();
+  }
+
   jumpToEntry(entry: IExampleMessageValidationEntry) {
     if (!entry || !entry.line || !this.codeEditor || !this.codeEditor.codeMirror) {
       return;
@@ -488,6 +690,25 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     editor.focus();
     doc.setCursor(start);
     editor.scrollIntoView(start, 40);
+  }
+
+  private revealInTree(element: MessageElement) {
+    if (!element || !this.parsedTree || !this.parsedTree.treeModel) {
+      return;
+    }
+    const node = this.parsedTree.treeModel.getNodeBy((candidate) => {
+      const data = candidate && candidate.data;
+      if (!data) {
+        return false;
+      }
+      if (element.positionalPath && data.positionalPath) {
+        return data.positionalPath === element.positionalPath;
+      }
+      return data.hl7Path === element.hl7Path;
+    });
+    if (node && node.ensureVisible) {
+      node.ensureVisible();
+    }
   }
 
   reportHtml(): SafeHtml {

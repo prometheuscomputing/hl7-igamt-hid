@@ -61,7 +61,7 @@
             </tr>
         </ng-template>
         <ng-template pTemplate="body" let-rowNode let-rowData="rowData" let-columns="columns">
-            <tr class="table-row">
+            <tr class="table-row" [class.ig-locate-target]="isHighlighted(rowData.pathId)">
               <td  [ngSwitch]="col.field" class="text-cell table-cell" *ngFor="let col of columns; let i = index" [id]="i + '-' + rowNode.index" #anchor>
                 <ng-container *ngSwitchCase="columnTypes.NAME">
                   <tbody>

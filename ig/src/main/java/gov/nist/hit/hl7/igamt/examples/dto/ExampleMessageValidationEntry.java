@@ -5,6 +5,9 @@ public class ExampleMessageValidationEntry {
     private String category;
     private String description;
     private String path;
+    private String er7Path;
+    private String igPath;
+    private String positionalPath;
     private int line;
     private int column;
 
@@ -38,6 +41,30 @@ public class ExampleMessageValidationEntry {
 
     public void setPath(String path) {
         this.path = path;
+    }
+
+    public String getEr7Path() {
+        return er7Path;
+    }
+
+    public void setEr7Path(String er7Path) {
+        this.er7Path = er7Path;
+    }
+
+    public String getIgPath() {
+        return igPath;
+    }
+
+    public void setIgPath(String igPath) {
+        this.igPath = igPath;
+    }
+
+    public String getPositionalPath() {
+        return positionalPath;
+    }
+
+    public void setPositionalPath(String positionalPath) {
+        this.positionalPath = positionalPath;
     }
 
     public int getLine() {

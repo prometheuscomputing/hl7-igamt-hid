@@ -1,0 +1,20 @@
+<h2 mat-dialog-title>Open in IG</h2>
+<mat-dialog-content>
+  <p class="locate-path" *ngIf="data.hl7Path || data.name">
+    {{ data.hl7Path || data.name }}
+  </p>
+  <p class="locate-hint">Choose which IG resource to open this location from.</p>
+  <mat-radio-group class="locate-options" [(ngModel)]="selectedKey">
+    <mat-radio-button *ngFor="let context of data.contexts" class="locate-option" [value]="contextKey(context)">
+      <span class="locate-option-body">
+        <span class="locate-kind">{{ kindLabel(context) }}</span>
+        <span class="locate-label">{{ context.resourceName || context.label }}</span>
+        <span class="locate-detail" *ngIf="context.detail && context.detail !== context.resourceName && context.detail !== context.label">{{ context.detail }}</span>
+      </span>
+    </mat-radio-button>
+  </mat-radio-group>
+</mat-dialog-content>
+<mat-dialog-actions style="justify-content: flex-end;">
+  <button [mat-dialog-close]="" class="btn btn-sm btn-secondary" style="margin-right: 5px;">Cancel</button>
+  <button class="btn btn-sm btn-success" [disabled]="!selectedKey" (click)="openSelected()">Open</button>
+</mat-dialog-actions>

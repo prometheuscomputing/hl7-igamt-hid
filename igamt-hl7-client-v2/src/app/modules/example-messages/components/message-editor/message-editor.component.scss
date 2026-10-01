@@ -284,9 +284,21 @@
 }
 
 .validation-table .col-path {
-    width: 180px;
+    width: 160px;
     font-family: Menlo, Monaco, Consolas, monospace;
     font-size: 11px;
+}
+
+.er7-location-link,
+.ig-location-link {
+    color: #1565c0;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.er7-location-link:hover,
+.ig-location-link:hover {
+    color: #0d47a1;
 }
 
 .validation-table .col-category {

@@ -60,8 +60,49 @@ export interface IExampleMessageValidationEntry {
     category: string;
     description: string;
     path: string;
+    er7Path: string;
+    igPath: string;
+    positionalPath: string;
     line: number;
     column: number;
+}
+
+export interface IExampleMessageLocationHop {
+    type: string;
+    hl7Path: string;
+    name: string;
+    resourceType: string;
+    resourceId: string;
+    resourceName: string;
+    pathId: string;
+    positionalPath: string;
+}
+
+export interface IExampleMessageLocationContext {
+    kind: string;
+    label: string;
+    detail: string;
+    routeType: string;
+    resourceId: string;
+    resourceName: string;
+    location: string;
+    hl7Path: string;
+}
+
+export interface IExampleMessageLocation {
+    igId: string;
+    profileId: string;
+    hl7Path: string;
+    type: string;
+    name: string;
+    routeType: string;
+    resourceId: string;
+    resourceName: string;
+    location: string;
+    ambiguous: boolean;
+    error: string;
+    hops: IExampleMessageLocationHop[];
+    contexts: IExampleMessageLocationContext[];
 }
 
 export interface IExampleMessageValidationResult {

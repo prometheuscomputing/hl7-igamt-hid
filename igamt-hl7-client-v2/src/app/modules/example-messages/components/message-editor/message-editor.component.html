@@ -77,6 +77,9 @@
                                             <ng-template (execute)="toggleSelect(node.data)" contextMenuItem [enabled]="!staleMessageTree">
                                                 <i class="fa fa-check-square-o"></i> {{ isElementSelected(node.data) ? 'Deselect' : 'Add to Selection' }}
                                             </ng-template>
+                                            <ng-template (execute)="openElementInIg(node.data)" contextMenuItem>
+                                                <i class="fa fa-external-link"></i> Open in IG
+                                            </ng-template>
                                         </context-menu>
                                     </div>
                                 </ng-template>
@@ -201,7 +204,8 @@
                                 <thead>
                                     <tr>
                                         <th class="col-line">Line</th>
-                                        <th class="col-path">Path</th>
+                                        <th class="col-path">ER7 Path</th>
+                                        <th class="col-path">IG Path</th>
                                         <th class="col-category">Category</th>
                                         <th>Description</th>
                                     </tr>
@@ -211,12 +215,19 @@
                                         (click)="jumpToEntry(entry)"
                                         [class.clickable]="entry.line">
                                         <td class="col-line">{{ entry.line || '-' }}{{ entry.column ? ':' + entry.column : '' }}</td>
-                                        <td class="col-path">{{ entry.path }}</td>
+                                        <td class="col-path">
+                                            <a *ngIf="validationEr7Path(entry)" class="er7-location-link" (click)="openValidationInMessage($event, entry)">{{ validationEr7Path(entry) }}</a>
+                                            <span *ngIf="!validationEr7Path(entry)">-</span>
+                                        </td>
+                                        <td class="col-path">
+                                            <a *ngIf="validationIgPath(entry)" class="ig-location-link" (click)="openValidationInIg($event, entry)">{{ validationIgPath(entry) }}</a>
+                                            <span *ngIf="!validationIgPath(entry)">-</span>
+                                        </td>
                                         <td>{{ entry.category }}</td>
                                         <td>{{ entry.description }}</td>
                                     </tr>
                                     <tr *ngIf="entriesFor(kind).length === 0">
-                                        <td colspan="4" class="empty-row">No {{ kind }}.</td>
+                                        <td colspan="5" class="empty-row">No {{ kind }}.</td>
                                     </tr>
                                 </tbody>
                             </table>

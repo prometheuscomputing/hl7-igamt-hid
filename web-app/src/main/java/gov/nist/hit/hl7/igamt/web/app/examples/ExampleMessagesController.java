@@ -6,6 +6,7 @@ import gov.nist.hit.hl7.igamt.examples.domain.IgExampleMessages;
 import gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet;
 import gov.nist.hit.hl7.igamt.examples.dto.*;
 import gov.nist.hit.hl7.igamt.examples.dto.parser.MessageModel;
+import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageLocationService;
 import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageValidationService;
 import gov.nist.hit.hl7.igamt.examples.service.ExampleMessagesService;
 import gov.nist.hit.hl7.igamt.examples.service.MessageParserService;
@@ -28,6 +29,8 @@ public class ExampleMessagesController {
     SnippetRenderService snippetRenderService;
     @Autowired
     ExampleMessageValidationService exampleMessageValidationService;
+    @Autowired
+    ExampleMessageLocationService exampleMessageLocationService;
 
     @RequestMapping(value = "/api/example-messages/{id}", method = RequestMethod.GET, produces = {"application/json" })
     public @ResponseBody
@@ -144,6 +147,18 @@ public class ExampleMessagesController {
     ) throws Exception {
         ExampleMessage exampleMessage = this.exampleMessagesService.getExampleMessage(id, messageId);
         return messageParserService.parseMessage(id, exampleMessage.getProfileId(), exampleMessage.getMessage());
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/locate", method = RequestMethod.GET, produces = {"application/json" })
+    public @ResponseBody
+    ExampleMessageLocation locateMessageElement(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @RequestParam(value = "positionalPath", required = false) String positionalPath,
+            @RequestParam(value = "hl7Path", required = false) String hl7Path,
+            Authentication authentication
+    ) {
+        return exampleMessageLocationService.locate(id, messageId, positionalPath, hl7Path);
     }
 
     @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/validate", method = RequestMethod.POST, produces = {"application/json" })

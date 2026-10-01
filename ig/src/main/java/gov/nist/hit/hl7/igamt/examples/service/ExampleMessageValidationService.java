@@ -133,11 +133,14 @@ public class ExampleMessageValidationService {
             entry.setClassification(classification);
             entry.setCategory(str(section, "category"));
             entry.setDescription(str(section, "description"));
-            String path = str(section, "path");
-            if (!hasText(path)) {
-                path = str(section, "messageInstancePathName");
-            }
-            entry.setPath(path);
+            String er7Path = firstNonBlank(str(section, "messageInstancePathName"), str(section, "path"));
+            String igPath = firstNonBlank(str(section, "messageProfilePath"), stripInstances(er7Path));
+            entry.setPath(er7Path);
+            entry.setEr7Path(er7Path);
+            entry.setIgPath(igPath);
+            entry.setPositionalPath(firstNonBlank(
+                    str(section, "messageInstancePositionPath"),
+                    str(section, "messageProfilePositionPath")));
             entry.setLine(intVal(section, "line"));
             entry.setColumn(intVal(section, "column"));
             entries.add(entry);
@@ -209,6 +212,25 @@ public class ExampleMessageValidationService {
 
     private static String legacyValueSetXml(String xml) {
         return xml.replaceAll("\\s+CodePattern=\"[^\"]*\"", "").replaceAll("\\s+CodePattern='[^']*'", "");
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (hasText(value)) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private static String stripInstances(String path) {
+        if (!hasText(path)) {
+            return "";
+        }
+        return path.replaceAll("\\[\\d+]", "");
     }
 
     private static boolean hasText(String value) {

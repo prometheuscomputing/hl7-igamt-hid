@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { IExampleMessageDTO, IExampleMessageValidationResult, IgExampleMessages } from '../domain/example-messages.model';
+import { IExampleMessageDTO, IExampleMessageLocation, IExampleMessageValidationResult, IgExampleMessages } from '../domain/example-messages.model';
 import { IMessage } from '../../dam-framework/models/messages/message.class';
 
 export interface ICreateExampleMessageSnippetRequest {
@@ -63,6 +63,17 @@ export class ExampleMessagesService {
 
   public validateExampleMessage(id: string, messageId: string, message: string): Observable<IExampleMessageValidationResult> {
     return this.http.post<IExampleMessageValidationResult>(`api/example-messages/${id}/message/${messageId}/validate`, { message });
+  }
+
+  public locateExampleMessageElement(id: string, messageId: string, positionalPath?: string, hl7Path?: string): Observable<IExampleMessageLocation> {
+    const params: { [key: string]: string } = {};
+    if (positionalPath) {
+      params.positionalPath = positionalPath;
+    }
+    if (hl7Path) {
+      params.hl7Path = hl7Path;
+    }
+    return this.http.get<IExampleMessageLocation>(`api/example-messages/${id}/message/${messageId}/locate`, { params });
   }
 
   public createExampleMessageSnippet(id: string, messageId: string, data: ICreateExampleMessageSnippetRequest): Observable<IMessage<IgExampleMessages>> {
