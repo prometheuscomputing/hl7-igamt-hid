@@ -10,7 +10,6 @@ export class ActiveTitlebarComponent implements OnInit {
 
   @Input() active: IWorkspaceActive;
   @Input() controls: TemplateRef<any>;
-  @Input() header: TemplateRef<any>;
 
   constructor() { }
 

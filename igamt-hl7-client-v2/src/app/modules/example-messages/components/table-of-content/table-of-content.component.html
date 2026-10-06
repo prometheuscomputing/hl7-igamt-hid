@@ -2,19 +2,29 @@
   <tree-root #treeroot [nodes]="nodes" [options]="options">
     <ng-template #treeNodeTemplate let-index="index" let-node>
       <ng-container [ngSwitch]="node.data.type">
-        <div [routerLink]="['message', node.data.id]" routerLinkActive="active-node"  *ngSwitchCase="'EXAMPLEMESSAGE'" style="display: flex; align-items: center; padding: 3px 6px; gap: 5px;">
+        <div [routerLink]="['message', node.data.id]" routerLinkActive="active-node"  *ngSwitchCase="'EXAMPLEMESSAGE'" [contextMenu]="messageContextMenu" style="display: flex; align-items: center; padding: 3px 6px; gap: 5px;">
           <span class="badge badge-primary">
             <i class="fa fa-envelope"></i>
             Message
           </span>
           {{ node.data.label }}
+          <context-menu #messageContextMenu>
+            <ng-template (execute)="copyExampleMessage(node)" contextMenuItem>
+              <i class="fa fa-copy"></i> Copy Example Message
+            </ng-template>
+          </context-menu>
         </div>
-        <div *ngSwitchCase="'EXAMPLEMESSAGESNIPPET'" [routerLink]="['message', node.data.messageId, 'snippet', node.data.id]" routerLinkActive="active-node" style="display: flex; align-items: center; padding: 3px 6px; gap: 5px;">
+        <div *ngSwitchCase="'EXAMPLEMESSAGESNIPPET'" [routerLink]="['message', node.data.messageId, 'snippet', node.data.id]" routerLinkActive="active-node" [contextMenu]="snippetContextMenu" style="display: flex; align-items: center; padding: 3px 6px; gap: 5px;">
           <span class="badge badge-primary">
             <i class="fa fa-scissors"></i>
             Snippet
           </span>
           {{ node.data.label }}
+          <context-menu #snippetContextMenu>
+            <ng-template (execute)="copySnippet(node)" contextMenuItem>
+              <i class="fa fa-copy"></i> Copy Snippet
+            </ng-template>
+          </context-menu>
         </div>
         <ng-container *ngSwitchDefault>
           <div [contextMenu]="profileContexMenu" >

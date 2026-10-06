@@ -2,10 +2,13 @@ import { Component, OnInit, ViewChild } from '@angular/core';
 import { Actions } from '@ngrx/effects';
 import { Action, Store } from '@ngrx/store';
 import { EMPTY, Observable, of } from 'rxjs';
-import { catchError, flatMap, map, take } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, flatMap, map, mergeMap, take } from 'rxjs/operators';
 import * as fromDam from 'src/app/modules/dam-framework/store/index';
+import { selectIgExampleMessages } from 'src/app/root-store/example-messages/example-messages.reducer';
 import { IDisplayElement } from '../../../shared/models/display-element.interface';
 import { EditorID } from '../../../shared/models/editor.enum';
+import { Type } from '../../../shared/constants/type.enum';
+import { withUpdatedSnippetName } from '../../domain/example-messages.model';
 import { DamAbstractEditorComponent } from 'src/app/modules/dam-framework/services/dam-editor.component';
 import { FroalaService } from 'src/app/modules/shared/services/froala.service';
 import { MessageService } from 'src/app/modules/dam-framework/services/message.service';
@@ -69,6 +72,9 @@ export class SnippetEditorComponent extends DamAbstractEditorComponent implement
     this.currentSynchronized$.pipe(
       map((data) => {
         if (data) {
+          if (this.snippetId && data.snippetId && this.snippetId !== data.snippetId) {
+            this.viewMode = 'reduced';
+          }
           this.renderResult = data as ISnippetRenderResult;
           this.igId = (data as any).igId;
           this.messageId = data.messageId || null;
@@ -150,7 +156,18 @@ export class SnippetEditorComponent extends DamAbstractEditorComponent implement
   }
 
   editorDisplayNode(): Observable<IDisplayElement> {
-    return EMPTY;
+    return this.current$.pipe(
+      map((current) => this.toDisplay((current && current.data && current.data.snippetName) || this.snippetName)),
+      distinctUntilChanged((a, b) => a.id === b.id && a.variableName === b.variableName),
+    );
+  }
+
+  private toDisplay(name: string): IDisplayElement {
+    return {
+      id: this.snippetId,
+      variableName: name || '',
+      type: Type.EXAMPLEMESSAGESNIPPET,
+    } as IDisplayElement;
   }
 
   onNameChange(name: string) {
@@ -190,13 +207,18 @@ export class SnippetEditorComponent extends DamAbstractEditorComponent implement
           name: current.data.snippetName || this.snippetName,
           description: current.data.snippetDescription || this.snippetDescription,
         }).pipe(
-          flatMap((response) => {
-            return [
-              this.messageService.messageToAction(response),
-              new fromDam.EditorUpdate({ value: current.data, updateDate: false }),
-              new fromDam.SetValue({ selected: current.data }),
-            ];
-          }),
+          flatMap((response) => this.store.select(selectIgExampleMessages).pipe(
+            take(1),
+            mergeMap((ig) => {
+              const name = current.data.snippetName || this.snippetName;
+              return [
+                this.messageService.messageToAction(response),
+                new fromDam.EditorUpdate({ value: current.data, updateDate: false }),
+                new fromDam.SetValue({ selected: current.data }),
+                new fromDam.LoadPayloadData(withUpdatedSnippetName(ig, this.messageId, this.snippetId, name)),
+              ];
+            }),
+          )),
           catchError((error) => {
             return of(this.messageService.actionFromError(error));
           }),

@@ -6,6 +6,7 @@ import java.util.List;
 public class IgExampleMessagesDTO {
     private String id;
     private String title;
+    private String createdId;
     private List<ProfileExampleMessages> profileExampleMessages;
 
     public String getId() {
@@ -22,6 +23,14 @@ public class IgExampleMessagesDTO {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public String getCreatedId() {
+        return createdId;
+    }
+
+    public void setCreatedId(String createdId) {
+        this.createdId = createdId;
     }
 
     public List<ProfileExampleMessages> getProfileExampleMessages() {

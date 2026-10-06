@@ -76,8 +76,16 @@ export class ExampleMessagesService {
     return this.http.get<IExampleMessageLocation>(`api/example-messages/${id}/message/${messageId}/locate`, { params });
   }
 
+  public copyExampleMessage(id: string, messageId: string, data: { name: string }): Observable<IMessage<IgExampleMessages>> {
+    return this.http.post<IMessage<IgExampleMessages>>(`api/example-messages/${id}/message/${messageId}/copy`, data);
+  }
+
   public createExampleMessageSnippet(id: string, messageId: string, data: ICreateExampleMessageSnippetRequest): Observable<IMessage<IgExampleMessages>> {
     return this.http.post<IMessage<IgExampleMessages>>(`api/example-messages/${id}/message/${messageId}/snippet`, data);
+  }
+
+  public copySnippet(id: string, messageId: string, snippetId: string, data: { name: string }): Observable<IMessage<IgExampleMessages>> {
+    return this.http.post<IMessage<IgExampleMessages>>(`api/example-messages/${id}/message/${messageId}/snippet/${snippetId}/copy`, data);
   }
 
   public renderSnippet(igId: string, messageId: string, snippetId: string): Observable<ISnippetRenderResult> {

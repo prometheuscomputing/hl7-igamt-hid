@@ -52,7 +52,11 @@ export class ExampleMessagesEffects extends DamWidgetEffect {
                   id: EditorID.EXAMPLE_MESSAGE,
                   title: 'Message',
                 },
-                display: {},
+                display: {
+                  id: message.id,
+                  variableName: message.name || '',
+                  type: Type.EXAMPLEMESSAGE,
+                },
                 initial: message,
               });
             }),
@@ -88,7 +92,11 @@ export class ExampleMessagesEffects extends DamWidgetEffect {
                   id: EditorID.EXAMPLE_SNIPPET,
                   title: 'Snippet',
                 },
-                display: {},
+                display: {
+                  id: snippetId,
+                  variableName: renderResult.snippetName || '',
+                  type: Type.EXAMPLEMESSAGESNIPPET,
+                },
                 initial: {
                   ...renderResult,
                   igId: data.id,

@@ -131,8 +131,18 @@
       </span>
     </div>
 
+    <div *ngIf="selectedSnippetId && renderResult && !messageNotFoundWarning" class="view-toggle" style="display: flex; align-items: center; gap: 6px; padding: 10px 15px; border-bottom: 1px solid #e0e0e0; background: #fafafa;">
+      <span style="font-weight: 500; color: #555; margin-right: 10px;">View:</span>
+      <button class="btn btn-sm" [ngClass]="viewMode === 'reduced' ? 'btn-primary' : 'btn-outline-secondary'" (click)="setViewMode('reduced')">
+        <i class="fa fa-compress"></i> Snippet Only
+      </button>
+      <button class="btn btn-sm" [ngClass]="viewMode === 'full' ? 'btn-primary' : 'btn-outline-secondary'" (click)="setViewMode('full')">
+        <i class="fa fa-expand"></i> Full Message
+      </button>
+    </div>
+
     <!-- CodeMirror ER7 Panel (read-only, full width) -->
-    <div [style.height]="selectedSnippetId ? 'auto' : '400px'" [style.min-height]="'60px'" [style.max-height]="'400px'" style="overflow: hidden;">
+    <div [style.height]="selectedSnippetId && viewMode === 'reduced' ? 'auto' : '400px'" [style.min-height]="'60px'" [style.max-height]="'400px'" style="overflow: hidden;">
       <ngx-codemirror
         #codemirror
         [ngModel]="displayMessage"

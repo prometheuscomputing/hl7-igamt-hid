@@ -2,11 +2,12 @@ import { Component, OnInit, ViewChild } from '@angular/core';
 import { MatDialog } from '@angular/material';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { Store } from '@ngrx/store';
-import { EMPTY, Observable, of, BehaviorSubject } from 'rxjs';
+import { EMPTY, Observable, of, BehaviorSubject, combineLatest } from 'rxjs';
 import { map, tap, take, mergeMap, catchError, finalize, filter } from 'rxjs/operators';
 import { MessageService } from '../../../dam-framework/services/message.service';
 import { Type } from '../../../shared/constants/type.enum';
 import { IDisplayElement } from '../../../shared/models/display-element.interface';
+import { EditorID } from '../../../shared/models/editor.enum';
 import { TableOfContentComponent } from '../table-of-content/table-of-content.component';
 import { selectIgExampleMessages } from 'src/app/root-store/example-messages/example-messages.reducer';
 import { ExampleMessagesService } from '../../services/example-messages.service';
@@ -48,8 +49,20 @@ export class SideBarComponent {
       take(1),
       map((igExampleMessages) => igExampleMessages.id)
     );
-    this.nodes = this.store.select(selectIgExampleMessages).pipe(
-      map((igExampleMessages) => {
+    this.nodes = combineLatest(
+      this.store.select(selectIgExampleMessages),
+      this.store.select(fromDAM.selectWorkspaceActive),
+      this.store.select(fromDAM.selectWorkspaceCurrent),
+    ).pipe(
+      map(([igExampleMessages, active, current]) => {
+        if (!igExampleMessages || !igExampleMessages.profileExampleMessages) {
+          return [];
+        }
+        const activeId = active && active.display ? active.display.id : null;
+        const editorId = active && active.editor ? active.editor.id : null;
+        const currentData = current && current.data ? current.data as any : null;
+        const currentName = currentData ? currentData.name : null;
+        const currentSnippetName = currentData ? currentData.snippetName : null;
         const nodes: any[] = [];
         for (const profileExamples of igExampleMessages.profileExampleMessages) {
           nodes.push({
@@ -60,13 +73,17 @@ export class SideBarComponent {
               ...profileExamples.exampleMessages.map((message) => ({
                 ...message,
                 type: Type.EXAMPLEMESSAGE,
-                label: message.name,
+                label: editorId === EditorID.EXAMPLE_MESSAGE && message.id === activeId && currentName != null
+                  ? currentName
+                  : message.name,
                 children: [
-                  ...message.snippets.map((snippet) => ({
+                  ...(message.snippets || []).map((snippet) => ({
                     ...snippet,
                     messageId: message.id,
                     type: Type.EXAMPLEMESSAGESNIPPET,
-                    label: snippet.name,
+                    label: editorId === EditorID.EXAMPLE_SNIPPET && snippet.id === activeId && currentSnippetName != null
+                      ? currentSnippetName
+                      : snippet.name,
                   }))
                 ]
               }))
@@ -105,13 +122,37 @@ export class SideBarComponent {
   }
 
   createExampleMessage(data: { name: string, profileId: string }) {
+    this.mutateExampleMessages(
+      (id) => this.exampleMessageService.createExampleMessage(id, data),
+      (createdId) => this.router.navigate(['message', createdId], { relativeTo: this.route }),
+    );
+  }
+
+  copyExampleMessage(data: { messageId: string, name: string }) {
+    this.mutateExampleMessages(
+      (id) => this.exampleMessageService.copyExampleMessage(id, data.messageId, { name: data.name }),
+      (createdId) => this.router.navigate(['message', createdId], { relativeTo: this.route }),
+    );
+  }
+
+  copySnippet(data: { messageId: string, snippetId: string, name: string }) {
+    this.mutateExampleMessages(
+      (id) => this.exampleMessageService.copySnippet(id, data.messageId, data.snippetId, { name: data.name }),
+      (createdId) => this.router.navigate(['message', data.messageId, 'snippet', createdId], { relativeTo: this.route }),
+    );
+  }
+
+  private mutateExampleMessages(
+    request: (id: string) => Observable<any>,
+    afterSuccess?: (createdId: string) => void,
+  ) {
     this.store.dispatch(new fromDAM.TurnOnLoader({
       blockUI: true,
     }));
     this.id$.pipe(
       take(1),
       mergeMap((id) => {
-        return this.exampleMessageService.createExampleMessage(id, data).pipe(
+        return request(id).pipe(
           map((message) => {
             const actions = [];
             actions.push(this.messageService.messageToAction(message));
@@ -120,13 +161,19 @@ export class SideBarComponent {
             }
             actions.forEach((action) => {
               this.store.dispatch(action);
-            })
+            });
+            if (message.status === MessageType.SUCCESS && afterSuccess) {
+              const createdId = (message.data && message.data.createdId) || message.id;
+              if (createdId) {
+                afterSuccess(createdId);
+              }
+            }
           }),
           catchError((err) => {
             this.store.dispatch(this.messageService.actionFromError(err));
             return EMPTY;
           }),
-        )
+        );
       }),
       finalize(() => {
         this.store.dispatch(new fromDAM.TurnOffLoader());

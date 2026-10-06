@@ -1,12 +1,15 @@
 <h2 mat-dialog-title>{{ data.title }}</h2>
 <mat-dialog-content>
-<div class="form-group">
-  <label>Name</label>
-  <input class="form-control" type="text" [(ngModel)]="name" />
-</div>
-
+  <div *ngIf="data.description" style="margin-bottom: 12px; color: #555; font-size: 13px;">{{ data.description }}</div>
+  <div class="form-group">
+    <label>Name</label>
+    <input class="form-control" type="text" [(ngModel)]="name" [class.is-invalid]="nameTaken" />
+    <div *ngIf="nameTaken" style="color: #c62828; font-size: 12px; margin-top: 6px;">
+      A {{ data.kind || 'item' }} with this name already exists.
+    </div>
+  </div>
 </mat-dialog-content>
 <mat-dialog-actions style="justify-content: flex-end;">
   <button [mat-dialog-close]="" class="btn btn-sm btn-secondary" style="margin-right: 5px;">Cancel</button>
-  <button [mat-dialog-close]="{ name: name }" class="btn btn-sm btn-success">Done</button>
+  <button (click)="submit()" [disabled]="!canSubmit" class="btn btn-sm btn-success">{{ data.confirmLabel || 'Done' }}</button>
 </mat-dialog-actions>

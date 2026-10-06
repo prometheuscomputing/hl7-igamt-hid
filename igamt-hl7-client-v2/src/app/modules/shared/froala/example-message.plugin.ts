@@ -3,6 +3,8 @@ const BODY_CLASS = 'fr-exmsg-body';
 const LINK_CLASS = 'fr-exmsg-link';
 const REMOVE_CLASS = 'fr-exmsg-remove';
 const SELECTED_CLASS = 'fr-exmsg-selected';
+const VIEW_BAR_CLASS = 'fr-exmsg-views';
+const VIEW_BTN_CLASS = 'fr-exmsg-view';
 
 function getFe(): any {
   const jq = (window as any).$ || (window as any).jQuery;
@@ -184,11 +186,25 @@ export function registerFroalaExampleMessagePlugin() {
         if (!html) {
           return html;
         }
-        return String(html).replace(/<button[^>]*fr-exmsg-remove[^>]*>[\s\S]*?<\/button>/gi, '');
+        return String(html)
+          .replace(/<button[^>]*fr-exmsg-remove[^>]*>[\s\S]*?<\/button>/gi, '')
+          .replace(/<div[^>]*fr-exmsg-views[^>]*>[\s\S]*?<\/div>/gi, '');
       });
       editor.events.$on(editor.$el, 'click', 'a.' + LINK_CLASS, function(e) {
         if (!e.ctrlKey && !e.metaKey) {
           e.preventDefault();
+        }
+      });
+      editor.events.$on(editor.$el, 'click', '.' + VIEW_BTN_CLASS, function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const jq = getJq();
+        const $btn = jq(this);
+        const view = $btn.attr('data-view') || 'reduced';
+        const $widget = $btn.closest('.' + WIDGET_CLASS);
+        $widget.attr('data-view', view);
+        if (typeof editor.opts.igamtExampleMessageRender === 'function') {
+          editor.opts.igamtExampleMessageRender(editor, true);
         }
       });
       editor.events.$on(editor.$el, 'click', '.' + REMOVE_CLASS, function(e) {
@@ -289,13 +305,15 @@ export function registerFroalaExampleMessagePlugin() {
     };
   };
 
+  FE.DefineIconTemplate('igamt_em_label', '<span class="badge badge-primary igamt-em-toolbar-btn">[NAME]</span>');
+  FE.DefineIcon('insertExampleMessage', { NAME: 'M', template: 'igamt_em_label' });
+
   if (alreadyRegistered) {
     return;
   }
 
-  FE.DefineIcon('insertExampleMessage', { NAME: 'file-text-o' });
   FE.RegisterCommand('insertExampleMessage', {
-    title: 'Insert Example Message',
+    title: 'Insert Example Messages',
     icon: 'insertExampleMessage',
     undo: true,
     focus: false,
@@ -383,6 +401,7 @@ export function buildExampleMessageWidgetHtml(
     '<div class="' + WIDGET_CLASS + ' fr-deletable" contenteditable="false"' +
     ' data-message-id="' + escapeAttr(messageId) + '"' +
     ' data-snippet-id="' + escapeAttr(snippetId || '') + '"' +
+    ' data-view="' + (snippetId ? 'reduced' : 'full') + '"' +
     ' data-label="' + escapeAttr(label || '') + '">' +
     '<a class="' + LINK_CLASS + '" href="' + escapeAttr(href) + '">' + caption + '</a>' +
     '<pre class="' + BODY_CLASS + '">Loading…</pre>' +
@@ -406,7 +425,19 @@ export function findExampleMessageWidgets(root: any): any[] {
   return jq(root).find('.' + WIDGET_CLASS).toArray();
 }
 
-export function setExampleMessageWidgetBody(widget: HTMLElement, body: string, missing?: boolean) {
+export interface IExampleMessageHighlightRange {
+  startLine: number;
+  startCol: number;
+  endLine: number;
+  endCol: number;
+}
+
+export function setExampleMessageWidgetBody(
+  widget: HTMLElement,
+  body: string,
+  missing?: boolean,
+  highlights?: IExampleMessageHighlightRange[],
+) {
   const jq = getJq();
   if (!jq || !widget) {
     return;
@@ -416,9 +447,156 @@ export function setExampleMessageWidgetBody(widget: HTMLElement, body: string, m
     pre = jq('<pre class="' + BODY_CLASS + '"></pre>');
     jq(widget).append(pre);
   }
-  pre.text(body || '');
+  pre.html(styleEr7Html(body || '', highlights || []));
   jq(widget).toggleClass('fr-exmsg-missing', !!missing);
   ensureRemoveButton(widget);
+  ensureViewToggle(widget);
+}
+
+export function widgetViewMode(widget: HTMLElement): 'full' | 'reduced' {
+  return widget && widget.getAttribute('data-view') === 'full' ? 'full' : 'reduced';
+}
+
+export function ensureViewToggle(widget: HTMLElement) {
+  const jq = getJq();
+  if (!jq || !widget) {
+    return;
+  }
+  const $widget = jq(widget);
+  const snippetId = $widget.attr('data-snippet-id');
+  $widget.children('.' + VIEW_BAR_CLASS).remove();
+  if (!snippetId) {
+    return;
+  }
+  const view = widgetViewMode(widget);
+  $widget.children('.' + LINK_CLASS).after(
+    '<div class="' + VIEW_BAR_CLASS + '" contenteditable="false">' +
+      '<span class="fr-exmsg-view-label">View:</span>' +
+      '<button type="button" class="' + VIEW_BTN_CLASS + (view === 'reduced' ? ' active' : '') + '" data-view="reduced">Snippet Only</button>' +
+      '<button type="button" class="' + VIEW_BTN_CLASS + (view === 'full' ? ' active' : '') + '" data-view="full">Full Message</button>' +
+    '</div>'
+  );
+}
+
+const ER7_TOKEN_STYLE: { [token: string]: string } = {
+  'segment-name': 'font-weight:bold;color:black',
+  'field-separator': 'color:#0707f1',
+  'component-separator': 'color:#ac2200',
+  'subcomponent-separator': 'color:rgb(0, 146, 0)',
+  'continuation-separator': 'color:#FF00FF',
+};
+
+export function styleEr7Html(body: string, highlights?: IExampleMessageHighlightRange[]): string {
+  if (!body) {
+    return '';
+  }
+  const lines = String(body).split(/\r\n|\n|\r/);
+  const marked = lines.map((line) => {
+    const flags = [];
+    for (let i = 0; i < line.length; i++) {
+      flags.push(false);
+    }
+    return flags;
+  });
+  const ranges = highlights || [];
+  for (let r = 0; r < ranges.length; r++) {
+    markHighlightRange(lines, marked, ranges[r]);
+  }
+  return lines.map((line, lineIdx) => styleEr7Line(line, marked[lineIdx])).join('\n');
+}
+
+function markHighlightRange(
+  lines: string[],
+  marked: boolean[][],
+  range: IExampleMessageHighlightRange,
+) {
+  if (!range || !lines.length) {
+    return;
+  }
+  const startLine = clamp(range.startLine, 0, lines.length - 1);
+  const endLine = clamp(range.endLine, 0, lines.length - 1);
+  const fromLine = Math.min(startLine, endLine);
+  const toLine = Math.max(startLine, endLine);
+  for (let lineIdx = fromLine; lineIdx <= toLine; lineIdx++) {
+    const startCol = lineIdx === fromLine ? Math.max(0, range.startCol) : 0;
+    const endCol = lineIdx === toLine ? range.endCol : lines[lineIdx].length;
+    const fromCol = Math.max(0, Math.min(startCol, lines[lineIdx].length));
+    const toCol = Math.max(fromCol, Math.min(endCol, lines[lineIdx].length));
+    for (let col = fromCol; col < toCol; col++) {
+      marked[lineIdx][col] = true;
+    }
+  }
+}
+
+function styleEr7Line(line: string, flags: boolean[]): string {
+  if (!line) {
+    return '';
+  }
+  let html = '';
+  let i = 0;
+  while (i < line.length) {
+    const highlighted = !!flags[i];
+    let j = i + 1;
+    while (j < line.length && !!flags[j] === highlighted) {
+      j += 1;
+    }
+    const inner = styleEr7Tokens(line, i, j);
+    html += highlighted
+      ? '<span class="cm-highlight" style="background-color:#f3c60b;padding-top:5px;padding-bottom:5px;box-shadow:0px 5px 2px -2px gray">' + inner + '</span>'
+      : inner;
+    i = j;
+  }
+  return html;
+}
+
+function styleEr7Tokens(line: string, from: number, to: number): string {
+  let html = '';
+  let i = from;
+  while (i < to) {
+    const token = er7TokenClass(line, i);
+    let j = i + 1;
+    while (j < to && er7TokenClass(line, j) === token) {
+      j += 1;
+    }
+    const text = escapeHtml(line.substring(i, j));
+    if (token) {
+      html += '<span class="cm-' + token + '" style="' + ER7_TOKEN_STYLE[token] + '">' + text + '</span>';
+    } else {
+      html += text;
+    }
+    i = j;
+  }
+  return html;
+}
+
+function er7TokenClass(line: string, column: number): string {
+  if (column <= 2) {
+    return 'segment-name';
+  }
+  const ch = line.charAt(column);
+  if (ch === '|') {
+    return 'field-separator';
+  }
+  if (ch === '^') {
+    return 'component-separator';
+  }
+  if (ch === '&') {
+    return 'subcomponent-separator';
+  }
+  if (ch === '~') {
+    return 'continuation-separator';
+  }
+  return '';
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
 }
 
 export function ensureRemoveButton(widget: HTMLElement) {
@@ -447,4 +625,4 @@ function escapeAttr(value: string): string {
   return escapeHtml(value).replace(/'/g, '&#39;');
 }
 
-export { WIDGET_CLASS, BODY_CLASS, LINK_CLASS, REMOVE_CLASS };
+export { WIDGET_CLASS, BODY_CLASS, LINK_CLASS, REMOVE_CLASS, VIEW_BAR_CLASS, VIEW_BTN_CLASS };

@@ -1,6 +1,21 @@
+<ng-template #headerTitle let-active>
+  <h5 class="title-text em-active-title">
+    <span class="badge badge-primary">
+      <i class="fa fa-envelope"></i> Message
+    </span>
+    <span>{{ active && active.display && active.display.variableName ? active.display.variableName : messageName }}</span>
+  </h5>
+</ng-template>
+<ng-template #headerControls>
+  <div class="em-title-tabs">
+    <button type="button" class="em-title-tab" [class.active]="activeTab === 0" (click)="activeTab = 0">Content</button>
+    <button type="button" class="em-title-tab" [class.active]="activeTab === 1" (click)="activeTab = 1">Metadata</button>
+  </div>
+</ng-template>
+
 <div class="message-editor">
 
-    <p-tabView [(activeIndex)]="activeTab">
+    <p-tabView [(activeIndex)]="activeTab" styleClass="em-editor-tabview">
 
         <!-- ==================== CONTENT TAB ==================== -->
         <p-tabPanel header="Content" [selected]="true">

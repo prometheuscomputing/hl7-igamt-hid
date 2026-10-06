@@ -37,7 +37,11 @@
   </ng-template>
 
   <ng-template #toolbar>
-    <div></div>
+    <div class="em-toolbar-title">
+      <ng-container *ngIf="activeComponent?.header && (activeWorkspace | async) as active">
+        <ng-container *ngTemplateOutlet="activeComponent.header; context: { $implicit: active }"></ng-container>
+      </ng-container>
+    </div>
     <div>
       <app-dam-reset-button></app-dam-reset-button>
       <app-dam-save-button></app-dam-save-button>
@@ -48,7 +52,6 @@
     <app-active-titlebar
     [active]="activeWorkspace | async"
     [controls]="activeComponent?.controls"
-    [header]="activeComponent?.header"
     ></app-active-titlebar>
   </ng-template>
 

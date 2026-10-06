@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChange
 import { MatDialog } from '@angular/material';
 import { TreeComponent, TreeNode } from 'angular-tree-component';
 import { NodeHelperService } from '../../../shared/services/node-helper.service';
+import { nextCopyName } from '../../domain/example-messages.model';
 import { CreateDialogComponent } from '../create-dialog/create-dialog.component';
 
 @Component({
@@ -17,6 +18,10 @@ export class TableOfContentComponent implements OnInit, OnChanges {
   activeMessageId: string;
   @Output()
   onCreateExampleMessage: EventEmitter<{ profileId: string, name: string }>;
+  @Output()
+  onCopyExampleMessage: EventEmitter<{ messageId: string, name: string }>;
+  @Output()
+  onCopySnippet: EventEmitter<{ messageId: string, snippetId: string, name: string }>;
   @ViewChild(TreeComponent) private tree: TreeComponent;
 
   options;
@@ -33,6 +38,8 @@ export class TableOfContentComponent implements OnInit, OnChanges {
       },
     };
     this.onCreateExampleMessage = new EventEmitter();
+    this.onCopyExampleMessage = new EventEmitter();
+    this.onCopySnippet = new EventEmitter();
   }
 
   expandAll() {
@@ -52,32 +59,103 @@ export class TableOfContentComponent implements OnInit, OnChanges {
   }
 
   createExampleMessage(id: string) {
+    const existingNames = this.messageNamesForProfile(id);
     this.dialog.open(CreateDialogComponent, {
       data: {
-        title: 'Create Example Message'
+        title: 'Create Example Message',
+        kind: 'example message',
+        existingNames,
       }
     }).afterClosed().subscribe((data) => {
       if (data && data.name) {
         this.onCreateExampleMessage.emit({
           name: data.name,
           profileId: id,
-        })
+        });
       }
-    })
+    });
+  }
+
+  copyExampleMessage(node: TreeNode) {
+    const message = node.data;
+    const existingNames = this.messageNamesForProfile(message.profileId);
+    this.dialog.open(CreateDialogComponent, {
+      data: {
+        title: 'Copy Example Message',
+        kind: 'example message',
+        name: nextCopyName(message.label || message.name, existingNames),
+        existingNames,
+        confirmLabel: 'Copy',
+      }
+    }).afterClosed().subscribe((data) => {
+      if (data && data.name) {
+        this.onCopyExampleMessage.emit({
+          messageId: message.id,
+          name: data.name,
+        });
+      }
+    });
+  }
+
+  copySnippet(node: TreeNode) {
+    const snippet = node.data;
+    const existingNames = this.snippetNamesForMessage(node);
+    this.dialog.open(CreateDialogComponent, {
+      data: {
+        title: 'Copy Snippet',
+        kind: 'snippet',
+        name: nextCopyName(snippet.label || snippet.name, existingNames),
+        existingNames,
+        confirmLabel: 'Copy',
+      }
+    }).afterClosed().subscribe((data) => {
+      if (data && data.name) {
+        this.onCopySnippet.emit({
+          messageId: snippet.messageId,
+          snippetId: snippet.id,
+          name: data.name,
+        });
+      }
+    });
+  }
+
+  private messageNamesForProfile(profileId: string): string[] {
+    const profile = (this.nodes || []).find((node) => node.id === profileId || (node.data && node.data.id === profileId));
+    const messages = (profile && (profile.children || (profile.data && profile.data.children))) || [];
+    return messages.map((message) => message.label || message.name || (message.data && (message.data.label || message.data.name))).filter((name) => !!name);
+  }
+
+  private snippetNamesForMessage(snippetNode: TreeNode): string[] {
+    const parent = snippetNode.parent;
+    const siblings = (parent && parent.data && parent.data.children) || [];
+    return siblings.map((snippet) => snippet.label || snippet.name).filter((name) => !!name);
   }
 
   ngOnInit() {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    // Always expand the full tree when nodes load or change
-    if (changes.nodes && this.nodes) {
+    if (changes.nodes && this.nodes && this.structureChanged(changes.nodes.previousValue, changes.nodes.currentValue)) {
       setTimeout(() => {
         if (this.tree && this.tree.treeModel) {
           this.tree.treeModel.expandAll();
         }
       }, 100);
     }
+  }
+
+  private structureChanged(previous: any[], current: any[]): boolean {
+    return this.nodeKeys(previous) !== this.nodeKeys(current);
+  }
+
+  private nodeKeys(nodes: any[]): string {
+    if (!nodes || !nodes.length) {
+      return '';
+    }
+    return nodes.map((node) => {
+      const children = node.children || (node.data && node.data.children) || [];
+      return (node.id || (node.data && node.data.id) || '') + '[' + this.nodeKeys(children) + ']';
+    }).join(',');
   }
 
 }

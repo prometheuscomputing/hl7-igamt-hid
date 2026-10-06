@@ -15,14 +15,15 @@ import { IDisplayElement } from '../../../shared/models/display-element.interfac
 import { EditorID } from '../../../shared/models/editor.enum';
 import { DamAbstractEditorComponent } from 'src/app/modules/dam-framework/services/dam-editor.component';
 import { FroalaService } from 'src/app/modules/shared/services/froala.service';
-import { catchError, concatMap, finalize, flatMap, map, mergeMap, take } from 'rxjs/operators';
+import { catchError, concatMap, distinctUntilChanged, finalize, flatMap, map, mergeMap, take } from 'rxjs/operators';
 import { ExampleMessagesService } from '../../services/example-messages.service';
 import { selectIgExampleMessages } from 'src/app/root-store/example-messages/example-messages.reducer';
 import { MessageService } from 'src/app/modules/dam-framework/services/message.service';
 import { TreeComponent, TreeNode } from 'angular-tree-component';
 import { CodemirrorComponent } from '@ctrl/ngx-codemirror';
 import * as CodeMirror from 'codemirror';
-import { IExampleMessageLocation, IExampleMessageLocationContext, IExampleMessageSnippet, IExampleMessageValidationEntry, IExampleMessageValidationResult, MessageElement } from '../../domain/example-messages.model';
+import { Type } from '../../../shared/constants/type.enum';
+import { IExampleMessageLocation, IExampleMessageLocationContext, IExampleMessageSnippet, IExampleMessageValidationEntry, IExampleMessageValidationResult, MessageElement, withUpdatedMessageName } from '../../domain/example-messages.model';
 import { CreateDialogComponent } from '../create-dialog/create-dialog.component';
 import { LocateContextDialogComponent } from '../locate-context-dialog/locate-context-dialog.component';
 import { VALIDATION_REPORT_CSS, VALIDATION_REPORT_SCRIPT } from './validation-report.css';
@@ -97,14 +98,23 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     )
     this.currentSynchronized$.pipe(
       map(async (current) => {
-        this.message = current.message;
-        this.narrative = current.narrativeHTML;
-        this.messageId = current.id;
-        this.messageName = current.name || '';
-        this.messageDescription = current.description || '';
+        const nextId = current && current.id;
+        if (nextId !== this.messageId) {
+          this.resetEditorState();
+        }
+        this.message = (current && current.message) || '';
+        this.narrative = (current && current.narrativeHTML) || '';
+        this.messageId = nextId;
+        this.messageName = (current && current.name) || '';
+        this.messageDescription = (current && current.description) || '';
         this.resolveSnippetPath();
         if (this.message) {
           await this.parseMessage();
+        } else {
+          this.parsed = [];
+          this.parseError = '';
+          this.staleMessageTree = false;
+          this.messageHash = null;
         }
       })
     ).subscribe();
@@ -173,7 +183,18 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   }
 
   editorDisplayNode(): Observable<IDisplayElement> {
-    return EMPTY;
+    return this.current$.pipe(
+      map((current) => this.toDisplay((current && current.data && current.data.name) || this.messageName)),
+      distinctUntilChanged((a, b) => a.id === b.id && a.variableName === b.variableName),
+    );
+  }
+
+  private toDisplay(name: string): IDisplayElement {
+    return {
+      id: this.messageId,
+      variableName: name || '',
+      type: Type.EXAMPLEMESSAGE,
+    } as IDisplayElement;
   }
 
   onEditorSave(action: fromDam.EditorSave): Observable<Action> {
@@ -203,9 +224,13 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
               }
             }
             return from(this.parseMessage()).pipe(
-              flatMap(() => {
-                return [this.messageService.messageToAction(response), new fromDam.EditorUpdate({ value: current.data, updateDate: false }), new fromDam.SetValue({ selected: current.data })];
-              })
+              flatMap(() => this.store.select(selectIgExampleMessages).pipe(take(1))),
+              mergeMap((ig) => [
+                this.messageService.messageToAction(response),
+                new fromDam.EditorUpdate({ value: current.data, updateDate: false }),
+                new fromDam.SetValue({ selected: current.data }),
+                new fromDam.LoadPayloadData(withUpdatedMessageName(ig, this.messageId, current.data.name)),
+              ])
             );
           }),
           catchError((error) => throwError(this.messageService.actionFromError(error))),
@@ -318,9 +343,11 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     this.dialog.open(CreateDialogComponent, {
       data: {
         title: 'Create Snippet',
+        kind: 'snippet',
         description: this.selectedElements.length > 1
           ? `Creating snippet from ${this.selectedElements.length} selected elements: ${selectionSummary}`
           : `Creating snippet from: ${selectionSummary}`,
+        existingNames: this.currentSnippetNames(),
       },
     }).afterClosed().pipe(
       take(1),
@@ -824,6 +851,36 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   async updateStaleMessageState() {
     const hash = await this.getMessageHash();
     this.staleMessageTree = hash !== this.messageHash;
+  }
+
+  private resetEditorState() {
+    this.clearAllSelections();
+    this.parsed = [];
+    this.parseError = '';
+    this.staleMessageTree = false;
+    this.messageHash = null;
+    this.validating = false;
+    this.validationResult = null;
+    this.validationError = '';
+    this.validationTabIndex = 0;
+    this.showQuietDetections = false;
+    this.snippetValidationWarnings = [];
+    this.snippetToHighlightPaths = [];
+    this.selected = null;
+  }
+
+  private currentSnippetNames(): string[] {
+    let names: string[] = [];
+    this.store.select(selectIgExampleMessages).pipe(
+      take(1),
+      map((igExampleMessages) => {
+        const allMessages = (igExampleMessages.profileExampleMessages || [])
+          .reduce((acc, profile) => [...acc, ...profile.exampleMessages], []);
+        const message = allMessages.find((exampleMessage) => exampleMessage.id === this.messageId);
+        names = ((message && message.snippets) || []).map((snippet) => snippet.name).filter((name) => !!name);
+      }),
+    ).subscribe();
+    return names;
   }
 
   private resolveSnippetPath() {

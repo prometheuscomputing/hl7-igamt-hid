@@ -96,7 +96,25 @@ public class ExampleMessagesController {
         return new ResponseMessage<>(
                 ResponseMessage.Status.SUCCESS,
                 "Example Message Created Successfully",
-                igExampleMessages.getId(),
+                igExampleMessages.getCreatedId(),
+                igExampleMessages,
+                new Date()
+        );
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/copy", method = RequestMethod.POST, produces = {"application/json" })
+    public @ResponseBody
+    ResponseMessage<IgExampleMessagesDTO> copyMessage(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @RequestBody CopyExampleItemDTO copyExampleItemDTO,
+            Authentication authentication
+    ) throws Exception {
+        IgExampleMessagesDTO igExampleMessages = this.exampleMessagesService.copyExampleMessage(id, messageId, copyExampleItemDTO);
+        return new ResponseMessage<>(
+                ResponseMessage.Status.SUCCESS,
+                "Example Message Copied Successfully",
+                igExampleMessages.getCreatedId(),
                 igExampleMessages,
                 new Date()
         );
@@ -114,7 +132,26 @@ public class ExampleMessagesController {
         return new ResponseMessage<>(
                 ResponseMessage.Status.SUCCESS,
                 "Snippet Created Successfully",
-                igExampleMessages.getId(),
+                igExampleMessages.getCreatedId(),
+                igExampleMessages,
+                new Date()
+        );
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/snippet/{snippetId}/copy", method = RequestMethod.POST, produces = {"application/json" })
+    public @ResponseBody
+    ResponseMessage<IgExampleMessagesDTO> copySnippet(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @PathVariable("snippetId") String snippetId,
+            @RequestBody CopyExampleItemDTO copyExampleItemDTO,
+            Authentication authentication
+    ) throws Exception {
+        IgExampleMessagesDTO igExampleMessages = this.exampleMessagesService.copySnippet(id, messageId, snippetId, copyExampleItemDTO);
+        return new ResponseMessage<>(
+                ResponseMessage.Status.SUCCESS,
+                "Snippet Copied Successfully",
+                igExampleMessages.getCreatedId(),
                 igExampleMessages,
                 new Date()
         );

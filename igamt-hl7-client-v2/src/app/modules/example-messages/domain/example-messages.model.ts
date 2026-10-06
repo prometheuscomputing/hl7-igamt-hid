@@ -3,6 +3,7 @@ import { IDisplayElement } from "../../shared/models/display-element.interface";
 export interface IgExampleMessages {
     id: string;
     title: string;
+    createdId?: string;
     profileExampleMessages: IProfileExampleMessages[];
 }
 
@@ -128,5 +129,67 @@ export interface MessageElement {
     end: {
         line: number;
         column: number;
+    };
+}
+
+export function normalizeExampleName(name: string): string {
+    return (name || '').trim().toLowerCase();
+}
+
+export function isDuplicateExampleName(name: string, existing: string[]): boolean {
+    const normalized = normalizeExampleName(name);
+    if (!normalized) {
+        return false;
+    }
+    return (existing || []).some((entry) => normalizeExampleName(entry) === normalized);
+}
+
+export function nextCopyName(base: string, existing: string[]): string {
+    const names = (existing || []).map((entry) => normalizeExampleName(entry));
+    const root = (base || 'Copy').trim() || 'Copy';
+    let candidate = root + ' copy';
+    let index = 2;
+    while (names.indexOf(normalizeExampleName(candidate)) >= 0) {
+        candidate = root + ' copy ' + index;
+        index += 1;
+    }
+    return candidate;
+}
+
+export function withUpdatedMessageName(ig: IgExampleMessages, messageId: string, name: string): IgExampleMessages {
+    if (!ig || !ig.profileExampleMessages) {
+        return ig;
+    }
+    return {
+        ...ig,
+        profileExampleMessages: ig.profileExampleMessages.map((group) => ({
+            ...group,
+            exampleMessages: (group.exampleMessages || []).map((message) =>
+                message.id === messageId ? { ...message, name } : message
+            ),
+        })),
+    };
+}
+
+export function withUpdatedSnippetName(ig: IgExampleMessages, messageId: string, snippetId: string, name: string): IgExampleMessages {
+    if (!ig || !ig.profileExampleMessages) {
+        return ig;
+    }
+    return {
+        ...ig,
+        profileExampleMessages: ig.profileExampleMessages.map((group) => ({
+            ...group,
+            exampleMessages: (group.exampleMessages || []).map((message) => {
+                if (message.id !== messageId) {
+                    return message;
+                }
+                return {
+                    ...message,
+                    snippets: (message.snippets || []).map((snippet) =>
+                        snippet.id === snippetId ? { ...snippet, name } : snippet
+                    ),
+                };
+            }),
+        })),
     };
 }

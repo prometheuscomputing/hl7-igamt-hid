@@ -17,5 +17,11 @@
   </div>
 </div>
 <div class="sidebar-content" id="sidebar-content">
-  <app-table-of-content [nodes]="nodes | async" [activeMessageId]="activeMessageId$ | async" (onCreateExampleMessage)="createExampleMessage($event)"></app-table-of-content>
+  <app-table-of-content
+    [nodes]="nodes | async"
+    [activeMessageId]="activeMessageId$ | async"
+    (onCreateExampleMessage)="createExampleMessage($event)"
+    (onCopyExampleMessage)="copyExampleMessage($event)"
+    (onCopySnippet)="copySnippet($event)"
+  ></app-table-of-content>
 </div>

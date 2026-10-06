@@ -650,6 +650,27 @@ span.cm-segment-name {font-weight:bold;color: black}
     box-shadow: 0px 5px 2px -2px gray;
 }
 
+.fr-toolbar .fr-command.fr-btn[data-cmd="insertExampleMessage"] {
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 0 4px !important;
+}
+
+.fr-toolbar .fr-command.fr-btn[data-cmd="insertExampleMessage"] svg,
+.fr-toolbar .fr-command.fr-btn[data-cmd="insertExampleMessage"] > svg {
+  display: none;
+}
+
+.igamt-em-toolbar-btn {
+  display: inline-block;
+  margin: 0;
+  min-width: 22px;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .fr-exmsg {
   position: relative;
   display: block;
@@ -695,20 +716,64 @@ span.cm-segment-name {font-weight:bold;color: black}
   color: #1565c0;
 }
 
+.fr-exmsg-views {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.fr-exmsg-view-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #555;
+}
+
+.fr-exmsg-view {
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #555;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.fr-exmsg-view.active {
+  background: #1976d2;
+  border-color: #1976d2;
+  color: #fff;
+}
+
 .fr-exmsg .fr-exmsg-body,
 .fr-exmsg pre.fr-exmsg-body {
   display: block;
   margin: 0;
-  padding: 9.5px;
-  font-family: Consolas, Monaco, monospace;
-  font-size: 12px;
+  padding: 8px 10px;
+  font-family: monospace;
+  font-size: 16px;
   line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: #333;
-  background: #f5f5f5;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  white-space: pre;
+  word-break: normal;
+  overflow-x: auto;
+  color: black;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 0;
+}
+
+.fr-exmsg-body span.cm-field-separator { color: #0707f1; }
+.fr-exmsg-body span.cm-component-separator { color: #ac2200; }
+.fr-exmsg-body span.cm-subcomponent-separator { color: rgb(0, 146, 0); }
+.fr-exmsg-body span.cm-continuation-separator { color: #FF00FF; }
+.fr-exmsg-body span.cm-segment-name { font-weight: bold; color: black; }
+
+.fr-exmsg-body .cm-highlight {
+  background-color: #f3c60b !important;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  box-shadow: 0px 5px 2px -2px gray;
 }
 
 .fr-exmsg.fr-exmsg-missing {

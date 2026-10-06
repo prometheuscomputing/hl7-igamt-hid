@@ -2,6 +2,7 @@ package gov.nist.hit.hl7.igamt.examples.service;
 
 import gov.nist.hit.hl7.igamt.common.base.domain.Type;
 import gov.nist.hit.hl7.igamt.common.base.domain.display.DisplayElement;
+import gov.nist.hit.hl7.igamt.common.base.exception.GenericException;
 import gov.nist.hit.hl7.igamt.common.base.exception.ResourceNotFoundException;
 import gov.nist.hit.hl7.igamt.compositeprofile.domain.CompositeProfileStructure;
 import gov.nist.hit.hl7.igamt.compositeprofile.repository.CompositeProfileStructureRepository;
@@ -60,7 +61,7 @@ public class ExampleMessagesService {
                 .orElseThrow(() -> new ResourceNotFoundException(messageId, Type.EXAMPLEMESSAGE));
     }
 
-    public ExampleMessage saveMessage(String igId, String messageId, SaveMessageDTO saveMessageDTO) throws ResourceNotFoundException {
+    public ExampleMessage saveMessage(String igId, String messageId, SaveMessageDTO saveMessageDTO) throws ResourceNotFoundException, GenericException {
         IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
         if(igExampleMessages == null) {
             throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
@@ -70,6 +71,9 @@ public class ExampleMessagesService {
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException(messageId, Type.EXAMPLEMESSAGE));
 
+        if (saveMessageDTO.getName() != null) {
+            assertUniqueMessageName(igExampleMessages, exampleMessage.getProfileId(), saveMessageDTO.getName(), messageId);
+        }
         exampleMessage.setMessage(saveMessageDTO.getMessage());
         exampleMessage.setNarrativeHTML(saveMessageDTO.getNarrative());
         if (saveMessageDTO.getName() != null) {
@@ -122,7 +126,7 @@ public class ExampleMessagesService {
         return exampleMessageDTO;
     }
 
-    public IgExampleMessagesDTO createExampleMessage(String id, CreateMessageDTO createMessageDTO) throws ResourceNotFoundException {
+    public IgExampleMessagesDTO createExampleMessage(String id, CreateMessageDTO createMessageDTO) throws ResourceNotFoundException, GenericException {
         ProfileInfo profile = this.getProfileInfo(createMessageDTO.getProfileId());
         if(profile == null) {
             throw new ResourceNotFoundException(createMessageDTO.getProfileId(), Type.PROFILE);
@@ -133,16 +137,47 @@ public class ExampleMessagesService {
         }
 
         IgExampleMessages igExampleMessages = this.getOrCreateIgExampleMessage(id);
+        assertUniqueMessageName(igExampleMessages, createMessageDTO.getProfileId(), createMessageDTO.getName(), null);
         ExampleMessage exampleMessage = new ExampleMessage();
         exampleMessage.setId(new ObjectId().toString());
         exampleMessage.setName(createMessageDTO.getName());
         exampleMessage.setProfileId(createMessageDTO.getProfileId());
         igExampleMessages.getExampleMessages().add(exampleMessage);
         this.exampleMessagesRepository.save(igExampleMessages);
-        return this.toDTO(igExampleMessages);
+        IgExampleMessagesDTO dto = this.toDTO(igExampleMessages);
+        dto.setCreatedId(exampleMessage.getId());
+        return dto;
     }
 
-    public IgExampleMessagesDTO createSnippet(String igId, String messageId, CreateSnippetDTO createSnippetDTO) throws ResourceNotFoundException {
+    public IgExampleMessagesDTO copyExampleMessage(String igId, String messageId, CopyExampleItemDTO copyExampleItemDTO) throws ResourceNotFoundException, GenericException {
+        IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
+        if (igExampleMessages == null) {
+            throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
+        }
+        ExampleMessage source = igExampleMessages.getExampleMessages().stream()
+                .filter((m) -> m.getId().equals(messageId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(messageId, Type.EXAMPLEMESSAGE));
+        assertUniqueMessageName(igExampleMessages, source.getProfileId(), copyExampleItemDTO.getName(), null);
+
+        ExampleMessage copy = new ExampleMessage();
+        copy.setId(new ObjectId().toString());
+        copy.setName(copyExampleItemDTO.getName());
+        copy.setDescription(source.getDescription());
+        copy.setMessage(source.getMessage());
+        copy.setNarrativeHTML(source.getNarrativeHTML());
+        copy.setProfileId(source.getProfileId());
+        for (MessageSnippet snippet : source.getSnippets()) {
+            copy.getSnippets().add(copySnippet(snippet, snippet.getName()));
+        }
+        igExampleMessages.getExampleMessages().add(copy);
+        this.exampleMessagesRepository.save(igExampleMessages);
+        IgExampleMessagesDTO dto = this.toDTO(igExampleMessages);
+        dto.setCreatedId(copy.getId());
+        return dto;
+    }
+
+    public IgExampleMessagesDTO createSnippet(String igId, String messageId, CreateSnippetDTO createSnippetDTO) throws ResourceNotFoundException, GenericException {
         IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
         if (igExampleMessages == null) {
             throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
@@ -153,6 +188,7 @@ public class ExampleMessagesService {
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException(messageId, Type.EXAMPLEMESSAGE));
 
+        assertUniqueSnippetName(exampleMessage, createSnippetDTO.getName(), null);
         MessageSnippet snippet = new MessageSnippet();
         snippet.setId(new ObjectId().toString());
         snippet.setName(createSnippetDTO.getName());
@@ -160,10 +196,34 @@ public class ExampleMessagesService {
 
         exampleMessage.getSnippets().add(snippet);
         this.exampleMessagesRepository.save(igExampleMessages);
-        return this.toDTO(igExampleMessages);
+        IgExampleMessagesDTO dto = this.toDTO(igExampleMessages);
+        dto.setCreatedId(snippet.getId());
+        return dto;
     }
 
-    public MessageSnippet saveSnippet(String igId, String messageId, String snippetId, SaveSnippetDTO saveSnippetDTO) throws ResourceNotFoundException {
+    public IgExampleMessagesDTO copySnippet(String igId, String messageId, String snippetId, CopyExampleItemDTO copyExampleItemDTO) throws ResourceNotFoundException, GenericException {
+        IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
+        if (igExampleMessages == null) {
+            throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
+        }
+        ExampleMessage exampleMessage = igExampleMessages.getExampleMessages().stream()
+                .filter((m) -> m.getId().equals(messageId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(messageId, Type.EXAMPLEMESSAGE));
+        MessageSnippet source = exampleMessage.getSnippets().stream()
+                .filter((s) -> s.getId().equals(snippetId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(snippetId, null));
+        assertUniqueSnippetName(exampleMessage, copyExampleItemDTO.getName(), null);
+        MessageSnippet copy = copySnippet(source, copyExampleItemDTO.getName());
+        exampleMessage.getSnippets().add(copy);
+        this.exampleMessagesRepository.save(igExampleMessages);
+        IgExampleMessagesDTO dto = this.toDTO(igExampleMessages);
+        dto.setCreatedId(copy.getId());
+        return dto;
+    }
+
+    public MessageSnippet saveSnippet(String igId, String messageId, String snippetId, SaveSnippetDTO saveSnippetDTO) throws ResourceNotFoundException, GenericException {
         IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
         if (igExampleMessages == null) {
             throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
@@ -179,11 +239,53 @@ public class ExampleMessagesService {
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException(snippetId, null));
 
+        assertUniqueSnippetName(exampleMessage, saveSnippetDTO.getName(), snippetId);
         snippet.setName(saveSnippetDTO.getName());
         snippet.setDescription(saveSnippetDTO.getDescription());
 
         this.exampleMessagesRepository.save(igExampleMessages);
         return snippet;
+    }
+
+    private MessageSnippet copySnippet(MessageSnippet source, String name) {
+        MessageSnippet copy = new MessageSnippet();
+        copy.setId(new ObjectId().toString());
+        copy.setName(name);
+        copy.setDescription(source.getDescription());
+        copy.setNarrativeHTML(source.getNarrativeHTML());
+        copy.setMessageReferences(new HashSet<>(source.getMessageReferences()));
+        return copy;
+    }
+
+    private void assertUniqueMessageName(IgExampleMessages igExampleMessages, String profileId, String name, String excludeId) throws GenericException {
+        String normalized = normalizeName(name);
+        if (normalized.isEmpty()) {
+            throw new GenericException("Name is required.");
+        }
+        boolean taken = igExampleMessages.getExampleMessages().stream().anyMatch((message) ->
+                profileId.equals(message.getProfileId())
+                        && (excludeId == null || !excludeId.equals(message.getId()))
+                        && normalized.equals(normalizeName(message.getName())));
+        if (taken) {
+            throw new GenericException("An example message named \"" + name.trim() + "\" already exists for this profile.");
+        }
+    }
+
+    private void assertUniqueSnippetName(ExampleMessage exampleMessage, String name, String excludeId) throws GenericException {
+        String normalized = normalizeName(name);
+        if (normalized.isEmpty()) {
+            throw new GenericException("Name is required.");
+        }
+        boolean taken = exampleMessage.getSnippets().stream().anyMatch((snippet) ->
+                (excludeId == null || !excludeId.equals(snippet.getId()))
+                        && normalized.equals(normalizeName(snippet.getName())));
+        if (taken) {
+            throw new GenericException("A snippet named \"" + name.trim() + "\" already exists for this message.");
+        }
+    }
+
+    private String normalizeName(String name) {
+        return name == null ? "" : name.trim().toLowerCase();
     }
 
     private ProfileInfo getProfileInfo(String profileId) {

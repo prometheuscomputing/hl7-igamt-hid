@@ -15,7 +15,7 @@ import { MessageService } from '../../../dam-framework/services/message.service'
 import { Type } from '../../../shared/constants/type.enum';
 import { EditorID } from '../../../shared/models/editor.enum';
 import { IgService } from '../../services/ig.service';
-import { ExampleMessagesService } from '../../../example-messages/services/example-messages.service';
+import { ExampleMessagesService, ISnippetRenderResult } from '../../../example-messages/services/example-messages.service';
 import { IAvailableMessage, IExampleMessageDTO, IExampleMessageSnippet, MessageElement } from '../../../example-messages/domain/example-messages.model';
 import { CodemirrorComponent } from '@ctrl/ngx-codemirror';
 import * as CodeMirror from 'codemirror';
@@ -49,6 +49,8 @@ export class IgMessageSectionEditorComponent extends AbstractEditorComponent imp
   messageNotFoundWarning: string = null;
   snippetWarnings: string[] = [];
 
+  viewMode: 'reduced' | 'full' = 'reduced';
+  renderResult: ISnippetRenderResult = null;
   // The text displayed in CodeMirror: full message or snippet segment lines
   displayMessage: string = null;
   // Canonical snippet descriptor for the URL (e.g. "PID-3" or "L3-L5")
@@ -129,6 +131,8 @@ export class IgMessageSectionEditorComponent extends AbstractEditorComponent imp
     this.snippetLocationLabel = null;
     this.messageNotFoundWarning = null;
     this.snippetWarnings = [];
+    this.viewMode = 'reduced';
+    this.renderResult = null;
   }
 
   /**
@@ -195,7 +199,10 @@ export class IgMessageSectionEditorComponent extends AbstractEditorComponent imp
         }
 
         this.snippetName = result.snippetName;
-        this.displayMessage = result.renderedContent;
+        this.renderResult = result;
+        this.displayMessage = this.viewMode === 'full'
+          ? result.fullMessage
+          : (result.renderedContent || result.fullMessage);
         this.buildMessageUrl(igId, messageId, snippetId);
 
         if (result.parts && result.parts.length > 0) {
@@ -234,10 +241,18 @@ export class IgMessageSectionEditorComponent extends AbstractEditorComponent imp
     ).subscribe();
   }
 
-  /**
-   * Highlight all snippet parts in the CodeMirror editor.
-   */
-  highlightAllParts(parts: { highlightStart: { line: number, column: number }, highlightEnd: { line: number, column: number } }[]) {
+  setViewMode(mode: 'reduced' | 'full') {
+    this.viewMode = mode;
+    if (!this.renderResult) {
+      return;
+    }
+    this.displayMessage = mode === 'full'
+      ? this.renderResult.fullMessage
+      : (this.renderResult.renderedContent || this.renderResult.fullMessage);
+    setTimeout(() => this.highlightAllParts(this.renderResult.parts || []), 300);
+  }
+
+  highlightAllParts(parts: { startLine?: number, endLine?: number, highlightStart: { line: number, column: number }, highlightEnd: { line: number, column: number } }[]) {
     this.clearAllMarkers();
     if (!this.codeEditor || !this.codeEditor.codeMirror || !parts || parts.length === 0) {
       return;
@@ -249,15 +264,23 @@ export class IgMessageSectionEditorComponent extends AbstractEditorComponent imp
       if (!part.highlightStart || !part.highlightEnd) {
         continue;
       }
-      const from = CodeMirror.Pos(part.highlightStart.line - 1, part.highlightStart.column - 1);
-      const to = CodeMirror.Pos(part.highlightEnd.line - 1, part.highlightEnd.column - 1);
+      const startLine = this.viewMode === 'full'
+        ? (part.startLine || part.highlightStart.line) - 1
+        : part.highlightStart.line - 1;
+      const endLine = this.viewMode === 'full'
+        ? (part.endLine || part.highlightEnd.line) - 1
+        : part.highlightEnd.line - 1;
+      const from = CodeMirror.Pos(startLine, part.highlightStart.column - 1);
+      const to = CodeMirror.Pos(endLine, part.highlightEnd.column - 1);
       const marker = doc.markText(from, to, { className: 'cm-snippet-highlight' });
       this.selectionMarkers.push(marker);
     }
 
     // Scroll to first highlight
     if (parts[0].highlightStart) {
-      const firstLine = parts[0].highlightStart.line - 1;
+      const firstLine = this.viewMode === 'full'
+        ? (parts[0].startLine || parts[0].highlightStart.line) - 1
+        : parts[0].highlightStart.line - 1;
       editor.scrollIntoView(CodeMirror.Pos(firstLine, 0), 50);
     }
   }
