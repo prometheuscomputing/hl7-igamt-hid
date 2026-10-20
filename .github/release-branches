@@ -1,0 +1,4 @@
+# Branches every release must already contain. The publish workflow refuses
+# a release tag that does not include each of them, so feature work merged
+# on one branch can no longer be left out of a release cut from another.
+transition

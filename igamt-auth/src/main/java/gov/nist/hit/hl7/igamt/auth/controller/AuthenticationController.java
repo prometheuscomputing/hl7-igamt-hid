@@ -50,11 +50,12 @@ public class AuthenticationController {
 
   @RequestMapping(value = "/api/login", method = RequestMethod.POST)
   public ConnectionResponseMessage<UserResponse> login(@RequestBody LoginRequest user,
-      HttpServletResponse response) throws AuthenticationException, IOException {
+      HttpServletRequest request, HttpServletResponse response)
+      throws AuthenticationException, IOException {
 
     try {
 
-      ConnectionResponseMessage<UserResponse> resp = authService.connect(response, user);
+      ConnectionResponseMessage<UserResponse> resp = authService.connect(request, response, user);
       return resp;
 
     } catch (AuthenticationException e) {
@@ -85,7 +86,9 @@ public class AuthenticationController {
   public void logout(HttpServletRequest req, HttpServletResponse res,
       Authentication authentication) {
     Cookie authCookie = new Cookie("authCookie", "");
-    authCookie.setPath("/api");
+    // Must match the path the cookie was issued with, including the context
+    // path, or logout leaves the original cookie in place.
+    authCookie.setPath(req.getContextPath() + "/api");
     authCookie.setMaxAge(0);
     res.addCookie(authCookie);
 

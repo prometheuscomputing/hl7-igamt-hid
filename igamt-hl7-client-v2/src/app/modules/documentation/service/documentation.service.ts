@@ -46,7 +46,7 @@ export class DocumentationService {
     return this.http.post<IDocumentation>('api/documentations/save', documentation);
   }
   delete(id: string, list: IDocumentation[]): Observable<IDocumentation[]> {
-    return this.http.post<IDocumentation[]>('/api/documentations/delete/' + id, list);
+    return this.http.post<IDocumentation[]>('api/documentations/delete/' + id, list);
   }
   add(documentationType: DocumentationType, index: number): Observable<IDocumentation> {
     return this.http.post<IDocumentation>('api/documentations/add/', { documentationType, index });

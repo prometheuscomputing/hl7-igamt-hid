@@ -40,8 +40,8 @@ import { IExportConfigurationGlobal } from './../../export-configuration/models/
 })
 export class IgService {
 
-  readonly EXPORT_URL = '/api/export/ig/';
-  readonly IG_END_POINT = '/api/igdocuments/';
+  readonly EXPORT_URL = 'api/export/ig/';
+  readonly IG_END_POINT = 'api/igdocuments/';
   readonly CONFIGURATION = '/configuration/';
 
   constructor(private http: HttpClient, private location: LocationStrategy) {
@@ -291,7 +291,28 @@ export class IgService {
   }
 
   saveTextSections(id: string, content: IContent[]): Observable<Message<string>> {
-    return this.http.post<Message<string>>(this.IG_END_POINT + id + '/update/sections', content);
+    const filteredContent = this.minimizeContent(content);
+    return this.http.post<Message<string>>(this.IG_END_POINT + id + '/update/sections', filteredContent);
+  }
+
+  minimizeContent(content: IContent[]): IContent[] {
+    const contentCopy = content.map(section => ({ ...section }));
+    const profileSection = contentCopy.find(section => section.type === Type.PROFILE);
+
+    if (profileSection && profileSection.children) {
+      profileSection.children = profileSection.children.map(child => {
+        const orderedRegistry = child.type === Type.CONFORMANCEPROFILEREGISTRY ||
+          child.type === Type.PROFILECOMPONENTREGISTRY ||
+          child.type === Type.COMPOSITEPROFILEREGISTRY;
+
+        if (!orderedRegistry) {
+          return { ...child, children: [] };
+        }
+        return child;
+      });
+    }
+
+    return contentCopy;
   }
 
   uploadCoverImage(file: File): Observable<{
@@ -301,7 +322,7 @@ export class IgService {
     form.append('file', file);
     return this.http.post<{
       link: string,
-    }>('/api/storage/upload', form);
+    }>('api/storage/upload', form);
   }
 
   saveMetadata(id: string, metadata: IMetadata): Observable<Message<any>> {
@@ -422,7 +443,7 @@ export class IgService {
   }
 
   loadDomain(username: string, password: string, tool: IConnectingInfo): Observable<any[]> {
-    return this.http.get<any[]>('/api/testing/domains', this.getGvtOptions(username, password, tool));
+    return this.http.get<any[]>('api/testing/domains', this.getGvtOptions(username, password, tool));
   }
 
   getGvtOptions(username: string, password: string, tool: IConnectingInfo) {
@@ -450,7 +471,7 @@ export class IgService {
     targetDomain: string,
   ) {
     return this.http.post(
-      '/api/testing/' + igId + '/push/' + targetDomain,
+      'api/testing/' + igId + '/push/' + targetDomain,
       {
         selected: selectedIds,
         externalValueSetsExportMode: externalValueSetExportConfiguration.externalValueSetsExportMode,
@@ -476,7 +497,7 @@ export class IgService {
   importFromFile(documentId, resourceType: Type, targetType: Type, file: any) {
     const form: FormData = new FormData();
     form.append('file', file);
-    return this.http.post<Message<IAddResourceFromFile>>('/api/igdocuments/' + documentId + '/valuesets/uploadCSVFile', form);
+    return this.http.post<Message<IAddResourceFromFile>>('api/igdocuments/' + documentId + '/valuesets/uploadCSVFile', form);
   }
 
   getDisplay(id: string, delta: boolean) {
@@ -527,6 +548,6 @@ export class IgService {
 
   groupValueSets(id: string, groups: any): Observable<any> {
 
-    return this.http.post<any>(this.IG_END_POINT + id + '/group-value-sets',  groups);
+    return this.http.post<any>(this.IG_END_POINT + id + '/group-value-sets', groups);
   }
 }

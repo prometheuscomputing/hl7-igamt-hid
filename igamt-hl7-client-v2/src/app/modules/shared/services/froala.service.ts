@@ -27,7 +27,7 @@ export class FroalaService {
       ...staticConfig,
       placeholderText: '',
       imageAllowedTypes: ['jpeg', 'jpg', 'png', 'gif'],
-      fileUploadURL: '/api/storage/upload',
+      fileUploadURL: 'api/storage/upload',
       fileAllowedTypes: ['application/pdf', 'application/msword', 'application/x-pdf', 'text/plain', 'application/xml', 'text/xml'],
       charCounterCount: false,
       quickInsertTags: [''],
@@ -45,8 +45,8 @@ export class FroalaService {
           ...this.config,
           ...exampleMessageConfig,
           key: conf.key,
-          imageUploadURL: '/api/storage/upload/',
-          imageManagerLoadURL: '/api/storage/file',
+          imageUploadURL: 'api/storage/upload/',
+          imageManagerLoadURL: 'api/storage/file',
           imageUploadParams: {
             ig: igId,
             type: active.editor.resourceType,
@@ -58,7 +58,7 @@ export class FroalaService {
             'froalaEditor.image.removed': ($img, obj1, obj2) => {
               const index = obj2[0].src.indexOf('=');
               const name = obj2[0].src.substring(index + 1);
-              this.http.delete('/api/storage/file?name=' + name + '&ig=' + igId + '&type=' + active.editor.resourceType + '&id=' + active.display.id).subscribe();
+              this.http.delete('api/storage/file?name=' + name + '&ig=' + igId + '&type=' + active.editor.resourceType + '&id=' + active.display.id).subscribe();
             },
             'froalaEditor.initialized': (e, editor) => {
               if (igId && editor && editor.exampleMessage) {
@@ -110,8 +110,8 @@ export class FroalaService {
         return {
           ...this.config,
           key: conf.key,
-          imageUploadURL: '/api/storage/upload/',
-          imageManagerLoadURL: '/api/storage/file',
+          imageUploadURL: 'api/storage/upload/',
+          imageManagerLoadURL: 'api/storage/file',
           imageUploadParams: {
             ig: 'doc',
             type: active.editor.resourceType,
@@ -122,7 +122,7 @@ export class FroalaService {
             'froalaEditor.image.removed': ($img, obj1, obj2) => {
               const index = obj2[0].src.indexOf('=');
               const name = obj2[0].src.substring(index + 1);
-              this.http.delete('/api/storage/file?name=' + name + '&ig=' + 'doc' + '&type=' + active.editor.resourceType + '&id=' + active.display.id).pipe(take(1)).subscribe();
+              this.http.delete('api/storage/file?name=' + name + '&ig=' + 'doc' + '&type=' + active.editor.resourceType + '&id=' + active.display.id).pipe(take(1)).subscribe();
             },
           },
         };

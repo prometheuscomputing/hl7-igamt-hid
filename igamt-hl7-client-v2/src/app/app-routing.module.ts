@@ -1,5 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
+import { AboutComponent } from './modules/core/components/about/about.component';
 import { ApiKeyManagementComponent } from './modules/core/components/api-key-management/api-key-management.component';
 import { CreateApiKeyComponent } from './modules/core/components/create-api-key/create-api-key.component';
 import { DataManagementComponent } from './modules/core/components/data-management/data-management.component';
@@ -37,6 +38,10 @@ const routes: Routes = [
   {
     path: 'home',
     component: HomeComponent,
+  },
+  {
+    path: 'about',
+    component: AboutComponent,
   },
   {
     path: 'register',

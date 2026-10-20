@@ -30,7 +30,6 @@ public class ErrorEmailServiceImpl implements ErrorEmailService {
 	    SimpleMailMessage msg = new SimpleMailMessage(this.templateMessage);
 	    msg.setTo(env.getProperty(ADMIN_EMAIL));
 	    msg.setSubject("Automatic reported Error");
-	    msg.setFrom("igamt-error@nist.gov");
 	    msg.setCc(parseCC(env.getProperty(ADMIN_EMAIL_CC)));
 	    msg.setText("Dear IGAMT ADMIN \n\n"
 	        + "**** The User With Username "+username+" got this error : \n\n"+message +"\n\n"+

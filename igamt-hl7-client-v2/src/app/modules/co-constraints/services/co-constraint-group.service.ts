@@ -19,7 +19,7 @@ export class CoConstraintGroupService {
   }
 
   getByBaseSegment(id: string, documentId: string): Observable<IDisplayElement[]> {
-    return this.http.get<IDisplayElement[]>('/api/igdocuments/' + documentId + '/coconstraints/group/segment/' + id);
+    return this.http.get<IDisplayElement[]>('api/igdocuments/' + documentId + '/coconstraints/group/segment/' + id);
   }
 
   save(group: ICoConstraintGroup): Observable<Message<any>> {

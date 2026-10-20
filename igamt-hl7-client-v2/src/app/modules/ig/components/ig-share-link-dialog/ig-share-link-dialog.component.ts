@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { Component, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material';
 import { Store } from '@ngrx/store';
@@ -19,6 +20,7 @@ export interface IShareExportConfiguration {
   name: string;
   configurationId: string;
   exportDecision: any;
+  differential?: boolean;
 }
 
 export interface IShareLink extends IShareExportConfiguration {
@@ -42,6 +44,7 @@ export class IgShareLinkDialogComponent {
   copied = {};
   base = '';
   hasClipboard = !!window.navigator['clipboard'];
+  isDifferential = false;
 
   constructor(
     public dialogRef: MatDialogRef<IgShareLinkDialogComponent>,
@@ -51,23 +54,32 @@ export class IgShareLinkDialogComponent {
     private dialog: MatDialog,
     private store: Store<any>,
     private igService: IgService,
+    private location: Location,
     @Inject(MAT_DIALOG_DATA) public data: any,
   ) {
     this.links = [];
     this.igId = data.igId;
+    this.isDifferential = data.isDifferential || false;
     for (const id of Object.keys(data.links)) {
       this.links.push({
         id,
         ...this.data.links[id],
       });
     }
-    const host = window.location.protocol + '//' + window.location.host;
-    this.base = host + '/public/ig/' + this.igId + '/';
+    const linkType = this.isDifferential ? 'differential' : '';
+    this.base = this.publicUrl('public/ig/' + this.igId + '/' + linkType + (linkType ? '/' : ''));
+  }
+
+  // The public page is served by this application, so the link has to carry the
+  // application's base path (for example /igamt/), not just the host.
+  publicUrl(path: string): string {
+    return window.location.protocol + '//' + window.location.host + this.location.prepareExternalUrl(path);
   }
 
   create() {
     this.configurationNotFound = false;
-    this.exportConfigurationService.getAllExportConfigurations(ExportTypes.IGDOCUMENT).pipe(
+    const exportType = this.isDifferential ? ExportTypes.DIFFERENTIAL : ExportTypes.IGDOCUMENT;
+    this.exportConfigurationService.getAllExportConfigurations(exportType).pipe(
       map((configurations) => {
         this.configurations = configurations;
         this.list = false;
@@ -76,6 +88,7 @@ export class IgShareLinkDialogComponent {
           name: '',
           configurationId: '',
           exportDecision: undefined,
+          differential: this.isDifferential,
         };
       }),
     ).subscribe();
@@ -83,7 +96,8 @@ export class IgShareLinkDialogComponent {
 
   edit(item: IShareLink) {
     this.configurationNotFound = false;
-    this.exportConfigurationService.getAllExportConfigurations(ExportTypes.IGDOCUMENT).pipe(
+    const exportType = this.isDifferential ? ExportTypes.DIFFERENTIAL : ExportTypes.IGDOCUMENT;
+    this.exportConfigurationService.getAllExportConfigurations(exportType).pipe(
       map((configurations) => {
         this.configurations = configurations;
         this.list = false;
@@ -101,12 +115,14 @@ export class IgShareLinkDialogComponent {
   }
 
   deleteLink(item: IShareLink) {
-    this.refresh(this.exportShareService.deleteLink(this.igId, item.id)).subscribe();
+    const deleteAction = this.isDifferential
+      ? this.exportShareService.deleteDifferentialLink(this.igId, item.id)
+      : this.exportShareService.deleteLink(this.igId, item.id);
+    this.refresh(deleteAction).subscribe();
   }
 
   copy(item: IShareLink) {
-    const host = window.location.protocol + '//' + window.location.host;
-    const url = host + '/public/ig/' + this.igId + '/' + item.id;
+    const url = this.publicUrl('public/ig/' + this.igId + '/' + item.id);
     window.navigator['clipboard'].writeText(url);
     this.copied[item.id] = true;
     setTimeout(() => {
@@ -115,7 +131,8 @@ export class IgShareLinkDialogComponent {
   }
 
   selectConfiguration() {
-    this.exportConfigurationService.getAllExportConfigurations(ExportTypes.IGDOCUMENT).pipe(
+    const exportType = this.isDifferential ? ExportTypes.DIFFERENTIAL : ExportTypes.IGDOCUMENT;
+    this.exportConfigurationService.getAllExportConfigurations(exportType).pipe(
       map((configurations) => {
         const selectedConfiguration = configurations.find((conf) => conf.id === this.configuration.configurationId);
         if (!selectedConfiguration) {
@@ -126,11 +143,11 @@ export class IgShareLinkDialogComponent {
             toc: this.store.select(selectProfileTree),
             igId: this.igId,
             configurations,
-            type: ExportTypes.IGDOCUMENT,
+            type: exportType,
             exportFilterDecision: this.configuration.exportDecision,
             selectedConfigurationId: this.configuration.configurationId,
-            delta: false,
-            title: 'Share Link Export Configuration',
+            delta: this.isDifferential,
+            title: this.isDifferential ? 'Differential Share Link Export Configuration' : 'Share Link Export Configuration',
           },
         });
         dialogRef.afterClosed().pipe(
@@ -146,10 +163,18 @@ export class IgShareLinkDialogComponent {
 
   save() {
     let action: Observable<IMessage<any>>;
-    if (!this.selectedId) {
-      action = this.exportShareService.createLink(this.igId, this.configuration);
+    if (this.isDifferential) {
+      if (!this.selectedId) {
+        action = this.exportShareService.createDifferentialLink(this.igId, this.configuration);
+      } else {
+        action = this.exportShareService.saveDifferentialLink(this.igId, this.selectedId, this.configuration);
+      }
     } else {
-      action = this.exportShareService.saveLink(this.igId, this.selectedId, this.configuration);
+      if (!this.selectedId) {
+        action = this.exportShareService.createLink(this.igId, this.configuration);
+      } else {
+        action = this.exportShareService.saveLink(this.igId, this.selectedId, this.configuration);
+      }
     }
 
     this.refresh(action).subscribe();
@@ -178,7 +203,10 @@ export class IgShareLinkDialogComponent {
   }
 
   update() {
-    return this.exportShareService.getShareLinks(this.igId).pipe(
+    const getLinksAction = this.isDifferential
+      ? this.exportShareService.getDifferentialShareLinks(this.igId)
+      : this.exportShareService.getShareLinks(this.igId);
+    return getLinksAction.pipe(
       tap((shareLinks) => {
         this.links = [];
         for (const id of Object.keys(shareLinks)) {

@@ -41,7 +41,7 @@ export class CoConstraintEntityService {
   exportAsExcel(table: ICoConstraintTable, conformanceProfileId: string, contextId: string, segmentRef: string) {
     const form = document.createElement('form');
     form.target = '_blank';
-    form.action = '/api/export/co-constraints-table';
+    form.action = 'api/export/co-constraints-table';
     form.method = 'POST';
 
     const json = document.createElement('input');
@@ -77,7 +77,7 @@ export class CoConstraintEntityService {
   exportAsJson(conformanceProfileId: string, contextId: string, segmentRef: string, index: number) {
     const form = document.createElement('form');
     form.target = '_blank';
-    form.action = '/api/export/co-constraints-table/json';
+    form.action = 'api/export/co-constraints-table/json';
     form.method = 'POST';
 
     const conformanceProfileIdElm = document.createElement('input');

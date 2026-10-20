@@ -32,8 +32,8 @@ import { IgTOCNodeHelper } from './library-toc-node-helper.service';
 })
 export class LibraryService {
 
-  readonly EXPORT_URL = '/api/export/library/';
-  readonly LIBRARY_END_POINT = '/api/datatype-library/';
+  readonly EXPORT_URL = 'api/export/library/';
+  readonly LIBRARY_END_POINT = 'api/datatype-library/';
   readonly CONFIGURATION = '/configuration/';
 
   constructor(private http: HttpClient, private location: LocationStrategy) {
@@ -224,7 +224,7 @@ export class LibraryService {
     form.append('file', file);
     return this.http.post<{
       link: string,
-    }>('/api/storage/upload', form);
+    }>('api/storage/upload', form);
   }
 
   saveMetadata(id: string, metadata: IMetadata): Observable<Message<any>> {
@@ -319,7 +319,7 @@ export class LibraryService {
 
   getPublishedLibraries() {
 
-    return this.http.get<ILibraryDisplay>('/api/datatype-library/users-lib');
+    return this.http.get<ILibraryDisplay>('api/datatype-library/users-lib');
 
   }
 }

@@ -1,0 +1,41 @@
+<!--
+  Maven settings for the release build. Every request goes through our Nexus
+  (anonymous read). The mirrorOf=* also overrides the repository URLs that
+  poms declare, ours and our dependencies', so nothing is fetched from any
+  other host. Central is redefined with snapshots enabled because some of the
+  artifacts this build needs are snapshots, and stock central would never ask
+  for them.
+-->
+<settings>
+  <mirrors>
+    <mirror>
+      <id>nexus</id>
+      <mirrorOf>*</mirrorOf>
+      <url>https://nexus.valitheus.com/repository/public/</url>
+    </mirror>
+  </mirrors>
+  <profiles>
+    <profile>
+      <id>nexus</id>
+      <repositories>
+        <repository>
+          <id>central</id>
+          <url>https://nexus.valitheus.com/repository/public/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>central</id>
+          <url>https://nexus.valitheus.com/repository/public/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>true</enabled></snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+  </profiles>
+  <activeProfiles>
+    <activeProfile>nexus</activeProfile>
+  </activeProfiles>
+</settings>

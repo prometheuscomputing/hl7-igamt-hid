@@ -117,7 +117,7 @@ export class CodeSetBrowseDialogComponent implements OnInit {
 
   getTreeByScope(scope: BrowserScope) {
     this.scope = scope;
-    this.http.get<IBrowserTreeNode[]>('/api/browser/codesets/' + scope, { params: { includeVersions: this.includeVersions.toString() } }).pipe(
+    this.http.get<IBrowserTreeNode[]>('api/browser/codesets/' + scope, { params: { includeVersions: this.includeVersions.toString() } }).pipe(
       map((nodes) => {
         const n = this.processNodes(nodes);
         this.browserTree = [

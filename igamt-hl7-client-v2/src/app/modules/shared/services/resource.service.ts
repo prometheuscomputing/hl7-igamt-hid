@@ -57,11 +57,11 @@ export class ResourceService {
   }
 
   getReferencesChildStructures(id: string): Observable<IDisplayElement[]> {
-    return this.http.get<IDisplayElement[]>('/api/structure-editor/structure/' + id + '/custom-children');
+    return this.http.get<IDisplayElement[]>('api/structure-editor/structure/' + id + '/custom-children');
   }
 
   getDatatypeChildren(id: string): Observable<IDisplayElement[]> {
-    return this.http.get<IDisplayElement[]>('/api/datatypes/' + id + '/used-children');
+    return this.http.get<IDisplayElement[]>('api/datatypes/' + id + '/used-children');
   }
 
   private getResourcesUrl(type: Type, id: string, documentId: string): string {
@@ -69,7 +69,7 @@ export class ResourceService {
       case Type.CONFORMANCEPROFILE:
         return 'api/conformanceprofiles/' + id + this.resource;
       case Type.MESSAGESTRUCT:
-        return '/api/structure-editor/structure/' + id + this.resource;
+        return 'api/structure-editor/structure/' + id + this.resource;
       case Type.DATATYPE:
         return 'api/datatypes/' + id + this.resource;
       case Type.SEGMENT:
@@ -77,7 +77,7 @@ export class ResourceService {
       case Type.VALUESET:
         return 'api/igdocuments/' + documentId + '/valueset/' + id + '/resource';
       case Type.COCONSTRAINTGROUP:
-        return '/api/coconstraints/group/' + id + '/resources';
+        return 'api/coconstraints/group/' + id + '/resources';
       default: return null;
     }
   }

@@ -199,7 +199,7 @@ export class ExportToolComponent implements OnInit {
       excluded: 0,
       snapshot: 0,
     };
-    this.http.post<any>('/api/igdocuments/' + this.data.igId + '/preverification', { ids: this.ids, exportType: this.tool.label }).pipe(
+    this.http.post<any>('api/igdocuments/' + this.data.igId + '/preverification', { ids: this.ids, exportType: this.tool.label }).pipe(
       flatMap((result) => {
         const report = result.verificationIssues;
         const externalValueSetExportModes = result.externalValueSetExportModes || {};
@@ -290,11 +290,19 @@ export class ExportToolComponent implements OnInit {
 
   submit() {
     this.current = ToolExportStepType.BUNDLE_GENERATION;
-    this.exportInProgress = true;
     this.redirectUrl = undefined;
     this.HTMLErrorReport = undefined;
     this.exportError = undefined;
     this.exportFailed = false;
+    if (!this.selectedToolScope || !this.selectedToolScope.domain) {
+      // Without a target scope the push cannot be built; say so instead of
+      // leaving the progress spinner on with nothing sent.
+      this.exportInProgress = false;
+      this.exportFailed = true;
+      this.exportError = 'No ' + (this.tool ? this.tool.label : 'tool') + ' scope is selected. Go back and pick a scope before submitting.';
+      return;
+    }
+    this.exportInProgress = true;
     this.generationSubscription = this.igService.exportToTesting(
       this.data.igId,
       this.ids,

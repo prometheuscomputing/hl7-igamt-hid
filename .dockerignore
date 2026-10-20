@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+**/.env
+**/.env.*
+**/secrets/
+**/*.pem
+igamt-hl7-client-v2/
+**/src/
+**/target/classes/
+**/target/test-classes/
+!bootstrap/target/hl7-igamt.jar

@@ -47,13 +47,7 @@ public class ConfigCreator {
     String createDomainInput = "api/domains/new";
 
     List<ConnectingInfo> connection = new ArrayList<ConnectingInfo>();
-    connection.add(new ConnectingInfo("GVT", "https://hl7v2.gvt.nist.gov/gvt/", redirectToken, loginEndpoint,createDomainInput, 1));
-
-    connection.add(new ConnectingInfo("GVT-DEV", "https://hit-dev.nist.gov:8092/gvt/", redirectToken, loginEndpoint,createDomainInput, 2));
-
-    connection.add(new ConnectingInfo("IZ-TOOL-DEV", "https://hit-dev.nist.gov:8098/iztool/", redirectToken, loginEndpoint,createDomainInput, 3));
-
-    connection.add(new ConnectingInfo("IZ-TOOL", "https://hl7v2-iz-r1.5-testing.nist.gov/iztool/", redirectToken, loginEndpoint,createDomainInput, 4)); 
+    connection.add(new ConnectingInfo("GVT", "https://tools.valitheus.com/gvt/", redirectToken, loginEndpoint,createDomainInput, 1));
     constant.setConnection(connection); 
     this.sharedConstantService.save(constant);
   }
@@ -91,13 +85,7 @@ public class ConfigCreator {
 
 
     List<ConnectingInfo> connection = new ArrayList<ConnectingInfo>();
-    connection.add(new ConnectingInfo("GVT", "https://hl7v2.gvt.nist.gov/gvt/", redirectToken, loginEndpoint,createDomainInput, 1));
-
-    connection.add(new ConnectingInfo("GVT-DEV", "https://hit-dev.nist.gov:8092/gvt/", redirectToken, loginEndpoint,createDomainInput, 2));
-
-    connection.add(new ConnectingInfo("IZ-TOOL-DEV", "https://hit-dev.nist.gov:8098/iztool/", redirectToken, loginEndpoint,createDomainInput, 3));
-
-    connection.add(new ConnectingInfo("IZ-TOOL", "https://hl7v2-iz-r1.5-testing.nist.gov/iztool/", redirectToken, loginEndpoint,createDomainInput, 4)); 
+    connection.add(new ConnectingInfo("GVT", "https://tools.valitheus.com/gvt/", redirectToken, loginEndpoint,createDomainInput, 1));
     constant.setConnection(connection);    
     constant.setPhinvadsUrl("https://phinvads.cdc.gov/vads/ViewValueSet.action?oid=");
 
