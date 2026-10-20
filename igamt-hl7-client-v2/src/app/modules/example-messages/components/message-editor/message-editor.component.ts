@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { Actions } from '@ngrx/effects';
 import { Action, Store } from '@ngrx/store';
 import * as _ from 'lodash';
-import { combineLatest, EMPTY, from, Observable, throwError } from 'rxjs';
+import { combineLatest, EMPTY, from, Observable, of, throwError } from 'rxjs';
 import * as fromDam from 'src/app/modules/dam-framework/store/index';
 import { ExpandSideBar } from 'src/app/modules/dam-framework/store/data/dam.actions';
 import { Notify } from 'src/app/modules/dam-framework/store/messages/messages.actions';
@@ -40,6 +40,8 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   messageId: string;
   igId$: Observable<string>;
   froalaConfig$: Observable<any>;
+  // Example messages have no read-only mode; the metadata tab is always editable.
+  viewOnly$: Observable<boolean> = of(false);
   parsed: any[];
   loading = false;
   options = {

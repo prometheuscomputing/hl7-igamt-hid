@@ -18,8 +18,10 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-@RestController
-@RequestMapping("/api/account/mini-dump")
+// Mini-dump export/import is not supported for now. The endpoints are disabled by
+// leaving the controller unregistered; restore the annotations below to re-enable.
+// @RestController
+// @RequestMapping("/api/account/mini-dump")
 public class MiniDumpController {
 
   private final MiniDumpService miniDumpService;
@@ -29,8 +31,8 @@ public class MiniDumpController {
     this.miniDumpService = miniDumpService;
   }
 
-  @GetMapping
-  @PreAuthorize("isAuthenticated()")
+  // @GetMapping
+  // @PreAuthorize("isAuthenticated()")
   public void exportMiniDump(Authentication authentication,
                              javax.servlet.http.HttpServletResponse response,
                              @RequestParam(name = "format", defaultValue = "BOTH") MiniDumpService.ExportFormat format,
@@ -42,8 +44,8 @@ public class MiniDumpController {
     FileCopyUtils.copy(file.getStream(), response.getOutputStream());
   }
 
-  @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  @PreAuthorize("isAuthenticated()")
+  // @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  // @PreAuthorize("isAuthenticated()")
   public ResponseMessage<String> importMiniDump(Authentication authentication,
                                                 @RequestPart("file") MultipartFile file,
                                                 @RequestParam(name = "mode", defaultValue = "OVERRIDE") MiniDumpService.ImportMode mode) throws IOException {

@@ -22,7 +22,7 @@ export class MiniDumpService {
     if (options.archiveName) {
       params = params.set('archiveName', options.archiveName);
     }
-    return this.http.get('/api/account/mini-dump', { responseType: 'blob', params });
+    return this.http.get('api/account/mini-dump', { responseType: 'blob', params });
   }
 
   importMiniDump(file: File, options: IMiniDumpOptions = {}): Observable<void> {
@@ -34,7 +34,7 @@ export class MiniDumpService {
       params = params.set('mode', options.mode);
     }
 
-    return this.http.post<void>('/api/account/mini-dump', formData, { params });
+    return this.http.post<void>('api/account/mini-dump', formData, { params });
   }
 }
 
