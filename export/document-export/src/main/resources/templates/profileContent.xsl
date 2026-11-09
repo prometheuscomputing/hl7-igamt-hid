@@ -10,6 +10,7 @@
     <xsl:import href="/templates/profile/constraints.xsl"/>
     <xsl:import href="/templates/profile/constraint.xsl"/>
     <xsl:import href="/templates/profile/datatypeLibrarySummary.xsl"/>
+    <xsl:import href="/templates/profile/conformanceProfile/exampleMessage.xsl"/>
     <xsl:template name="displayProfileContent">
         <xsl:param name="inlineConstraint"/>
         <xsl:choose>
@@ -45,6 +46,9 @@
                 <xsl:apply-templates select="Valueset">
                     <xsl:sort select="@position" data-type="number"></xsl:sort>
                 </xsl:apply-templates>
+            </xsl:when>
+            <xsl:when test="count(ExampleMessage) &gt; 0">
+                <xsl:apply-templates select="ExampleMessage"></xsl:apply-templates>
             </xsl:when>
             <xsl:when test="count(Constraint) &gt; 0">
                 <xsl:if test="count(./Constraint[@Type='cs']) &gt; 0">

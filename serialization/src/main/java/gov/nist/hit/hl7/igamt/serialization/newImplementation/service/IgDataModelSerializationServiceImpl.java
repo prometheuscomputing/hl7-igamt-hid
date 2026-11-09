@@ -29,6 +29,7 @@ import gov.nist.hit.hl7.igamt.conformanceprofile.domain.ConformanceProfile;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.AbstractDomainExportConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.DocumentMetadataConfiguration;
+import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExportFilterDecision;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.ResourceExportConfiguration;
 import gov.nist.hit.hl7.igamt.files.service.FileStorageService;
@@ -41,6 +42,8 @@ import gov.nist.hit.hl7.igamt.serialization.util.FroalaSerializationUtil;
 import gov.nist.hit.hl7.igamt.valueset.domain.Valueset;
 import nu.xom.Attribute;
 import nu.xom.Element;
+import nu.xom.Node;
+import nu.xom.Text;
 
 @Service
 public class IgDataModelSerializationServiceImpl implements IgDataModelSerializationService {
@@ -50,6 +53,9 @@ public class IgDataModelSerializationServiceImpl implements IgDataModelSerializa
 	
 	@Autowired
 	private FroalaSerializationUtil frolaCleaning;
+
+	@Autowired
+	private ExampleMessageSerializationService exampleMessageSerializationService;
 
 	@Autowired
 	private FileStorageService fileStorageService;
@@ -77,7 +83,39 @@ public class IgDataModelSerializationServiceImpl implements IgDataModelSerializa
 				igDocumentElement.appendChild(sectionElement);
 			}
 		}
+		if (documentStructureDataModel instanceof IgDataModel) {
+			rewriteExampleMessageWidgets(igDocumentElement, (IgDataModel) documentStructureDataModel,
+					exportConfiguration.getIgGeneralConfiguration().getExampleMessages());
+		}
 		return igDocumentElement;
+	}
+
+	/**
+	 * Narratives are carried as HTML strings in text nodes (section content) and attributes
+	 * (pre/post definitions, usage notes...). Example messages inserted in them with the editor
+	 * are saved as a snapshot; this pass replaces every snapshot with the current content or a
+	 * link to the exported file, following the export configuration.
+	 */
+	private void rewriteExampleMessageWidgets(Element element, IgDataModel igDataModel,
+			ExampleMessageExportConfiguration configuration) {
+		for (int i = 0; i < element.getAttributeCount(); i++) {
+			Attribute attribute = element.getAttribute(i);
+			String value = attribute.getValue();
+			if (value != null && value.contains(ExampleMessageSerializationServiceImpl.WIDGET_CLASS)) {
+				attribute.setValue(exampleMessageSerializationService.rewriteNarrative(value, igDataModel, configuration));
+			}
+		}
+		for (int i = 0; i < element.getChildCount(); i++) {
+			Node child = element.getChild(i);
+			if (child instanceof Element) {
+				rewriteExampleMessageWidgets((Element) child, igDataModel, configuration);
+			} else if (child instanceof Text) {
+				String value = child.getValue();
+				if (value != null && value.contains(ExampleMessageSerializationServiceImpl.WIDGET_CLASS)) {
+					element.replaceChild(child, new Text(exampleMessageSerializationService.rewriteNarrative(value, igDataModel, configuration)));
+				}
+			}
+		}
 	}
 
 	public Element serializeDocumentMetadata(DocumentMetadata metadata, DomainInfo domainInfo,

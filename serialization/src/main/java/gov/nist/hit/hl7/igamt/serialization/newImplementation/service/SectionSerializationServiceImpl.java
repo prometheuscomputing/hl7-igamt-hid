@@ -26,6 +26,7 @@ import gov.nist.hit.hl7.igamt.datatype.domain.registry.DatatypeRegistry;
 import gov.nist.hit.hl7.igamt.datatype.exception.DatatypeNotFoundException;
 import gov.nist.hit.hl7.igamt.datatypeLibrary.domain.DatatypeLibraryDataModel;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportConfiguration;
+import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.GeneratedFlavorsConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.CompositeProfileExportConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.DatatypeExportConfiguration;
@@ -33,6 +34,7 @@ import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExportFilterDecision
 import gov.nist.hit.hl7.igamt.ig.domain.datamodel.CompositeProfileDataModel;
 import gov.nist.hit.hl7.igamt.ig.domain.datamodel.ConformanceProfileDataModel;
 import gov.nist.hit.hl7.igamt.ig.domain.datamodel.DatatypeDataModel;
+import gov.nist.hit.hl7.igamt.ig.domain.datamodel.ExampleMessageDataModel;
 import gov.nist.hit.hl7.igamt.ig.domain.datamodel.IgDataModel;
 import gov.nist.hit.hl7.igamt.ig.domain.datamodel.ProfileComponentDataModel;
 import gov.nist.hit.hl7.igamt.ig.domain.datamodel.SegmentDataModel;
@@ -75,6 +77,9 @@ public class SectionSerializationServiceImpl implements SectionSerializationServ
 	@Autowired
 	private FroalaSerializationUtil frolaCleaning;
 
+	@Autowired
+	private ExampleMessageSerializationService exampleMessageSerializationService;
+
 
 	@Override
 	public Element SerializeSection(Section section, int level, DocumentStructureDataModel documentStructureDataModel,
@@ -82,8 +87,18 @@ public class SectionSerializationServiceImpl implements SectionSerializationServ
 			throws RegistrySerializationException {
 		Element serializedSection = null;
 		if(documentStructureDataModel instanceof IgDataModel) {
-			if (Type.TEXT.equals(section.getType()) && !exportConfiguration.getIgGeneralConfiguration().isNotMessageInfrastructure()) {
-				serializedSection = SerializeTextSection((TextSection) section, level, (IgDataModel) documentStructureDataModel, exportConfiguration);
+			boolean infrastructureOnly = exportConfiguration.getIgGeneralConfiguration() != null
+					&& exportConfiguration.getIgGeneralConfiguration().isNotMessageInfrastructure();
+			if (Type.TEXT.equals(section.getType())) {
+				if (!infrastructureOnly) {
+					serializedSection = SerializeTextSection((TextSection) section, level, (IgDataModel) documentStructureDataModel, exportConfiguration);
+				} else if (section instanceof TextSection && containsMessageSection((TextSection) section)) {
+					serializedSection = serializeMessageExampleAncestors((TextSection) section, level,
+							(IgDataModel) documentStructureDataModel, exportConfiguration);
+				}
+			} else
+			if (Type.MESSAGESECTION.equals(section.getType())) {
+				serializedSection = SerializeMessageSection((TextSection) section, level, (IgDataModel) documentStructureDataModel, exportConfiguration);
 			} else
 			if (Type.PROFILE.equals(section.getType())) {
 				serializedSection = SerializeProfile((TextSection) section, level, (IgDataModel) documentStructureDataModel, exportConfiguration,
@@ -271,7 +286,7 @@ public class SectionSerializationServiceImpl implements SectionSerializationServ
 			List<TextSection> sectionChildren = section.getChildren().stream().collect(Collectors.toList());
 			Collections.sort(sectionChildren);
 			for (TextSection child : sectionChildren) {
-				Element childElement = SerializeTextSection(child, level + 1, documentStructureDataModel, exportConfiguration);
+				Element childElement = serializeTextOrMessageSection(child, level + 1, documentStructureDataModel, exportConfiguration);
 				if (childElement != null) {
 					textSectionElement.appendChild(childElement);
 				}
@@ -279,6 +294,116 @@ public class SectionSerializationServiceImpl implements SectionSerializationServ
 		}
 		return textSectionElement;
 
+	}
+
+	/**
+	 * A message section is a narrative section attached to an example message or one of its
+	 * snippets. The narrative is kept and the reference is carried as an ExampleMessage child,
+	 * shaped by the example message export configuration. When example messages are excluded
+	 * from the export the section is dropped entirely.
+	 */
+	public Element SerializeMessageSection(TextSection section, int level, IgDataModel igDataModel,
+										   ExportConfiguration exportConfiguration) {
+		ExampleMessageExportConfiguration configuration = exportConfiguration.getIgGeneralConfiguration().getExampleMessages();
+		if (!configuration.isInclude()) {
+			return null;
+		}
+		Element sectionElement = SerializeCommonSection(section, level, igDataModel, exportConfiguration);
+		useExampleNameAsTitle(sectionElement, section, igDataModel);
+		Element reference = exampleMessageSerializationService.serializeReference(igDataModel, section.getMessageId(),
+				section.getSnippetId(), configuration);
+		if (reference != null) {
+			sectionElement.appendChild(reference);
+		}
+		if (section.getChildren() != null) {
+			List<TextSection> sectionChildren = section.getChildren().stream().collect(Collectors.toList());
+			Collections.sort(sectionChildren);
+			for (TextSection child : sectionChildren) {
+				Element childElement = serializeTextOrMessageSection(child, level + 1, igDataModel, exportConfiguration);
+				if (childElement != null) {
+					sectionElement.appendChild(childElement);
+				}
+			}
+		}
+		return sectionElement;
+	}
+
+	/**
+	 * Other narrative sections are titled by the name the author typed. A message section
+	 * created from "Add Message Example" keeps the placeholder "Message Example", so the
+	 * export heading uses the attached example's name instead.
+	 */
+	private void useExampleNameAsTitle(Element sectionElement, TextSection section, IgDataModel igDataModel) {
+		String label = section.getLabel();
+		if (label != null && !label.trim().isEmpty() && !"Message Example".equalsIgnoreCase(label.trim())) {
+			return;
+		}
+		if (igDataModel == null || section.getMessageId() == null || section.getMessageId().isEmpty()) {
+			return;
+		}
+		ExampleMessageDataModel dataModel = igDataModel.getExampleMessage(section.getMessageId());
+		if (dataModel == null) {
+			return;
+		}
+		String title = dataModel.getLabel(section.getSnippetId());
+		if (title == null || title.isEmpty()) {
+			return;
+		}
+		Attribute attribute = sectionElement.getAttribute("title");
+		if (attribute != null) {
+			attribute.setValue("Message Example: " + title);
+		}
+	}
+
+	/**
+	 * Infrastructure-only export skips narrative text, but message example sections still
+	 * belong in the document and in its table of contents. Keep the ancestor headings so
+	 * those sections stay in place, without the surrounding narrative body.
+	 */
+	private Element serializeMessageExampleAncestors(TextSection section, int level, IgDataModel igDataModel,
+			ExportConfiguration exportConfiguration) {
+		Element element = SerializeCommonSection(section, level, igDataModel, exportConfiguration);
+		Element content = element.getFirstChildElement("SectionContent");
+		if (content != null) {
+			element.removeChild(content);
+		}
+		if (section.getChildren() == null) {
+			return element;
+		}
+		List<TextSection> children = section.getChildren().stream().collect(Collectors.toList());
+		Collections.sort(children);
+		for (TextSection child : children) {
+			Element childElement = null;
+			if (Type.MESSAGESECTION.equals(child.getType())) {
+				childElement = SerializeMessageSection(child, level + 1, igDataModel, exportConfiguration);
+			} else if (containsMessageSection(child)) {
+				childElement = serializeMessageExampleAncestors(child, level + 1, igDataModel, exportConfiguration);
+			}
+			if (childElement != null) {
+				element.appendChild(childElement);
+			}
+		}
+		return element;
+	}
+
+	private boolean containsMessageSection(TextSection section) {
+		if (section == null || section.getChildren() == null) {
+			return false;
+		}
+		for (TextSection child : section.getChildren()) {
+			if (child != null && (Type.MESSAGESECTION.equals(child.getType()) || containsMessageSection(child))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private Element serializeTextOrMessageSection(TextSection child, int level,
+			DocumentStructureDataModel documentStructureDataModel, ExportConfiguration exportConfiguration) {
+		if (Type.MESSAGESECTION.equals(child.getType()) && documentStructureDataModel instanceof IgDataModel) {
+			return SerializeMessageSection(child, level, (IgDataModel) documentStructureDataModel, exportConfiguration);
+		}
+		return SerializeTextSection(child, level, documentStructureDataModel, exportConfiguration);
 	}
 
 	@Override

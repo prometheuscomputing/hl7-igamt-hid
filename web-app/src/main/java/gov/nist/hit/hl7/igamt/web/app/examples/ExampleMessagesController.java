@@ -6,17 +6,30 @@ import gov.nist.hit.hl7.igamt.examples.domain.IgExampleMessages;
 import gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet;
 import gov.nist.hit.hl7.igamt.examples.dto.*;
 import gov.nist.hit.hl7.igamt.examples.dto.parser.MessageModel;
+import gov.nist.hit.hl7.igamt.common.base.service.InMemoryDomainExtensionService;
+import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageExportDataService;
 import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageLocationService;
 import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageValidationService;
 import gov.nist.hit.hl7.igamt.examples.service.ExampleMessagesService;
 import gov.nist.hit.hl7.igamt.examples.service.MessageParserService;
 import gov.nist.hit.hl7.igamt.examples.service.SnippetRenderService;
+import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration;
+import gov.nist.hit.hl7.igamt.ig.domain.Ig;
+import gov.nist.hit.hl7.igamt.ig.domain.datamodel.IgDataModel;
+import gov.nist.hit.hl7.igamt.ig.service.IgService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.FileCopyUtils;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletResponse;
+import java.io.ByteArrayInputStream;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @RestController
 public class ExampleMessagesController {
@@ -31,6 +44,12 @@ public class ExampleMessagesController {
     ExampleMessageValidationService exampleMessageValidationService;
     @Autowired
     ExampleMessageLocationService exampleMessageLocationService;
+    @Autowired
+    ExampleMessageExportDataService exampleMessageExportDataService;
+    @Autowired
+    IgService igService;
+    @Autowired
+    InMemoryDomainExtensionService inMemoryDomainExtensionService;
 
     @RequestMapping(value = "/api/example-messages/{id}", method = RequestMethod.GET, produces = {"application/json" })
     public @ResponseBody
@@ -238,6 +257,38 @@ public class ExampleMessagesController {
             Authentication authentication
     ) throws Exception {
         return snippetRenderService.renderFromPaths(id, messageId, renderFromPathsDTO.getPositionalPaths());
+    }
+
+    /**
+     * Export every example message and snippet of the IG. Each message is an HTML page
+     * plus the message text as a .txt file.
+     */
+    @RequestMapping(value = "/api/example-messages/{id}/export", method = RequestMethod.GET)
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, READ)")
+    public void exportAll(
+            @PathVariable("id") String id,
+            HttpServletResponse response
+    ) throws Exception {
+        Set<String> dataExtensionTokens = new HashSet<String>();
+        try {
+            Ig ig = igService.findById(id);
+            if (ig == null) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "Implementation Guide not found");
+                return;
+            }
+            IgDataModel igDataModel = igService.generateDataModel(ig);
+            dataExtensionTokens.addAll(igDataModel.getDataExtensionTokens());
+            ExampleMessageExportConfiguration configuration = ExampleMessageExportDataService.allFilesConfiguration();
+            exampleMessageExportDataService.populate(igDataModel, configuration);
+            Map<String, byte[]> files = exampleMessageExportDataService.collectStaticPages(igDataModel, configuration, false);
+            files.putAll(exampleMessageExportDataService.collectFiles(igDataModel, configuration));
+            byte[] zip = exampleMessageExportDataService.zipFiles(files);
+            response.setContentType("application/zip");
+            response.setHeader("Content-disposition", "attachment;filename=ExampleMessages-" + id + ".zip");
+            FileCopyUtils.copy(new ByteArrayInputStream(zip), response.getOutputStream());
+        } finally {
+            dataExtensionTokens.forEach(token -> inMemoryDomainExtensionService.clear(token));
+        }
     }
 
 }

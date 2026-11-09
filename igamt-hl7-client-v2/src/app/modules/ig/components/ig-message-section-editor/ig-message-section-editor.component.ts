@@ -84,7 +84,6 @@ export class IgMessageSectionEditorComponent extends AbstractEditorComponent imp
   ) {
     super({
       id: EditorID.MESSAGE_SECTION,
-      title: 'Message Example',
       resourceType: Type.MESSAGESECTION,
     },
       actions$,

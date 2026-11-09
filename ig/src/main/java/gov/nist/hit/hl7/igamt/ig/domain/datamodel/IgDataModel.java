@@ -37,6 +37,20 @@ public class IgDataModel extends DocumentStructureDataModel implements Serializa
 	private Map<SegmentDataModel, GeneratedResourceMetadata> allFlavoredSegmentDataModelsMap = new HashMap<>();
 	private Map<DatatypeDataModel, GeneratedResourceMetadata> allFlavoredDatatypeDataModelsMap = new HashMap<>();
 	private Set<String> dataExtensionTokens = new HashSet<>();
+	/** messageId -> example message export view; empty unless the export asked for them */
+	private Map<String, ExampleMessageDataModel> exampleMessages = new HashMap<>();
+
+	public Map<String, ExampleMessageDataModel> getExampleMessages() {
+		return exampleMessages;
+	}
+
+	public void setExampleMessages(Map<String, ExampleMessageDataModel> exampleMessages) {
+		this.exampleMessages = exampleMessages != null ? exampleMessages : new HashMap<>();
+	}
+
+	public ExampleMessageDataModel getExampleMessage(String messageId) {
+		return messageId != null ? exampleMessages.get(messageId) : null;
+	}
 
 	public Ig getModel() {
 		return model;

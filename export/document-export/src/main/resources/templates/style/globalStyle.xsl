@@ -49,7 +49,10 @@
         <xsl:text>.codeParagraph{display: block;padding: 9.5px;margin: 0 0 10px;line-height: 1.428571429;word-break: break-all;word-wrap: break-word;color: #333;background-color: #f5f5f5;border: 1px solid #ccc;border-radius: 4px;}</xsl:text>
         <xsl:text>.fr-exmsg{display:block;margin:10px 0;padding:10px 12px;border:1px solid #c5cae9;border-radius:4px;background:#f8f9ff;}</xsl:text>
         <xsl:text>.fr-exmsg .fr-exmsg-link{display:inline-block;margin-bottom:8px;font-weight:700;color:#1565c0;}</xsl:text>
+        <xsl:text>.fr-exmsg .fr-exmsg-file{display:block;margin:0 0 8px;font-family:Consolas,Monaco,monospace;font-size:9pt;color:#546e7a;}</xsl:text>
+        <xsl:text>.fr-exmsg .fr-exmsg-warning{display:block;margin:0 0 8px;color:#b71c1c;}</xsl:text>
         <xsl:text>.fr-exmsg .fr-exmsg-body,.fr-exmsg pre.fr-exmsg-body{display:block;margin:0;padding:9.5px;font-family:Consolas,Monaco,monospace;font-size:10pt;line-height:1.4;white-space:pre-wrap;word-break:break-all;color:#333;background:#f5f5f5;border:1px solid #ccc;border-radius:4px;}</xsl:text>
+        <xsl:text>.fr-exmsg .fr-exmsg-line{white-space:pre-wrap;}</xsl:text>
     </xsl:template>
 
 </xsl:stylesheet>

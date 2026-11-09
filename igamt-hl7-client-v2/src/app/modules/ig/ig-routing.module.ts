@@ -150,7 +150,6 @@ const routes: Routes = [
         data: {
           editorMetadata: {
             id: EditorID.MESSAGE_SECTION,
-            title: 'Message Example',
             resourceType: Type.MESSAGESECTION,
           },
           onLeave: {

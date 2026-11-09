@@ -2,7 +2,20 @@
   <h5 class="card-title title-text custom-card-title">General Display</h5>
   <ul class="list-group list-group-flush">
     <li class="list-group-item"><p-checkbox [disabled]="viewOnly" label="Export Only Message Infrastructure Mode" binary="true" [(ngModel)]="config.notMessageInfrastructure" (onChange)="triggerChange()"></p-checkbox></li>
-<!--    <li class="list-group-item"><p-checkbox [disabled]="viewOnly" label="Anything we can think of in the future" binary="true"></p-checkbox></li>-->
-
+    <ng-container *ngIf="config.exampleMessages">
+      <li class="list-group-item">
+        <p-checkbox [disabled]="viewOnly" label="Include example messages" binary="true" [(ngModel)]="config.exampleMessages.include" (onChange)="triggerChange()"></p-checkbox>
+      </li>
+      <li class="list-group-item" *ngIf="config.exampleMessages.include">
+        <div style="margin-bottom: 6px;">How to carry example messages referenced by the document</div>
+        <p-radioButton [disabled]="viewOnly" name="exampleMessageMode" value="INLINE" label="Print them in the HTML / Word document" [(ngModel)]="config.exampleMessages.mode" (ngModelChange)="triggerChange()"></p-radioButton>
+        <div style="margin-top: 6px;">
+          <p-radioButton [disabled]="viewOnly" name="exampleMessageMode" value="SEPARATE_FILES" label="Export them as separate files (no message body in the document)" [(ngModel)]="config.exampleMessages.mode" (ngModelChange)="triggerChange()"></p-radioButton>
+        </div>
+      </li>
+      <li class="list-group-item">
+        <p-checkbox [disabled]="viewOnly" label="Also export every example message and snippet as files (even if the document does not reference them)" binary="true" [(ngModel)]="config.exampleMessages.exportAllMessages" (onChange)="triggerChange()"></p-checkbox>
+      </li>
+    </ng-container>
   </ul>
 </div>

@@ -100,4 +100,8 @@ export class ExampleMessagesService {
     return this.http.post<IMessage<any>>(`api/example-messages/${igId}/message/${messageId}/snippet/${snippetId}`, data);
   }
 
+  public exportAll(igId: string): Observable<Blob> {
+    return this.http.get(`api/example-messages/${igId}/export`, { responseType: 'blob' });
+  }
+
 }

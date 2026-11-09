@@ -1040,6 +1040,9 @@ public class ExportConfiguration {
   }
 
   public IgGeneralConfiguration getIgGeneralConfiguration() {
+    if (igGeneralConfiguration == null) {
+      igGeneralConfiguration = new IgGeneralConfiguration();
+    }
     return igGeneralConfiguration;
   }
 

@@ -46,6 +46,7 @@ import gov.nist.hit.hl7.igamt.display.model.IGDisplayInfo;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportFontConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportType;
+import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageExportDataService;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExportFilterDecision;
 import gov.nist.hit.hl7.igamt.export.configuration.service.ExportConfigurationFilterService;
 import gov.nist.hit.hl7.igamt.export.configuration.service.ExportConfigurationService;
@@ -107,6 +108,9 @@ public class IgNewExportServiceImpl implements IgNewExportService {
 
 	@Autowired
 	CoConstraintService coConstraintService;
+
+	@Autowired
+	ExampleMessageExportDataService exampleMessageExportDataService;
 
 	private static final String IG_XSLT_PATH = "/IGDocumentExport.xsl";
 
@@ -183,6 +187,8 @@ public class IgNewExportServiceImpl implements IgNewExportService {
 			ExportFontConfiguration exportFontConfiguration =
 					exportFontConfigurationService.getExportFontConfiguration(username);
 			DocumentStructureDataModel documentStructureDataModel = new DocumentStructureDataModel();
+			exampleMessageExportDataService.populate(igDataModel,
+					exportConfiguration.getIgGeneralConfiguration().getExampleMessages());
 			String xmlContent =
 					igDataModelSerializationService.serializeDocument(igDataModel, exportConfiguration,decision).toXML();
 //			FileWritter fw = new FileWritter();

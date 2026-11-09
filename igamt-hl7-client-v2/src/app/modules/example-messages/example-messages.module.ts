@@ -77,6 +77,10 @@ CodeMirror.defineMode('hl7v2', () => {
   ],
   providers: [],
   exports: [],
-  entryComponents: [CreateDialogComponent, LocateContextDialogComponent],
+  entryComponents: [
+    ExampleMessagesContainerComponent,
+    CreateDialogComponent,
+    LocateContextDialogComponent,
+  ],
 })
 export class ExampleMessagesModule { }

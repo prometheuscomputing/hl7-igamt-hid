@@ -64,7 +64,9 @@ import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportConfigurationGlobal;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportDocType;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportType;
+import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageExportDataService;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.ConformanceProfileExportConfiguration;
+import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExportFilterDecision;
 import gov.nist.hit.hl7.igamt.export.configuration.previous.ExportDecision;
 import gov.nist.hit.hl7.igamt.export.configuration.previous.ExportDecisionRepository;
@@ -122,6 +124,9 @@ public class ExportAndImportController {
   @Autowired
   InMemoryDomainExtensionService inMemoryDomainExtensionService;
 
+  @Autowired
+  ExampleMessageExportDataService exampleMessageExportDataService;
+
   Path source = new File(getClass()
 		  .getResource("/")
 		  .getFile()).toPath();
@@ -173,45 +178,21 @@ public class ExportAndImportController {
           throw new ExportException("Missing Configuration");
         }
       }
+      ExampleMessageExportConfiguration exampleMessages = config.getIgGeneralConfiguration().getExampleMessages();
       if(format.equalsIgnoreCase(ExportDocType.HTML.toString())) {
         exportedFile = igExportService.exportIgDocumentToHtml(username, igDataModel, decision, config.getId());
-        response.setContentType("text/html");
-        response.setHeader("Content-disposition",
-            "attachment;filename=" + exportedFile.getFileName());
-        FileCopyUtils.copy(exportedFile.getContent(), response.getOutputStream());
-
-      }			
+        Map<String, byte[]> site = new LinkedHashMap<String, byte[]>();
+        site.putAll(exampleMessageExportDataService.collectStaticPages(igDataModel, exampleMessages));
+        site.putAll(exampleMessageExportDataService.collectFiles(igDataModel, exampleMessages));
+        writeExportedDocument(response, exportedFile, "text/html", null, site, true);
+      }
       if(format.equalsIgnoreCase(ExportDocType.WORD.toString())) {
         exportedFile = igExportService.exportIgDocumentToWord(username, igDataModel, decision, config.getId());
         List<ByteArrayOutputStream> excelFiles = this.generateExcelFilesForWord(igDataModel,decision,config.getId());
-        if(excelFiles.isEmpty()) {
-        	response.setContentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-            response.setHeader("Content-disposition",
-                "attachment;filename=" + exportedFile.getFileName());
-            FileCopyUtils.copy(exportedFile.getContent(), response.getOutputStream());
-
-        } else {
-        	// Convert ByteArrayOutputStream to imputstreams
-      	  List<InputStream> inputExcelFiles= new ArrayList<InputStream>();
-      	  for( ByteArrayOutputStream file : excelFiles) {
-      				InputStream excelInputStream = new ByteArrayInputStream(file.toByteArray());
-      				inputExcelFiles.add(excelInputStream);
-      	  }
-
-        	// Zip the files
-      	ByteArrayOutputStream baos = createZip(exportedFile.getContent(), inputExcelFiles);
-      	InputStream zippedFiles = new ByteArrayInputStream(baos.toByteArray());
-      	
-        	// Set response
-      	response.setContentType("application/zip");   	
-      	response.setHeader("Content-disposition", "attachment;filename=exportedWord.zip");
-//        response.setHeader("Content-disposition",
-//            "attachment;filename=" + exportedFile.getFileName());
-        FileCopyUtils.copy(zippedFiles, response.getOutputStream());
-        }
-        
+        writeExportedDocument(response, exportedFile,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", excelFiles,
+            exampleMessageExportDataService.collectFiles(igDataModel, exampleMessages), false);
       }
-      FileCopyUtils.copy(exportedFile.getContent(), response.getOutputStream());
 
     } catch (Exception e) {
       e.printStackTrace();
@@ -552,6 +533,50 @@ public class ExportAndImportController {
 	}
 
 
+	private void writeExportedDocument(HttpServletResponse response, ExportedFile exportedFile, String contentType,
+			List<ByteArrayOutputStream> excelFiles, Map<String, byte[]> extraFiles) throws IOException {
+		writeExportedDocument(response, exportedFile, contentType, excelFiles, extraFiles, false);
+	}
+
+	/**
+	 * HTML exports are a folder: index.html is the guide, and example messages are pages
+	 * next to it. Other formats stay a single file unless they already carry extra files.
+	 */
+	private void writeExportedDocument(HttpServletResponse response, ExportedFile exportedFile, String contentType,
+			List<ByteArrayOutputStream> excelFiles, Map<String, byte[]> extraFiles, boolean staticSite) throws IOException {
+		boolean hasExcel = excelFiles != null && !excelFiles.isEmpty();
+		boolean hasExtra = extraFiles != null && !extraFiles.isEmpty();
+		if (!staticSite && !hasExcel && !hasExtra) {
+			response.setContentType(contentType);
+			response.setHeader("Content-disposition", "attachment;filename=" + exportedFile.getFileName());
+			FileCopyUtils.copy(exportedFile.getContent(), response.getOutputStream());
+			return;
+		}
+		String folder = exportedFile.getFileName().replaceAll("\\.[^.]+$", "");
+		String documentName = staticSite ? folder + "/index.html" : exportedFile.getFileName();
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		ZipOutputStream zipOut = new ZipOutputStream(baos);
+		addFileToZip(documentName, exportedFile.getContent(), zipOut);
+		int i = 1;
+		if (hasExcel) {
+			for (ByteArrayOutputStream excelFile : excelFiles) {
+				addFileToZip("CoConstraints-" + i + ".xlsx", new ByteArrayInputStream(excelFile.toByteArray()), zipOut);
+				i++;
+			}
+		}
+		if (hasExtra) {
+			String prefix = staticSite ? folder + "/" : "";
+			for (Map.Entry<String, byte[]> extra : extraFiles.entrySet()) {
+				addFileToZip(prefix + extra.getKey(), new ByteArrayInputStream(extra.getValue()), zipOut);
+			}
+		}
+		zipOut.close();
+		response.setContentType("application/zip");
+		String zipName = exportedFile.getFileName().replaceAll("\\.[^.]+$", "") + ".zip";
+		response.setHeader("Content-disposition", "attachment;filename=" + zipName);
+		FileCopyUtils.copy(new ByteArrayInputStream(baos.toByteArray()), response.getOutputStream());
+	}
+
 	// Helper functions for zipping
 	public ByteArrayOutputStream createZip(InputStream word, List<InputStream> excelFiles) throws IOException {
 	    ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -575,6 +600,7 @@ public class ExportAndImportController {
 	    while((length = in.read(bytes)) >= 0) {
 	        zipOut.write(bytes, 0, length);
 	    }
+	    zipOut.closeEntry();
 	}
 
   // -- upcoming user mini dump endpoints will be inserted here --
