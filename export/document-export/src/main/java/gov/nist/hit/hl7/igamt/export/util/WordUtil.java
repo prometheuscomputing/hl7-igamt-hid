@@ -444,12 +444,7 @@ public class WordUtil {
       properties.setTblLook(look);
 
       boolean first = true;
-      for (Object rowNode : table.getContent()) {
-        Object rowObject = unwrap(rowNode);
-        if (!(rowObject instanceof Tr)) {
-          continue;
-        }
-        Tr row = (Tr) rowObject;
+      for (Tr row : rowsOf(table)) {
         TrPr rowProperties = row.getTrPr();
         if (rowProperties == null) {
           rowProperties = factory.createTrPr();
@@ -460,11 +455,10 @@ public class WordUtil {
           rowProperties.getCnfStyleOrDivIdOrGridBefore().add(factory.createCTTrPrBaseTblHeader(new BooleanDefaultTrue()));
         }
         first = false;
-        for (Object cellNode : row.getContent()) {
-          Object cellObject = unwrap(cellNode);
-          if (cellObject instanceof Tc && ((Tc) cellObject).getTcPr() != null) {
-            ((Tc) cellObject).getTcPr().setTcBorders(null);
-            ((Tc) cellObject).getTcPr().setTcMar(null);
+        for (Tc cell : cellsOf(row)) {
+          if (cell.getTcPr() != null) {
+            cell.getTcPr().setTcBorders(null);
+            cell.getTcPr().setTcMar(null);
           }
         }
       }

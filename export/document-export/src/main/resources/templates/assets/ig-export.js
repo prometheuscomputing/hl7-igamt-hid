@@ -273,23 +273,24 @@ var IgExportText = (function () {
     each(copy.querySelectorAll('[hidden]'), function (child) { child.hidden = false; });
     return copy;
   }
-  /** The first rows of a table, with a note when there are more. */
-  function excerpt(table, limit, keepLinks) {
-    var holder = make('div', 'ig-excerpt');
+  /** A small copy of a table: its header and the given rows. */
+  function miniCopy(table, rows, keepLinks) {
     var copy = make('table', table.className);
     copy.classList.add('ig-mini');
     if (table.tHead) { copy.appendChild(inert(table.tHead)); }
     var bodyCopy = document.createElement('tbody');
-    var rows = table.tBodies.length ? table.tBodies[0].rows : [];
-    for (var i = 0; i < rows.length && i < limit; i++) { bodyCopy.appendChild(inert(rows[i])); }
+    each(rows, function (row) { bodyCopy.appendChild(inert(row)); });
     copy.appendChild(bodyCopy);
     if (!keepLinks) {
-      each(copy.querySelectorAll('a'), function (link) {
-        var span = make('span', 'ig-ref-plain', link.textContent);
-        link.parentNode.replaceChild(span, link);
-      });
+      each(copy.querySelectorAll('a'), function (link) { link.parentNode.replaceChild(make('span', 'ig-ref-plain', link.textContent), link); });
     }
-    holder.appendChild(copy);
+    return copy;
+  }
+  /** The first rows of a table, with a note when there are more. */
+  function excerpt(table, limit, keepLinks) {
+    var holder = make('div', 'ig-excerpt');
+    var rows = table.tBodies.length ? table.tBodies[0].rows : [];
+    holder.appendChild(miniCopy(table, Array.prototype.slice.call(rows, 0, limit), keepLinks));
     if (rows.length > limit) {
       holder.appendChild(make('p', 'ig-excerpt-more', (rows.length - limit) + ' more ' + (rows.length - limit === 1 ? 'row' : 'rows')));
     }
@@ -345,15 +346,7 @@ var IgExportText = (function () {
       head.appendChild(make('span', 'ig-preview-kind', field.label));
       head.appendChild(make('span', 'ig-preview-code', field.token));
       head.appendChild(make('span', 'ig-preview-name', field.name));
-      var table = target.parentNode.parentNode;
-      var one = make('table', table.className);
-      one.classList.add('ig-mini');
-      if (table.tHead) { one.appendChild(inert(table.tHead)); }
-      var oneBody = document.createElement('tbody');
-      oneBody.appendChild(inert(target));
-      one.appendChild(oneBody);
-      each(one.querySelectorAll('a'), function (link) { link.parentNode.replaceChild(make('span', 'ig-ref-plain', link.textContent), link); });
-      card.appendChild(one);
+      card.appendChild(miniCopy(target.parentNode.parentNode, [target], false));
       return card;
     }
     var section = target.closest ? target.closest('section') : null;
@@ -516,14 +509,8 @@ var IgExportText = (function () {
     return section;
   }
   function miniTable(table, rows) {
-    var copy = make('table', table.className);
-    copy.classList.add('ig-mini');
-    if (table.tHead) { copy.appendChild(inert(table.tHead)); }
-    var bodyCopy = document.createElement('tbody');
-    rows.forEach(function (row) { bodyCopy.appendChild(inert(row)); });
-    copy.appendChild(bodyCopy);
     var wrap = make('div', 'ig-panel-table');
-    wrap.appendChild(copy);
+    wrap.appendChild(miniCopy(table, rows, true));
     return wrap;
   }
   /** Rows of a table that are about the field: they name it, or (constant values) carry its name. */
