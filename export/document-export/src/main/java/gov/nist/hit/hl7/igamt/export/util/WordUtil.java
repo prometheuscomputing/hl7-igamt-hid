@@ -49,6 +49,7 @@ import org.docx4j.wml.CTSettings;
 import org.docx4j.wml.CTTblLayoutType;
 import org.docx4j.wml.CTTblLook;
 import org.docx4j.wml.CTTblPrBase.TblStyle;
+import org.docx4j.wml.CTTrPrBase;
 import org.docx4j.wml.ContentAccessor;
 import org.docx4j.wml.Drawing;
 import org.docx4j.wml.FooterReference;
@@ -476,7 +477,7 @@ public class WordUtil {
    * leaves "Value" or "HL70085" too little room to stay on one line. Every column gets at least the
    * room of its longest word; the others give that room up.
    */
-  private static void fitColumns(Tbl table, ObjectFactory factory) {
+  static void fitColumns(Tbl table, ObjectFactory factory) {
     if (table.getTblGrid() == null || table.getTblGrid().getGridCol().size() < 2) {
       return;
     }
@@ -487,14 +488,12 @@ public class WordUtil {
       natural[i] = grid.get(i).getW() != null ? Math.max(1, grid.get(i).getW().intValue()) : 1;
     }
     for (Tr row : rowsOf(table)) {
-      int column = 0;
+      int column = gridBeforeOf(row);
       for (Tc cell : cellsOf(row)) {
         int span = spanOf(cell);
         if (span == 1 && column < longestWord.length) {
           for (Object paragraph : getAllElementFromObject(cell, P.class)) {
-            for (String word : textOf((P) paragraph).trim().split("\\s+")) {
-              longestWord[column] = Math.max(longestWord[column], word.length());
-            }
+            longestWord[column] = Math.max(longestWord[column], longestWordOf((P) paragraph));
           }
         }
         column += span;
@@ -505,7 +504,7 @@ public class WordUtil {
       grid.get(i).setW(BigInteger.valueOf(widths[i]));
     }
     for (Tr row : rowsOf(table)) {
-      int column = 0;
+      int column = gridBeforeOf(row);
       for (Tc cell : cellsOf(row)) {
         int span = spanOf(cell);
         int total = 0;
@@ -592,6 +591,35 @@ public class WordUtil {
       }
     }
     return cells;
+  }
+
+  /** Grid columns a row leaves empty before its first cell. */
+  private static int gridBeforeOf(Tr row) {
+    if (row.getTrPr() != null) {
+      for (Object property : row.getTrPr().getCnfStyleOrDivIdOrGridBefore()) {
+        Object value = unwrap(property);
+        if (value instanceof CTTrPrBase.GridBefore && ((CTTrPrBase.GridBefore) value).getVal() != null) {
+          return Math.max(0, ((CTTrPrBase.GridBefore) value).getVal().intValue());
+        }
+      }
+    }
+    return 0;
+  }
+
+  /** Length of the longest word of a paragraph; a line break ends a word like a space does. */
+  private static int longestWordOf(P paragraph) {
+    StringBuilder text = new StringBuilder();
+    for (Object run : getAllElementFromObject(paragraph, R.class)) {
+      for (Object node : ((R) run).getContent()) {
+        Object value = unwrap(node);
+        text.append(value instanceof Text ? ((Text) value).getValue() : " ");
+      }
+    }
+    int longest = 0;
+    for (String word : text.toString().trim().split("\\s+")) {
+      longest = Math.max(longest, word.length());
+    }
+    return longest;
   }
 
   private static int spanOf(Tc cell) {

@@ -109,7 +109,7 @@ module.exports = async (page) => {
         const nameShown = panelEl.querySelector('.ig-panel-name').textContent.replace(shown, '').trim();
         if (nameShown !== row.querySelector('td.c-name').textContent.replace(/\s+/g, ' ').trim()) problems.push('name mismatch for ' + token);
         if (panelEl.querySelectorAll('.ig-panel-fact').length === 0) problems.push('no facts for ' + token);
-        if (panelEl.querySelector('[id]:not(#ig-panel)')) problems.push('copied id inside panel for ' + token);
+        if (panelEl.querySelector('[id]:not(#ig-panel-name)')) problems.push('copied id inside panel for ' + token);
         const sections = panelEl.querySelectorAll('.ig-panel-section').length;
         const emptyNote = !!panelEl.querySelector('.ig-panel-empty');
         if ((sections === 0) !== emptyNote) problems.push('empty note inconsistent for ' + token);
@@ -188,7 +188,7 @@ module.exports = async (page) => {
       }
       if (i === 0 && name === 'rich-all') await shot('f-preview.jpg');
       await page.mouse.move(5, 300);
-      await page.waitForTimeout(40);
+      await page.waitForTimeout(260);
       const gone = await page.evaluate(() => document.getElementById('ig-preview').hidden);
       if (!gone) fail(name, 'preview stayed after leaving ' + sample.picked[i]);
     }
@@ -220,6 +220,50 @@ module.exports = async (page) => {
       if (await page.evaluate(() => document.getElementById('ig-panel').hidden)) fail(name, 'mouse click did not open');
       await page.locator('.ig-panel-close').click();
       if (!(await page.evaluate(() => document.getElementById('ig-panel').hidden))) fail(name, 'close button did not close');
+
+      // opened with the mouse, left from inside the panel: focus goes back to the row, not to the top of the page
+      await firstRow.locator('td.c-name').click();
+      await page.locator('.ig-panel-close').focus();
+      await page.keyboard.press('Escape');
+      k = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, focusIsRow: document.activeElement.classList.contains('ig-field-row') }));
+      if (!k.hidden || !k.focusIsRow) fail(name, 'focus lost after closing a panel opened by mouse: ' + JSON.stringify(k));
+
+      // one tab stop per table, arrow keys between rows, honest semantics
+      const stops = await page.evaluate(() => {
+        const problems = [];
+        const bodies = new Set();
+        document.querySelectorAll('tr.ig-field-row').forEach((row) => {
+          bodies.add(row.parentNode);
+          if (row.hasAttribute('aria-haspopup') || row.hasAttribute('title')) problems.push('row ' + row.id + ' has aria-haspopup or title');
+        });
+        bodies.forEach((tbody) => {
+          const zero = Array.prototype.filter.call(tbody.rows, (row) => row.classList.contains('ig-field-row') && row.tabIndex === 0);
+          if (zero.length !== 1) problems.push(zero.length + ' tab stops in the table of ' + tbody.rows[0].id);
+        });
+        const panel = document.getElementById('ig-panel');
+        if (panel.getAttribute('role') !== 'complementary' || panel.getAttribute('aria-labelledby') !== 'ig-panel-name') problems.push('panel role or label');
+        return { problems: problems.slice(0, 5), count: problems.length, tables: bodies.size, stops: document.querySelectorAll('tr.ig-field-row[tabindex="0"]').length };
+      });
+      if (stops.count || stops.stops !== stops.tables) fail(name, 'tab stops: ' + JSON.stringify(stops));
+      r.tabStops = stops.stops;
+      const arrows = await page.evaluate(() => {
+        const tbody = Array.prototype.map.call(document.querySelectorAll('tr.ig-field-row'), (row) => row.parentNode)
+          .find((body) => body.querySelectorAll('tr.ig-field-row').length > 2);
+        if (!tbody) return null;
+        const rows = tbody.querySelectorAll('tr.ig-field-row');
+        rows[0].focus();
+        const press = (key) => document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        press('ArrowDown');
+        const down = document.activeElement === rows[1] && rows[1].tabIndex === 0 && rows[0].tabIndex === -1;
+        press('End');
+        const end = document.activeElement === rows[rows.length - 1];
+        press('ArrowDown');
+        const stays = document.activeElement === rows[rows.length - 1];
+        press('Home');
+        const home = document.activeElement === rows[0] && rows[0].tabIndex === 0;
+        return { down, end, stays, home, hidden: document.getElementById('ig-panel').hidden };
+      });
+      if (arrows && !(arrows.down && arrows.end && arrows.stays && arrows.home && arrows.hidden)) fail(name, 'arrow keys: ' + JSON.stringify(arrows));
 
       // deep link to a field opens its details
       const rowId = await firstRow.getAttribute('id');
@@ -353,6 +397,127 @@ module.exports = async (page) => {
   if (phone.left !== 0 || phone.width !== 390 || phone.overflow > 0) fail('known', 'phone panel layout ' + JSON.stringify(phone));
   await shot('f-panel-phone.jpg');
   await page.setViewportSize({ width: 1360, height: 900 });
+
+  // ---- findings of the reviews, each with its own check
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => document.querySelector('.ig-panel-close').click());
+  const sectionOf = "(code) => Array.prototype.find.call(document.querySelectorAll('section.ig-resource'), (s) => (s.querySelector(':scope > .ig-heading .ig-code') || {}).textContent === code)";
+
+  // a field link used with the keyboard moves focus into the panel, and closing gives it back to the link
+  await page.evaluate((find) => {
+    const section = eval(find)('CX_IZ');
+    const d = section.querySelector('details.ig-used'); d.open = true;
+    const link = d.querySelector('a.ig-ref-row'); link.scrollIntoView({ block: 'center' }); link.focus();
+  }, sectionOf);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  let focus = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, inPanel: document.getElementById('ig-panel').contains(document.activeElement) }));
+  if (focus.hidden || !focus.inPanel) fail('known', 'keyboard use of a where-used link does not focus the panel: ' + JSON.stringify(focus));
+  await page.keyboard.press('Escape');
+  focus = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, onLink: document.activeElement.classList.contains('ig-ref-row') }));
+  if (!focus.hidden || !focus.onLink) fail('known', 'focus did not return to the where-used link: ' + JSON.stringify(focus));
+
+  // search with the keyboard: focus in the panel, and the same result opens it again after it was closed
+  for (let round = 0; round < 2; round++) {
+    await page.fill('#ig-search', 'PID-3');
+    await page.waitForTimeout(250);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(250);
+    focus = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, inPanel: document.getElementById('ig-panel').contains(document.activeElement), code: (document.querySelector('.ig-panel-code') || {}).textContent }));
+    if (focus.hidden || !focus.inPanel || focus.code !== 'PID_IZ-3') fail('known', 'search by keyboard, round ' + (round + 1) + ': ' + JSON.stringify(focus));
+    await page.keyboard.press('Escape');
+    focus = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, onRow: document.activeElement.classList.contains('ig-field-row') }));
+    if (!focus.hidden || !focus.onRow) fail('known', 'closing after a search, round ' + (round + 1) + ': ' + JSON.stringify(focus));
+  }
+
+  // co-constraints only from the profiles that use this flavor of the segment
+  const flavors = await page.evaluate((find) => {
+    const items = (code) => {
+      const section = eval(find)(code);
+      const row = section && Array.prototype.find.call(section.querySelectorAll('tr.ig-field-row'), (r) => r.querySelector('td.c-seq').textContent.trim() === '3');
+      if (!row) return null;
+      row.click();
+      const id = section.querySelector(':scope > .ig-heading').id;
+      const out = Array.prototype.map.call(document.querySelectorAll('#ig-panel .ig-panel-list li'), (li) => {
+        const block = document.getElementById(li.querySelector('a').getAttribute('href').slice(1));
+        const profile = block.closest('section.ig-resource');
+        return { profile: li.querySelector('a').textContent, uses: Array.prototype.some.call(profile.querySelectorAll('a.ig-ref'), (a) => !a.closest('.ig-used') && a.getAttribute('href') === '#' + id) };
+      });
+      document.querySelector('.ig-panel-close').click();
+      return out;
+    };
+    return { ref: items('OBX_REF_1'), iz: items('OBX_IZ') };
+  }, sectionOf);
+  if (!flavors.iz || flavors.iz.length !== 4 || flavors.iz.some((x) => !x.uses)) fail('known', 'OBX_IZ-3 co-constraints: ' + JSON.stringify(flavors.iz));
+  if (flavors.ref && (flavors.ref.some((x) => !x.uses) || flavors.ref.some((x) => x.profile === 'Z22'))) fail('known', 'OBX_REF_1-3 lists co-constraints of profiles that do not use it: ' + JSON.stringify(flavors.ref));
+  report.coConstraintFlavors = { OBX_IZ: flavors.iz && flavors.iz.length, OBX_REF_1: flavors.ref && flavors.ref.map((x) => x.profile) };
+
+  // the parts of a date format are not called components
+  const part = await page.evaluate((find) => {
+    const section = eval(find)('DT');
+    const row = section && section.querySelector('tr.ig-field-row');
+    if (!row) return null;
+    row.click();
+    const kind = document.querySelector('.ig-panel-kind').textContent;
+    document.querySelector('.ig-panel-close').click();
+    return kind;
+  }, sectionOf);
+  if (part !== null && part.indexOf('Part of') !== 0) fail('known', 'a date format row is titled "' + part + '"');
+
+  // a table filtered down to its last row is still shown from its first rows in a preview
+  const filtered = await page.evaluate(() => {
+    const input = Array.prototype.find.call(document.querySelectorAll('.ig-table-filter'), (box) => {
+      const section = box.closest('section.ig-resource');
+      return section && document.querySelector('#ig-content a.ig-ref[href="#' + section.querySelector(':scope > .ig-heading').id + '"]');
+    });
+    if (!input) return null;
+    const section = input.closest('section.ig-resource');
+    const rows = section.querySelector('table').tBodies[0].rows;
+    input.value = rows[rows.length - 1].textContent.trim().split(/\s+/)[0] + ' ' + rows[rows.length - 1].cells[rows[rows.length - 1].cells.length - 1].textContent.trim().split(/\s+/)[0];
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const hiddenRows = Array.prototype.filter.call(rows, (row) => row.hidden).length;
+    const id = section.querySelector(':scope > .ig-heading').id;
+    const link = Array.prototype.find.call(document.querySelectorAll('#ig-content a.ig-ref[href="#' + id + '"]'), (a) => !a.closest('.ig-used') && a.getClientRects().length);
+    link.scrollIntoView({ block: 'center' });
+    link.setAttribute('data-e2e', 'filtered');
+    return { id, hiddenRows, total: rows.length };
+  });
+  if (filtered) {
+    if (filtered.hiddenRows < 8) fail('known', 'the filter did not hide the first rows: ' + JSON.stringify(filtered));
+    await page.locator('a[data-e2e="filtered"]').hover();
+    await page.waitForTimeout(450);
+    const shown = await page.evaluate(() => {
+      const card = document.getElementById('ig-preview');
+      const rows = card.querySelectorAll('tbody tr');
+      return { hidden: card.hidden, rows: rows.length, visible: Array.prototype.filter.call(rows, (row) => row.getClientRects().length).length };
+    });
+    if (shown.hidden || shown.rows === 0 || shown.visible !== shown.rows) fail('known', 'preview of a filtered table: ' + JSON.stringify(shown));
+
+    // the card stays while the pointer is on it, and goes when the pointer leaves it
+    const box = await page.evaluate(() => { const b = document.getElementById('ig-preview').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+    await page.mouse.move(box.x, box.y, { steps: 6 });
+    await page.waitForTimeout(400);
+    if (await page.evaluate(() => document.getElementById('ig-preview').hidden)) fail('known', 'the preview closes when the pointer moves onto it');
+    await page.mouse.move(5, 5, { steps: 4 });
+    await page.waitForTimeout(300);
+    if (!(await page.evaluate(() => document.getElementById('ig-preview').hidden))) fail('known', 'the preview stays after the pointer left it');
+    await page.evaluate(() => { const input = document.querySelector('a[data-e2e="filtered"]'); input.removeAttribute('data-e2e'); });
+  }
+  report.filteredPreview = filtered;
+
+  // a hash that is not valid percent-encoding does not stop the page from working
+  const hashErrors = [];
+  const onHashError = (e) => hashErrors.push(String(e));
+  page.on('pageerror', onHashError);
+  await page.goto(BASE + 'rich-all.html?t=' + Date.now() + '#%');
+  await page.waitForTimeout(300);
+  await page.fill('#ig-search', 'PID-3');
+  await page.waitForTimeout(250);
+  const afterBadHash = await page.evaluate(() => document.querySelectorAll('#ig-search-results a.ig-result').length);
+  page.off('pageerror', onHashError);
+  if (hashErrors.length || !afterBadHash) fail('known', 'malformed hash: errors ' + JSON.stringify(hashErrors) + ', search results ' + afterBadHash);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { const d = document.querySelector('tr.ig-field-row'); d.click(); });
 
   // print: panel and preview never print
   await page.emulateMedia({ media: 'print' });

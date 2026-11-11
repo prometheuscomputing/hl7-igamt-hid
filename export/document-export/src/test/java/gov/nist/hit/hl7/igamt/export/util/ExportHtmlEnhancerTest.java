@@ -283,6 +283,22 @@ public class ExportHtmlEnhancerTest {
     assertThat(doc.select("#ig-sidebar .ig-toc a")).hasSize(2);
   }
 
+  @Test
+  public void aFieldRowGetsAnAddressEvenWhenItsNaturalOneIsTaken() throws IOException {
+    // a narrative anchor already called "pid-1", before the segment
+    String content = resources().replace("<div><br/>Hello</div>", "<div><p id=\"pid-1\">Hello</p></div>");
+    Document doc = enhance(content, Target.HTML);
+
+    assertThat(doc.select("p#pid-1")).hasSize(1);
+    Element row = doc.select("section.ig-resource[data-kind=Segment] tbody tr").first();
+    assertThat(row.select("td.c-name").text()).isEqualTo("Set ID");
+    assertThat(row.id()).isEqualTo("pid-1-row");
+    // and "where used" points at the row, not at the paragraph
+    Element used = doc.select("section.ig-resource[data-kind=Datatype] details.ig-used").first();
+    assertThat(used.select("a.ig-ref-row").attr("href")).isEqualTo("#pid-1-row");
+    assertThat(used.select("a.ig-ref-row").text()).isEqualTo("PID-1");
+  }
+
   /** Text of each element (jsoup 1.9 has no eachText). */
   private static java.util.List<String> texts(org.jsoup.select.Elements elements) {
     java.util.List<String> texts = new java.util.ArrayList<String>();

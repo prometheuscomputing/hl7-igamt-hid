@@ -4,6 +4,38 @@
  * Inlined at the end of the exported file. No dependency, and the document stays
  * fully readable (and printable) when scripts do not run.
  */
+/* text-helpers:start (kept free of the DOM: IgExportTextTest runs this block on its own) */
+var IgExportText = (function () {
+  'use strict';
+  function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  /** "PID" for the flavor "PID_IZ". */
+  function baseOf(code) { return code.split('_')[0]; }
+  function names(code) {
+    var base = baseOf(code);
+    return escapeRegExp(code) + (base !== code ? '|' + escapeRegExp(base) : '');
+  }
+  /**
+   * Matches a mention of a field or component in running text: "PID-3", "PID_IZ-3", "CX.5" and
+   * their sub-elements ("PID-3.1"), but not "PID-30", nor an identifier such as "IZ-PID-3".
+   */
+  function mentionPattern(code, sequence) {
+    return new RegExp('(^|[^A-Za-z0-9_-])(' + names(code) + ')[-.]' + escapeRegExp(sequence) + '(?![0-9])');
+  }
+  /** Matches the header of a co-constraint column for the field itself: "OBX-3 (code)", not "OBX-3.1". */
+  function columnPattern(code, sequence) {
+    return new RegExp('^(' + names(code) + ')-' + escapeRegExp(sequence) + '(?![0-9.])');
+  }
+  /** Matches a location that is the field itself and nothing below it: "PID-3", not "PID-3.1". */
+  function locationPattern(code, sequence) {
+    return new RegExp('^(' + names(code) + ')[-.]' + escapeRegExp(sequence) + '$');
+  }
+  return {
+    escapeRegExp: escapeRegExp, baseOf: baseOf,
+    mentionPattern: mentionPattern, columnPattern: columnPattern, locationPattern: locationPattern
+  };
+})();
+/* text-helpers:end */
+
 (function () {
   'use strict';
 
@@ -215,7 +247,6 @@
     if (content !== undefined) { node.textContent = content; }
     return node;
   }
-  function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   function resourceOf(node) { return node && node.closest ? node.closest('section.ig-resource') : null; }
   function headingOf(section) { return section ? section.querySelector(':scope > .ig-heading') : null; }
   function describe(section) {
@@ -231,7 +262,12 @@
   /** A copy that can be shown elsewhere: no ids, no nested links, no filter boxes. */
   function inert(node) {
     var copy = node.cloneNode(true);
-    if (copy.removeAttribute) { copy.removeAttribute('id'); copy.removeAttribute('tabindex'); copy.classList.remove('ig-field-row', 'is-selected'); }
+    if (copy.removeAttribute) {
+      copy.removeAttribute('id');
+      copy.removeAttribute('tabindex');
+      copy.hidden = false; // a row hidden by the filter of its table is still shown in a copy
+      copy.classList.remove('ig-field-row', 'is-selected', 'is-target');
+    }
     each(copy.querySelectorAll('[id]'), function (child) { child.removeAttribute('id'); });
     each(copy.querySelectorAll('.ig-table-tools'), function (child) { child.parentNode.removeChild(child); });
     each(copy.querySelectorAll('[hidden]'), function (child) { child.hidden = false; });
@@ -269,7 +305,8 @@
 
   /* ---------------------------------------------------------------- fields and components */
 
-  function isFieldRow(row) {
+  function isFieldRow(row) { return !!row && row.tagName === 'TR' && row.classList.contains('ig-field-row'); }
+  function looksLikeField(row) {
     if (!row || row.tagName !== 'TR' || !row.id) { return false; }
     var section = resourceOf(row);
     if (!section || row.parentNode.parentNode.parentNode.parentNode !== section) { return false; }
@@ -285,18 +322,15 @@
       row: row,
       section: section,
       owner: owner,
-      base: owner.code.split('_')[0],
+      base: IgExportText.baseOf(owner.code),
       sequence: sequence,
       name: text(row.querySelector('td.c-name')),
-      label: segment ? 'Field' : 'Component',
+      // the parts of a date or time format (YYYY, MM) are numbered like components
+      label: segment ? 'Field' : (row.querySelector('td.c-code') ? 'Part' : 'Component'),
       token: owner.code + (segment ? '-' : '.') + sequence
     };
   }
-  /** Matches "PID-3", "PID_IZ-3", "PID.3" and their sub-elements ("PID-3.1"), but not "PID-30". */
-  function mentionOf(field) {
-    var names = escapeRegExp(field.owner.code) + (field.base !== field.owner.code ? '|' + escapeRegExp(field.base) : '');
-    return new RegExp('(^|[^A-Za-z0-9_])(' + names + ')[-.]' + escapeRegExp(field.sequence) + '(?![0-9])');
-  }
+  function mentionOf(field) { return IgExportText.mentionPattern(field.owner.code, field.sequence); }
 
   /* ---------------------------------------------------------------- previews on links */
 
@@ -349,9 +383,12 @@
   var previewTimer = null;
   var canHover = !window.matchMedia || window.matchMedia('(hover: hover)').matches;
 
+  var previewLeave = null;
   function hidePreview() {
     window.clearTimeout(previewTimer);
+    window.clearTimeout(previewLeave);
     previewTimer = null;
+    previewLeave = null;
     if (previewLink) { previewLink.removeAttribute('aria-describedby'); }
     previewLink = null;
     preview.hidden = true;
@@ -385,7 +422,9 @@
   if (canHover) {
     document.addEventListener('mouseover', function (event) {
       var link = referenceOf(event);
-      if (!link || link === previewLink) { return; }
+      if (!link) { return; }
+      window.clearTimeout(previewLeave);
+      if (link === previewLink) { return; }
       window.clearTimeout(previewTimer);
       previewTimer = window.setTimeout(function () { showPreview(link); }, 280);
     });
@@ -393,13 +432,20 @@
       var link = referenceOf(event);
       if (!link) { return; }
       if (event.relatedTarget && link.contains(event.relatedTarget)) { return; }
-      hidePreview();
+      if (link !== previewLink) { window.clearTimeout(previewTimer); return; }
+      // a moment to reach the card: it stays while the pointer is on it
+      window.clearTimeout(previewLeave);
+      previewLeave = window.setTimeout(hidePreview, 160);
     });
+    preview.addEventListener('mouseenter', function () { window.clearTimeout(previewLeave); });
+    preview.addEventListener('mouseleave', hidePreview);
   }
   document.addEventListener('focusin', function (event) {
     var link = referenceOf(event);
     // only for keyboard focus: a click also focuses the link, and then the reader is leaving
-    if (link && link.matches && link.matches(':focus-visible')) { showPreview(link); }
+    var byKeyboard = false;
+    try { byKeyboard = !!link && link.matches(':focus-visible'); } catch (e) { /* older browsers do not know the selector */ }
+    if (byKeyboard) { showPreview(link); }
   });
   document.addEventListener('focusout', function (event) { if (referenceOf(event)) { hidePreview(); } });
   document.addEventListener('click', function (event) { if (referenceOf(event)) { hidePreview(); } }, true);
@@ -410,7 +456,8 @@
   var panel = make('aside', 'ig-panel');
   panel.id = 'ig-panel';
   panel.hidden = true;
-  panel.setAttribute('aria-label', 'Field details');
+  panel.setAttribute('role', 'complementary');
+  panel.setAttribute('aria-labelledby', 'ig-panel-name');
   var panelHead = make('div', 'ig-panel-head');
   var panelTitle = make('div', 'ig-panel-title');
   var panelClose = make('button', 'ig-icon-button ig-panel-close', '×');
@@ -426,12 +473,40 @@
 
   var fieldRows = [];
   each(main.querySelectorAll('section.ig-resource[data-kind="Segment"] > .ig-table-wrap > table > tbody > tr[id], section.ig-resource[data-kind="Datatype"] > .ig-table-wrap > table > tbody > tr[id]'), function (row) {
-    if (!isFieldRow(row)) { return; }
+    if (!looksLikeField(row)) { return; }
     row.classList.add('ig-field-row');
-    row.tabIndex = 0;
-    row.setAttribute('aria-haspopup', 'dialog');
-    row.title = 'Show everything this guide says about this element';
+    row.tabIndex = -1;
     fieldRows.push(row);
+  });
+  // one tab stop per table, the arrow keys move between its rows
+  function fieldRowsOf(tbody) {
+    return Array.prototype.filter.call(tbody.rows, function (row) { return !row.hidden && row.classList.contains('ig-field-row'); });
+  }
+  function setTabStop(tbody, wanted) {
+    var rows = fieldRowsOf(tbody);
+    var stop = wanted && rows.indexOf(wanted) !== -1 ? wanted : null;
+    each(tbody.rows, function (row) {
+      if (!row.classList.contains('ig-field-row')) { return; }
+      if (!stop && !row.hidden && row.tabIndex === 0) { stop = row; }
+      row.tabIndex = -1;
+    });
+    stop = stop || rows[0];
+    if (stop) { stop.tabIndex = 0; }
+  }
+  (function () {
+    var bodies = [];
+    fieldRows.forEach(function (row) { if (bodies.indexOf(row.parentNode) === -1) { bodies.push(row.parentNode); } });
+    bodies.forEach(function (tbody) { setTabStop(tbody, null); });
+  })();
+  main.addEventListener('focusin', function (event) {
+    if (event.target.classList && event.target.classList.contains('ig-field-row')) { setTabStop(event.target.parentNode, event.target); }
+  });
+  // the filter of a table may hide the row that was its tab stop
+  main.addEventListener('input', function (event) {
+    if (!event.target.classList || !event.target.classList.contains('ig-table-filter')) { return; }
+    var wrap = event.target.closest('.ig-table-wrap');
+    var table = wrap ? wrap.querySelector('table') : null;
+    if (table && table.tBodies.length) { setTabStop(table.tBodies[0], null); }
   });
 
   function panelSection(title) {
@@ -454,11 +529,16 @@
   /** Rows of a table that are about the field: they name it, or (constant values) carry its name. */
   function rowsAbout(table, field, mention) {
     var byName = table.tHead && /^element name$/i.test(text(table.tHead.rows[0].cells[0]));
+    var identifiers = [];
+    each(table.tHead ? table.tHead.rows[0].cells : [], function (cell, index) { identifiers[index] = /^id$/i.test(text(cell)); });
     var matched = [];
     each(table.tBodies.length ? table.tBodies[0].rows : [], function (row) {
       // cell by cell: the text of a row runs its cells together ("IZ-PID-01PID-1 ...")
+      // and identifiers are no mentions: the statement "IZ-PID-3" may be about another field
       var about = byName && text(row.cells[0]) === field.name;
-      for (var i = 0; !about && i < row.cells.length; i++) { about = mention.test(row.cells[i].textContent); }
+      for (var i = 0; !about && i < row.cells.length; i++) {
+        about = !(identifiers[i]) && mention.test(row.cells[i].textContent);
+      }
       if (about) { matched.push(row); }
     });
     return matched;
@@ -509,7 +589,7 @@
           rows.forEach(function (annotation) {
             var entry = make('div', 'ig-panel-prose');
             var where = text(annotation.cells[0]);
-            if (!new RegExp('^(' + escapeRegExp(field.owner.code) + '|' + escapeRegExp(field.base) + ')[-.]' + escapeRegExp(field.sequence) + '$').test(where)) {
+            if (!IgExportText.locationPattern(field.owner.code, field.sequence).test(where)) {
               entry.appendChild(make('span', 'ig-panel-where', where));
             }
             each(inert(annotation.cells[1]).childNodes, function (node) { entry.appendChild(node.cloneNode(true)); });
@@ -524,16 +604,30 @@
 
     // co-constraint tables, in any profile, that have a column for this field
     if (field.owner.kind === 'Segment') {
-      var columnName = new RegExp('^(' + escapeRegExp(field.owner.code) + '|' + escapeRegExp(field.base) + ')-' + escapeRegExp(field.sequence) + '(?![0-9.])');
+      var columnName = IgExportText.columnPattern(field.owner.code, field.sequence);
       var places = [];
+      var usesThisSegment = {};
       each(main.querySelectorAll('.ig-coconstraint'), function (block, index) {
         var path = text(block.querySelector('.ig-caption .ig-caption-code'));
         var segmentName = path.split('.').pop();
         if (segmentName !== field.base && segmentName !== field.owner.code) { return; }
+        // the path names the base segment: only the profiles that use this flavor are concerned
+        var profile = resourceOf(block);
+        var profileId = profile ? describe(profile).id : '';
+        if (usesThisSegment[profileId] === undefined) {
+          usesThisSegment[profileId] = !!profile && Array.prototype.some.call(profile.querySelectorAll('a.ig-ref'), function (link) {
+            return !link.closest('.ig-used') && link.getAttribute('href') === '#' + field.owner.id;
+          });
+        }
+        if (!usesThisSegment[profileId]) { return; }
         var columns = [];
         each(block.querySelectorAll('thead th'), function (cell) { if (columnName.test(text(cell))) { columns.push(text(cell)); } });
         if (!columns.length) { return; }
-        if (!block.id) { block.id = 'ig-coconstraint-' + (index + 1); }
+        if (!block.id) {
+          var blockId = 'ig-coconstraint-' + (index + 1);
+          while (document.getElementById(blockId)) { blockId += '-x'; }
+          block.id = blockId;
+        }
         var table = block.querySelector('table');
         places.push({
           block: block, columns: columns, path: path, profile: describe(resourceOf(block)),
@@ -584,27 +678,38 @@
 
   var openRow = null;
   var openedByKeyboard = false;
+  var opener = null;
   function closePanel() {
     if (!openRow) { return; }
     var row = openRow;
+    // focus goes back to where the reader was, unless it never was in the panel
+    var restore = openedByKeyboard || panel.contains(document.activeElement);
+    var back = opener && document.body.contains(opener) && opener.getClientRects().length ? opener : row;
     openRow = null;
+    opener = null;
     row.classList.remove('is-selected');
     panel.hidden = true;
     body.classList.remove('ig-panel-open');
     panelBody.innerHTML = '';
-    if (openedByKeyboard && document.body.contains(row)) { row.focus(); }
+    if (restore && document.body.contains(back)) { back.focus(); }
   }
-  function openPanel(row, byKeyboard) {
-    if (openRow === row) { return; }
+  /** byKeyboard: focus moves into the panel. from: the link that opened it, when it was not the row. */
+  function openPanel(row, byKeyboard, from) {
+    if (openRow === row) {
+      if (byKeyboard) { focusPanel(row); }
+      return;
+    }
     if (openRow) { openRow.classList.remove('is-selected'); }
     hidePreview();
     var field = fieldOf(row);
     openRow = row;
     openedByKeyboard = !!byKeyboard;
+    opener = from || null;
     row.classList.add('is-selected');
     panelTitle.innerHTML = '';
     panelTitle.appendChild(make('span', 'ig-panel-kind', field.label + ' of ' + field.owner.kindLabel.toLowerCase() + ' ' + field.owner.code));
     var heading = make('h2', 'ig-panel-name');
+    heading.id = 'ig-panel-name';
     heading.appendChild(make('span', 'ig-panel-code', field.token));
     heading.appendChild(document.createTextNode(' ' + field.name));
     panelTitle.appendChild(heading);
@@ -613,7 +718,12 @@
     describeField(field);
     panel.hidden = false;
     body.classList.add('ig-panel-open');
-    if (byKeyboard) { panelClose.focus(); }
+    if (byKeyboard) { focusPanel(row); }
+  }
+  /** Now, and once more after the browser followed the link: the jump to the row takes focus with it. */
+  function focusPanel(row) {
+    panelClose.focus();
+    window.setTimeout(function () { if (openRow === row) { panelClose.focus(); } }, 0);
   }
 
   main.addEventListener('click', function (event) {
@@ -623,9 +733,18 @@
     if (openRow === row) { closePanel(); } else { openPanel(row, false); }
   });
   main.addEventListener('keydown', function (event) {
-    if ((event.key !== 'Enter' && event.key !== ' ') || !event.target.classList || !event.target.classList.contains('ig-field-row')) { return; }
-    event.preventDefault();
-    if (openRow === event.target) { closePanel(); } else { openPanel(event.target, true); }
+    var row = event.target;
+    if (!row.classList || !row.classList.contains('ig-field-row')) { return; }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (openRow === row) { closePanel(); } else { openPanel(row, true); }
+      return;
+    }
+    var rows = fieldRowsOf(row.parentNode);
+    var at = rows.indexOf(row);
+    var next = event.key === 'ArrowDown' ? rows[at + 1] : event.key === 'ArrowUp' ? rows[at - 1]
+      : event.key === 'Home' ? rows[0] : event.key === 'End' ? rows[rows.length - 1] : null;
+    if (next) { event.preventDefault(); next.focus(); }
   });
   panelClose.addEventListener('click', closePanel);
   document.addEventListener('keydown', function (event) {
@@ -637,18 +756,26 @@
   document.addEventListener('click', function (event) {
     var link = event.target.closest ? event.target.closest('a[href^="#"]') : null;
     var target = link ? document.getElementById(link.getAttribute('href').slice(1)) : null;
-    if (target && isFieldRow(target)) { openPanel(target, false); }
+    // a click made with the keyboard (Enter on the link) has no pointer detail
+    if (target && isFieldRow(target)) { openPanel(target, event.detail === 0, link); }
   });
   function openFromHash() {
-    var target = window.location.hash.length > 1 ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null;
+    var id = window.location.hash.slice(1);
+    try { id = decodeURIComponent(id); } catch (e) { /* a hash that is not valid percent-encoding: taken as written */ }
+    var target = id ? document.getElementById(id) : null;
     if (target && isFieldRow(target)) { openPanel(target, false); }
   }
   window.addEventListener('hashchange', openFromHash);
   openFromHash();
 
+  var openedForPrint = [];
   window.addEventListener('beforeprint', function () {
     hidePreview();
-    each(main.querySelectorAll('details.ig-used'), function (details) { details.open = true; });
+    each(main.querySelectorAll('details.ig-used:not([open])'), function (details) { details.open = true; openedForPrint.push(details); });
+  });
+  window.addEventListener('afterprint', function () {
+    openedForPrint.forEach(function (details) { details.open = false; });
+    openedForPrint = [];
   });
 
   /* ---------------------------------------------------------------- search */
@@ -762,12 +889,13 @@
     items[active].scrollIntoView({ block: 'nearest' });
   }
   function close() { resultsBox.hidden = true; }
-  function go(href) {
+  function go(href, byKeyboard) {
     close();
     searchInput.blur();
     var target = document.getElementById(href.slice(1));
     if (!target) { return; }
     window.location.hash = href;
+    if (isFieldRow(target)) { openPanel(target, byKeyboard); }
     if (target.tagName === 'TR') {
       target.classList.add('is-target');
       window.setTimeout(function () { target.classList.remove('is-target'); }, 2600);
@@ -782,7 +910,7 @@
     else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
     else if (event.key === 'Enter') {
       var item = resultsBox.querySelectorAll('.ig-result')[active];
-      if (item) { event.preventDefault(); go(item.getAttribute('href')); }
+      if (item) { event.preventDefault(); go(item.getAttribute('href'), true); }
     } else if (event.key === 'Escape') { close(); searchInput.blur(); }
   });
   resultsBox.addEventListener('click', function (event) {

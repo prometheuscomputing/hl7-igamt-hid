@@ -907,10 +907,12 @@ public class ExportHtmlEnhancer {
           if (sequence == null || row.select("td.c-name").isEmpty() || row.hasAttr("id") || sequence.text().trim().isEmpty()) {
             continue;
           }
+          // "pid-3"; when something else already has that id, the row still gets one of its own
           String rowId = owner.id + "-" + sequence.text().trim().replaceAll("[^A-Za-z0-9]", "_");
-          if (ids.add(rowId)) {
-            row.attr("id", rowId);
+          while (!ids.add(rowId)) {
+            rowId += "-row";
           }
+          row.attr("id", rowId);
         }
       }
       for (Element reference : child.select("a.ig-ref[href^=#]")) {
