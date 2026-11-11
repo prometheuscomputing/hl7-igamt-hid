@@ -185,6 +185,18 @@ public class ExportHtmlEnhancerTest {
     assertThat(code.text()).contains("MSH|a").contains("PID|b");
   }
 
+  @Test
+  public void tablesThatHoldMoreThanABannerKeepTheirContent() throws IOException {
+    String content = "<h1 id=\"a\" data-kind=\"TEXT\">A</h1>"
+        + "<table><tr><td><h2>One</h2><h3>Two</h3></td></tr></table>"
+        + "<table><tr><td><h2>Title</h2><p>Important description</p></td></tr></table>"
+        + "<i>Leading</i> inline text";
+    Document doc = enhance(content, Target.HTML);
+    assertThat(doc.select("#ig-sidebar .ig-toc a")).hasSize(1);
+    assertThat(doc.select("#ig-content").text()).contains("One").contains("Two").contains("Title").contains("Important description");
+    assertThat(doc.select("#ig-content p").last().text()).isEqualTo("Leading inline text");
+  }
+
   /** Text of each element (jsoup 1.9 has no eachText). */
   private static java.util.List<String> texts(org.jsoup.select.Elements elements) {
     java.util.List<String> texts = new java.util.ArrayList<String>();

@@ -189,7 +189,6 @@ public class ExportHtmlEnhancer {
 
   // ---------------------------------------------------------------- headings
 
-  /** Older templates still write {@code <h3><u id="..." class="section3">title</u></h3>}. */
   /**
    * Some templates (datatype library tables) emit a small page of their own: a style block and a
    * one-cell banner table holding a heading. Keep the content, drop the page furniture.
@@ -205,13 +204,17 @@ public class ExportHtmlEnhancer {
       if (isInNarrative(heading)) {
         continue;
       }
+      if (!isAttached(heading)) {
+        continue; // already removed together with its banner table
+      }
       String title = heading.text().trim();
       Element table = heading.parent();
       while (table != null && !table.tagName().equals("table")) {
         table = table.parent();
       }
       Element banner = doc.createElement("p").addClass("ig-subhead").text(title);
-      if (table != null && table.select("td, th").size() == 1) {
+      // the table is only a banner when the heading is all it holds
+      if (table != null && table.parent() != null && table.select("td, th").size() == 1 && table.text().trim().equals(title)) {
         if (title.isEmpty()) {
           table.remove();
         } else {
@@ -225,6 +228,16 @@ public class ExportHtmlEnhancer {
     }
   }
 
+  private boolean isAttached(Element element) {
+    for (Element current = element; current != null; current = current.parent()) {
+      if (current == content) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Older templates still write {@code <h3><u id="..." class="section3">title</u></h3>}. */
   private void normalizeHeadings() {
     for (Element underline : doc.select("h1 > u, h2 > u, h3 > u, h4 > u, h5 > u, h6 > u")) {
       Element heading = underline.parent();
@@ -495,10 +508,21 @@ public class ExportHtmlEnhancer {
 
     for (int i = 0; i < nodes.size(); i++) {
       Node node = nodes.get(i);
+      if (node instanceof Element && isInline(node)) {
+        // loose inline content and what follows it are one paragraph
+        Element paragraph = doc.createElement("p");
+        paragraph.appendChild(node);
+        while (i + 1 < nodes.size() && isInline(nodes.get(i + 1))) {
+          Node next = nodes.get(++i);
+          paragraph.appendChild(next instanceof TextNode ? new TextNode(((TextNode) next).text(), "") : next);
+        }
+        out.add(paragraph);
+        facts = null;
+        continue;
+      }
       if (node instanceof TextNode) {
         TextNode text = (TextNode) node;
         if (!text.isBlank()) {
-          // loose text and the inline elements that follow it are one paragraph
           Element paragraph = doc.createElement("p");
           paragraph.appendChild(new TextNode(text.text().replaceFirst("^\\s+", ""), ""));
           while (i + 1 < nodes.size() && isInline(nodes.get(i + 1))) {
@@ -633,7 +657,8 @@ public class ExportHtmlEnhancer {
       if (node instanceof Element) {
         Element element = (Element) node;
         // links, superscripts, pictures: keep the author's markup instead of flattening it to text
-        rich |= !element.tagName().equals("br") && !element.tagName().equals("span");
+        rich |= !element.tagName().equals("br")
+            && (!element.tagName().equals("span") || !element.select("a[href], sup, sub, img").isEmpty());
         picture |= element.tagName().equals("img") || !element.select("img").isEmpty();
         if (isBlock(element) || containsBlock(element)) {
           block = true;
@@ -1186,11 +1211,13 @@ public class ExportHtmlEnhancer {
         safe = safe.substring(0, 40);
       }
       String base = safe;
-      for (int n = 2; !used.add(safe); n++) {
+      for (int n = 2; !used.add(safe.toLowerCase(Locale.ENGLISH)); n++) {
         String suffix = "_" + n;
         safe = base.substring(0, Math.min(base.length(), 40 - suffix.length())) + suffix;
       }
-      renamed.put(id, safe);
+      if (!renamed.containsKey(id)) {
+        renamed.put(id, safe);
+      }
       element.attr("id", safe);
     }
     for (Element anchor : doc.select("a[href^=#]")) {
@@ -1312,6 +1339,7 @@ public class ExportHtmlEnhancer {
     body.removeAttr("data-font-family");
     body.removeAttr("data-font-size");
     boolean customFont = !fontFamily.isEmpty() && !fontFamily.toLowerCase(Locale.ENGLISH).contains(UNSET_FONT);
+    boolean customSize = fontSize.matches("\\d{1,2}") && Integer.parseInt(fontSize) >= 6 && Integer.parseInt(fontSize) <= 36 && (customFont || !UNSET_FONT_SIZE.equals(fontSize));
 
     StringBuilder css = new StringBuilder();
     if (target == Target.HTML) {
@@ -1320,7 +1348,7 @@ public class ExportHtmlEnhancer {
         css.append("\n:root{--ig-font-body:").append(cssValue(fontFamily)).append(";}");
       }
       // The configured size applies to the running text; tables keep their own compact scale
-      if (fontSize.matches("\\d{1,2}") && (customFont || !UNSET_FONT_SIZE.equals(fontSize))) {
+      if (customSize) {
         css.append("\n.ig-narrative, .ig-narrative .fr-view{font-size:").append(fontSize).append("pt;}");
       }
       body.addClass("ig-doc");
@@ -1329,7 +1357,7 @@ public class ExportHtmlEnhancer {
       if (customFont) {
         css.append("\nbody, p, td, th, li, div{font-family:").append(cssValue(fontFamily)).append(";}");
       }
-      if (fontSize.matches("\\d{1,2}") && (customFont || !UNSET_FONT_SIZE.equals(fontSize))) {
+      if (customSize) {
         css.append("\nbody, p, li, div{font-size:").append(fontSize).append("pt;}");
       }
     }
