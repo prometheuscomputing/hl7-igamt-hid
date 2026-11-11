@@ -128,8 +128,9 @@ public class ExportPipelineTest {
   @Test
   public void aCoConstraintTableNamesTheSegmentFlavorItIsFor() throws Exception {
     // the detail panel of a field lists the co-constraint tables of its own flavor only
-    Element block = html.select(".ig-coconstraint").first();
-    String segment = block.attr("data-segment");
+    assertThat(html.select(".ig-coconstraint")).isNotEmpty();
+    assertThat(html.select(".ig-coconstraint:not([data-segment])")).isEmpty();
+    String segment = html.select(".ig-coconstraint").first().attr("data-segment");
     assertThat(segment).isNotEmpty();
     Element heading = html.getElementById(segment);
     assertThat(heading).as("the section of segment %s", segment).isNotNull();
@@ -158,6 +159,10 @@ public class ExportPipelineTest {
     metadata.setOrgName("Example Public Health Informatics Consortium");
     // a title with a format specifier used to break the table of contents
     String wordSource = export("docx").replaceFirst(">Introduction<", ">Introduction 100%s sure<");
+    // two pictures in the text, next to the one of the cover
+    String picture = "<p><img alt=\"dot\" width=\"8\" height=\"8\" src=\"data:image/png;base64,"
+        + "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==\"/></p>";
+    wordSource = wordSource.replaceFirst("</body>", java.util.regex.Matcher.quoteReplacement(picture + picture + "</body>"));
     assertThat(wordSource).contains("100%s sure");
     InputStream wordHtml = IOUtils.toInputStream(wordSource, StandardCharsets.UTF_8);
     ExportedFile source = new ExportedFile(wordHtml, TITLE, "id", ExportFormat.WORD);
@@ -196,6 +201,7 @@ public class ExportPipelineTest {
       while (pictures.find()) {
         assertThat(pictureIds.add(pictures.group(1))).as("duplicate picture id %s", pictures.group(1)).isTrue();
       }
+      assertThat(pictureIds.size()).isGreaterThanOrEqualTo(2);
       assertThat(wordPackage.getMainDocumentPart().getStyleDefinitionsPart().getJaxbElement().getStyle().size()).isGreaterThan(20);
       assertThat(wordPackage.getMainDocumentPart().getNumberingDefinitionsPart()).isNotNull();
       assertThat(wordPackage.getDocumentModel().getSections().get(0).getHeaderFooterPolicy().getDefaultHeader()).isNotNull();

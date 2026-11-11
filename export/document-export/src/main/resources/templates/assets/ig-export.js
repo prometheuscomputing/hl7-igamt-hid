@@ -323,7 +323,6 @@ var IgExportText = (function () {
       row: row,
       section: section,
       owner: owner,
-      base: IgExportText.baseOf(owner.code),
       sequence: sequence,
       name: text(row.querySelector('td.c-name')),
       // the parts of a date or time format (YYYY, MM) are numbered like components
@@ -709,12 +708,20 @@ var IgExportText = (function () {
    */
   function focusPanel(row) {
     var until = Date.now() + 700;
+    var inputs = ['keydown', 'mousedown', 'pointerdown', 'touchstart'];
     function take() { if (openRow === row && Date.now() < until) { panelClose.focus(); } }
     function taken() { window.setTimeout(take, 0); }
+    // the reader's next key or press decides where the focus goes, not this
+    function stop() {
+      until = 0;
+      row.removeEventListener('focus', taken);
+      inputs.forEach(function (type) { document.removeEventListener(type, stop, true); });
+    }
     panelClose.focus();
     window.setTimeout(take, 0);
     row.addEventListener('focus', taken);
-    window.setTimeout(function () { row.removeEventListener('focus', taken); }, 700);
+    inputs.forEach(function (type) { document.addEventListener(type, stop, true); });
+    window.setTimeout(stop, 700);
   }
 
   main.addEventListener('click', function (event) {
@@ -757,6 +764,8 @@ var IgExportText = (function () {
   ['mousedown', 'pointerdown', 'touchstart'].forEach(function (type) {
     document.addEventListener(type, function () { keyboardInUse = false; }, true);
   });
+  // a click that no device made: assistive technology activating a link or a row
+  document.addEventListener('click', function (event) { if (event.detail === 0) { keyboardInUse = true; } }, true);
   /** After the browser jumped to a row: the jump puts it at the very top, under the bar. */
   function reveal(row) {
     window.setTimeout(function () {

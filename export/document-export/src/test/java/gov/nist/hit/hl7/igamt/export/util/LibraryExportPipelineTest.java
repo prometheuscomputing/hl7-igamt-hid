@@ -91,6 +91,7 @@ public class LibraryExportPipelineTest {
   public void aFlavorShowsItsFactsThenItsDefinitionNextToTheStandardUsage() {
     Element cx = flavor("CX_LIB");
     Element facts = cx.select("> dl.ig-meta").first();
+    assertThat(cx.select("dl.ig-meta")).hasSize(1);
     assertThat(facts).isNotNull();
     assertThat(texts(facts.select("dt"))).containsExactly("Datatype Flavor", "Datatype Name", "Short Description", "HL7 Versions", "Status");
     assertThat(facts.select("dd").first().text()).isEqualTo("CX_LIB");

@@ -648,7 +648,6 @@ public class WordUtil {
 
   // ---------------------------------------------------------------- images
 
-  /** Pictures wider than the text area are scaled down; the cover picture is kept to logo size. */
   /**
    * The importer writes cell backgrounds as a shading with a fill and no pattern, which the format
    * requires ("clear": the fill alone). Strict readers reject the document without it.
@@ -677,6 +676,7 @@ public class WordUtil {
     }
   }
 
+  /** Pictures wider than the text area are scaled down; the cover picture is kept to logo size. */
   private static void fitImages(MainDocumentPart document) {
     boolean cover = true;
     long pictureId = 1;

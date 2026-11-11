@@ -247,8 +247,8 @@ module.exports = async (page, options) => {
       }
       if (i === 0 && name === 'rich-all') await shot('f-preview.jpg');
       await page.mouse.move(5, 300);
-      await page.waitForTimeout(260);
-      const gone = await page.evaluate(() => document.getElementById('ig-preview').hidden);
+      // the card goes 160 ms after the pointer left; a large page can take a few frames more
+      const gone = await page.waitForFunction(() => document.getElementById('ig-preview').hidden, null, { timeout: 800 }).then(() => true, () => false);
       if (!gone) fail(name, 'preview stayed after leaving ' + sample.picked[i]);
     }
 
