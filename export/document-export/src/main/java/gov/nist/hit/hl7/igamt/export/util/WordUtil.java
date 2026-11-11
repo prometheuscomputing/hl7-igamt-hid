@@ -67,6 +67,7 @@ import org.docx4j.wml.STTblLayoutType;
 import org.docx4j.wml.SectPr;
 import org.docx4j.wml.Styles;
 import org.docx4j.wml.Tbl;
+import org.docx4j.wml.TblGridCol;
 import org.docx4j.wml.TblPr;
 import org.docx4j.wml.TblWidth;
 import org.docx4j.wml.Tc;
@@ -111,6 +112,11 @@ public class WordUtil {
   private static final int TEXT_WIDTH = PAGE_WIDTH - 2 * MARGIN_SIDE;
   private static final long EMU_PER_TWIP = 635L;
   private static final long MAX_IMAGE_WIDTH_EMU = TEXT_WIDTH * EMU_PER_TWIP;
+  /** Room, in twips, of one character of table text and of the side padding of a cell. */
+  private static final int TWIPS_PER_CHARACTER = 105;
+  private static final int CELL_PADDING = 240;
+  /** Longer words (paths, long identifiers) may break; they do not get a column to themselves. */
+  private static final int LONGEST_UNBROKEN_WORD = 16;
   private static final long MAX_COVER_PICTURE_HEIGHT_EMU = 1524000L; // 1.67 in
 
   // Document defaults of word-styles.xml
@@ -461,7 +467,136 @@ public class WordUtil {
           }
         }
       }
+      fitColumns(table, factory);
     }
+  }
+
+  /**
+   * The importer sizes the columns in proportion to their longest content, so one long description
+   * leaves "Value" or "HL70085" too little room to stay on one line. Every column gets at least the
+   * room of its longest word; the others give that room up.
+   */
+  private static void fitColumns(Tbl table, ObjectFactory factory) {
+    if (table.getTblGrid() == null || table.getTblGrid().getGridCol().size() < 2) {
+      return;
+    }
+    List<TblGridCol> grid = table.getTblGrid().getGridCol();
+    int[] natural = new int[grid.size()];
+    int[] longestWord = new int[grid.size()];
+    for (int i = 0; i < natural.length; i++) {
+      natural[i] = grid.get(i).getW() != null ? Math.max(1, grid.get(i).getW().intValue()) : 1;
+    }
+    for (Tr row : rowsOf(table)) {
+      int column = 0;
+      for (Tc cell : cellsOf(row)) {
+        int span = spanOf(cell);
+        if (span == 1 && column < longestWord.length) {
+          for (Object paragraph : getAllElementFromObject(cell, P.class)) {
+            for (String word : textOf((P) paragraph).trim().split("\\s+")) {
+              longestWord[column] = Math.max(longestWord[column], word.length());
+            }
+          }
+        }
+        column += span;
+      }
+    }
+    int[] widths = columnWidths(natural, longestWord, TEXT_WIDTH);
+    for (int i = 0; i < widths.length; i++) {
+      grid.get(i).setW(BigInteger.valueOf(widths[i]));
+    }
+    for (Tr row : rowsOf(table)) {
+      int column = 0;
+      for (Tc cell : cellsOf(row)) {
+        int span = spanOf(cell);
+        int total = 0;
+        for (int i = column; i < column + span && i < widths.length; i++) {
+          total += widths[i];
+        }
+        if (total > 0) {
+          if (cell.getTcPr() == null) {
+            cell.setTcPr(factory.createTcPr());
+          }
+          TblWidth cellWidth = factory.createTblWidth();
+          cellWidth.setType("dxa");
+          cellWidth.setW(BigInteger.valueOf(total));
+          cell.getTcPr().setTcW(cellWidth);
+        }
+        column += span;
+      }
+    }
+  }
+
+  /**
+   * Shares {@code available} twips between columns in proportion to their natural widths, after
+   * giving each one the room of its longest word (in characters).
+   */
+  static int[] columnWidths(int[] natural, int[] longestWord, int available) {
+    int count = natural.length;
+    double[] minimum = new double[count];
+    double minimumTotal = 0;
+    double naturalTotal = 0;
+    for (int i = 0; i < count; i++) {
+      minimum[i] = Math.min(longestWord[i], LONGEST_UNBROKEN_WORD) * TWIPS_PER_CHARACTER + CELL_PADDING;
+      minimumTotal += minimum[i];
+      naturalTotal += Math.max(1, natural[i]);
+    }
+    if (minimumTotal > available) {
+      for (int i = 0; i < count; i++) {
+        minimum[i] = minimum[i] * available / minimumTotal;
+      }
+    }
+    double[] width = new double[count];
+    double missing = 0;
+    double spare = 0;
+    for (int i = 0; i < count; i++) {
+      width[i] = Math.max(1, natural[i]) * available / naturalTotal;
+      if (width[i] < minimum[i]) {
+        missing += minimum[i] - width[i];
+        width[i] = minimum[i];
+      } else {
+        spare += width[i] - minimum[i];
+      }
+    }
+    int[] result = new int[count];
+    int used = 0;
+    for (int i = 0; i < count; i++) {
+      if (missing > 0 && spare > 0 && width[i] > minimum[i]) {
+        width[i] -= (width[i] - minimum[i]) * Math.min(1, missing / spare);
+      }
+      result[i] = (int) Math.round(width[i]);
+      used += result[i];
+    }
+    int widest = 0;
+    for (int i = 1; i < count; i++) {
+      widest = result[i] > result[widest] ? i : widest;
+    }
+    result[widest] += available - used;
+    return result;
+  }
+
+  private static List<Tr> rowsOf(Tbl table) {
+    List<Tr> rows = new ArrayList<Tr>();
+    for (Object node : table.getContent()) {
+      if (unwrap(node) instanceof Tr) {
+        rows.add((Tr) unwrap(node));
+      }
+    }
+    return rows;
+  }
+
+  private static List<Tc> cellsOf(Tr row) {
+    List<Tc> cells = new ArrayList<Tc>();
+    for (Object node : row.getContent()) {
+      if (unwrap(node) instanceof Tc) {
+        cells.add((Tc) unwrap(node));
+      }
+    }
+    return cells;
+  }
+
+  private static int spanOf(Tc cell) {
+    return cell.getTcPr() != null && cell.getTcPr().getGridSpan() != null && cell.getTcPr().getGridSpan().getVal() != null
+        ? Math.max(1, cell.getTcPr().getGridSpan().getVal().intValue()) : 1;
   }
 
   /** A title or a line of facts right above a table stays on the page of the table. */

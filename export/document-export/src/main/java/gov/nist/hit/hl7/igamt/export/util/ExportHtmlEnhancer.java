@@ -18,12 +18,15 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -171,12 +174,14 @@ public class ExportHtmlEnhancer {
 
   private void run() {
     tidyEmbeddedFragments();
+    dropRepeatedIds();
     normalizeHeadings();
     normalizeNarratives();
     flattenWrappers(content);
     normalizeFlow(content);
     collectOutline();
     decorateTables();
+    addWhereUsed();
     if (target == Target.HTML) {
       renderHeadings();
       wrapSections();
@@ -224,6 +229,19 @@ public class ExportHtmlEnhancer {
         heading.remove();
       } else {
         heading.replaceWith(banner);
+      }
+    }
+  }
+
+  /**
+   * An id must name one element. The serializer gives every co-constraint table the same one, and
+   * pasted narrative can repeat ids too: keep the first, which is the one links reach anyway.
+   */
+  private void dropRepeatedIds() {
+    Set<String> seen = new HashSet<String>();
+    for (Element element : doc.select("[id]")) {
+      if (element.id().trim().isEmpty() || !seen.add(element.id())) {
+        element.removeAttr("id");
       }
     }
   }
@@ -834,6 +852,219 @@ public class ExportHtmlEnhancer {
     for (Element datatype : table.select("span.cc-datatype")) {
       link(datatype, "Datatype");
     }
+  }
+
+  // ---------------------------------------------------------------- where used
+
+  /** One resource that refers to another, with the fields or components that do. */
+  private static class Use {
+    final Heading owner;
+    /** sequence number -> anchor of the row (null when the row has none) */
+    final Map<String, String> rows = new LinkedHashMap<String, String>();
+
+    Use(Heading owner) {
+      this.owner = owner;
+    }
+  }
+
+  /**
+   * The links between resources only go one way (a field names its datatype). Collect them the other
+   * way round and list, on every resource, the resources that refer to it.
+   */
+  private void addWhereUsed() {
+    Map<Element, Heading> byElement = new HashMap<Element, Heading>();
+    Map<String, Heading> byId = new HashMap<String, Heading>();
+    for (Heading heading : outline) {
+      byElement.put(heading.element, heading);
+      byId.put(heading.id, heading);
+    }
+    Set<String> ids = new HashSet<String>();
+    for (Element element : doc.select("[id]")) {
+      ids.add(element.id());
+    }
+
+    // target id -> (owner id -> use), both in document order
+    Map<String, Map<String, Use>> uses = new LinkedHashMap<String, Map<String, Use>>();
+    Heading owner = null;
+    for (Element child : content.children()) {
+      Heading heading = byElement.get(child);
+      if (heading != null) {
+        if (KIND_LABELS.containsKey(heading.kind)) {
+          owner = heading;
+        } else if (owner != null && heading.level <= owner.level) {
+          owner = null;
+        }
+        continue;
+      }
+      if (owner == null) {
+        continue;
+      }
+      boolean numbered = owner.kind.equals("Segment") || owner.kind.equals("Datatype");
+      if (numbered && target == Target.HTML) {
+        // every field and component row gets an address: links, search and the detail panel use it
+        for (Element row : child.select("tr")) {
+          Element sequence = row.select("td.c-seq").first();
+          if (sequence == null || row.select("td.c-name").isEmpty() || row.hasAttr("id") || sequence.text().trim().isEmpty()) {
+            continue;
+          }
+          String rowId = owner.id + "-" + sequence.text().trim().replaceAll("[^A-Za-z0-9]", "_");
+          if (ids.add(rowId)) {
+            row.attr("id", rowId);
+          }
+        }
+      }
+      for (Element reference : child.select("a.ig-ref[href^=#]")) {
+        String targetId = reference.attr("href").substring(1);
+        if (targetId.equals(owner.id) || !byId.containsKey(targetId)) {
+          continue;
+        }
+        Map<String, Use> byOwner = uses.get(targetId);
+        if (byOwner == null) {
+          byOwner = new LinkedHashMap<String, Use>();
+          uses.put(targetId, byOwner);
+        }
+        Use use = byOwner.get(owner.id);
+        if (use == null) {
+          use = new Use(owner);
+          byOwner.put(owner.id, use);
+        }
+        Element row = numbered ? rowOf(reference) : null;
+        Element sequence = row == null ? null : row.select("td.c-seq").first();
+        if (sequence == null || sequence.text().trim().isEmpty()) {
+          continue;
+        }
+        String number = sequence.text().trim();
+        if (!use.rows.containsKey(number)) {
+          use.rows.put(number, row.hasAttr("id") ? row.attr("id") : null);
+        }
+      }
+    }
+
+    for (Map.Entry<String, Map<String, Use>> entry : uses.entrySet()) {
+      Heading resource = byId.get(entry.getKey());
+      Element block = whereUsedBlock(entry.getValue().values());
+      if (target == Target.HTML) {
+        // right under the heading and its facts, so it is found without scrolling past the tables
+        Element anchor = resource.element;
+        Element next = anchor.nextElementSibling();
+        if (next != null && next.tagName().equals("dl") && next.hasClass("ig-meta")) {
+          anchor = next;
+        }
+        anchor.after(block);
+      } else {
+        lastElementOf(resource, byElement).after(block);
+      }
+    }
+  }
+
+  private static Element rowOf(Element cellContent) {
+    for (Element current = cellContent.parent(); current != null; current = current.parent()) {
+      if (current.tagName().equals("tr")) {
+        return current;
+      }
+      if (current.tagName().equals("table")) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /** Last element of a resource: the one before the next heading of the same or a higher level. */
+  private Element lastElementOf(Heading resource, Map<Element, Heading> byElement) {
+    Element last = resource.element;
+    for (Element sibling = resource.element.nextElementSibling(); sibling != null; sibling = sibling.nextElementSibling()) {
+      Heading heading = byElement.get(sibling);
+      if (heading != null && heading.level <= resource.level) {
+        break;
+      }
+      last = sibling;
+    }
+    return last;
+  }
+
+  private Element whereUsedBlock(Collection<Use> uses) {
+    Map<String, List<Use>> byKind = new LinkedHashMap<String, List<Use>>();
+    for (String kind : KIND_LABELS.keySet()) {
+      byKind.put(kind, new ArrayList<Use>());
+    }
+    for (Use use : uses) {
+      byKind.get(use.owner.kind).add(use);
+    }
+    List<String> summary = new ArrayList<String>();
+    Element list = doc.createElement("ul").addClass("ig-used-list");
+    for (Map.Entry<String, List<Use>> entry : byKind.entrySet()) {
+      List<Use> group = entry.getValue();
+      if (group.isEmpty()) {
+        continue;
+      }
+      String label = KIND_LABELS.get(entry.getKey()) + (group.size() == 1 ? "" : "s");
+      summary.add(group.size() + " " + label.toLowerCase(Locale.ENGLISH));
+      Element item = list.appendElement("li");
+      item.appendElement("span").addClass("ig-used-kind").text(label);
+      item.appendText(" ");
+      boolean first = true;
+      for (Use use : group) {
+        if (!first) {
+          item.appendText(", ");
+        }
+        first = false;
+        Element entryElement = item.appendElement("span").addClass("ig-used-entry");
+        String name = use.owner.code.isEmpty() ? use.owner.title : use.owner.code;
+        entryElement.appendElement("a").addClass("ig-ref").attr("href", "#" + use.owner.id).text(name);
+        if (!use.rows.isEmpty()) {
+          String separator = use.owner.kind.equals("Segment") ? "-" : ".";
+          Element rows = entryElement.appendElement("span").addClass("ig-used-rows");
+          rows.appendText(" (");
+          boolean firstRow = true;
+          for (Map.Entry<String, String> row : use.rows.entrySet()) {
+            if (!firstRow) {
+              rows.appendText(", ");
+            }
+            firstRow = false;
+            String text = name + separator + row.getKey();
+            if (row.getValue() != null) {
+              rows.appendElement("a").addClass("ig-ref").addClass("ig-ref-row").attr("href", "#" + row.getValue()).text(text);
+            } else {
+              rows.appendText(text);
+            }
+          }
+          rows.appendText(")");
+        }
+      }
+    }
+    String sentence = "Used by " + joinWithAnd(summary);
+    if (target == Target.WORD) {
+      Element block = doc.createElement("div").addClass("ig-used");
+      block.appendChild(subhead("Where used"));
+      for (Element item : list.children()) {
+        Element line = block.appendElement("p").addClass("ig-meta-line");
+        Element kind = item.select("span.ig-used-kind").first();
+        line.appendElement("b").text(kind.text() + ": ");
+        kind.remove();
+        for (Node node : new ArrayList<Node>(item.childNodes())) {
+          line.appendChild(node);
+        }
+      }
+      return block;
+    }
+    Element details = doc.createElement("details").addClass("ig-used");
+    Element heading = details.appendElement("summary");
+    heading.appendElement("span").addClass("ig-used-label").text("Where used");
+    heading.appendText(" ");
+    heading.appendElement("span").addClass("ig-used-summary").text(sentence);
+    details.appendChild(list);
+    return details;
+  }
+
+  private static String joinWithAnd(List<String> parts) {
+    if (parts.size() < 2) {
+      return parts.isEmpty() ? "" : parts.get(0);
+    }
+    StringBuilder joined = new StringBuilder();
+    for (int i = 0; i < parts.size(); i++) {
+      joined.append(i == 0 ? "" : i == parts.size() - 1 ? " and " : ", ").append(parts.get(i));
+    }
+    return joined.toString();
   }
 
   private static List<Element> headerCells(Element table) {

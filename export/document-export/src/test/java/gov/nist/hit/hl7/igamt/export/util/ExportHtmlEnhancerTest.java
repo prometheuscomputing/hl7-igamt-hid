@@ -197,6 +197,92 @@ public class ExportHtmlEnhancerTest {
     assertThat(doc.select("#ig-content p").last().text()).isEqualTo("Leading inline text");
   }
 
+  @Test
+  public void resourcesListWhereTheyAreUsed() throws IOException {
+    Document doc = enhance(resources(), Target.HTML);
+
+    // field rows get an address of their own
+    assertThat(doc.select("tr#pid-1 td.c-name").text()).isEqualTo("Set ID");
+    assertThat(doc.select("tr#pid-3")).hasSize(1);
+
+    Element datatype = doc.select("section.ig-resource[data-kind=Datatype]").first();
+    Element used = datatype.select("details.ig-used").first();
+    assertThat(used).isNotNull();
+    assertThat(used.previousElementSibling().id()).isEqualTo("7si");
+    assertThat(used.select(".ig-used-summary").text()).isEqualTo("Used by 1 segment");
+    assertThat(used.select(".ig-used-kind").text()).isEqualTo("Segment");
+    assertThat(used.select(".ig-used-entry > a.ig-ref").attr("href")).isEqualTo("#pid");
+    assertThat(used.select(".ig-used-entry > a.ig-ref").text()).isEqualTo("PID");
+    assertThat(used.select("a.ig-ref-row").attr("href")).isEqualTo("#pid-1");
+    assertThat(used.select("a.ig-ref-row").text()).isEqualTo("PID-1");
+
+    Element valueSet = doc.select("section.ig-resource[data-kind=Valueset]").first();
+    assertThat(valueSet.select("details.ig-used a.ig-ref-row").text()).isEqualTo("PID-2");
+
+    // nothing refers to the segment itself, and a resource never lists itself
+    assertThat(doc.select("section.ig-resource[data-kind=Segment] details.ig-used")).isEmpty();
+    assertThat(doc.select("details.ig-used")).hasSize(2);
+  }
+
+  @Test
+  public void whereUsedCountsEachUserOnceAndGroupsByKind() throws IOException {
+    String content = "<h1 id=\"p\" data-kind=\"PROFILE\">Infrastructure</h1>"
+        + "<h2 id=\"cps\" data-kind=\"CONFORMANCEPROFILEREGISTRY\">Profiles</h2>"
+        + "<h3 id=\"z22\" data-kind=\"ConformanceProfile\" data-code=\"Z22\">Z22</h3>"
+        + "<table><thead><tr><th>Location</th><th>Value Set ID</th></tr></thead><tbody><tr><td>Z22-3.10</td><td>HL70001</td></tr></tbody></table>"
+        + "<h2 id=\"segs\" data-kind=\"SEGMENTREGISTRY\">Segments</h2>"
+        + "<h3 id=\"pid\" data-kind=\"Segment\" data-code=\"PID\">PID - Patient</h3>"
+        + "<table><thead><tr><th>Seq</th><th>Element name</th><th>Data type</th><th>Usage</th><th>Value Set</th></tr></thead><tbody>"
+        + "<tr><td>8</td><td>Sex</td><td>IS</td><td>R</td><td>HL70001</td></tr>"
+        + "<tr><td>9</td><td>Other</td><td>IS</td><td>O</td><td>HL70001</td></tr></tbody></table>"
+        + "<table><thead><tr><th>Location</th><th>Value Set ID</th></tr></thead><tbody><tr><td>PID-8</td><td>HL70001</td></tr></tbody></table>"
+        + "<h3 id=\"nk1\" data-kind=\"Segment\" data-code=\"NK1\">NK1 - Next of kin</h3>"
+        + "<table><thead><tr><th>Seq</th><th>Element name</th><th>Data type</th><th>Usage</th><th>Value Set</th></tr></thead><tbody>"
+        + "<tr><td>15</td><td>Sex</td><td>IS</td><td>R</td><td>HL70001</td></tr></tbody></table>"
+        + "<h2 id=\"vss\" data-kind=\"VALUESETREGISTRY\">Value Sets</h2>"
+        + "<h3 id=\"vs1\" data-kind=\"Valueset\" data-code=\"HL70001\">HL70001 - Administrative Sex</h3><p>Codes.</p>";
+    Document doc = enhance(content, Target.HTML);
+    Element used = doc.select("section.ig-resource[data-kind=Valueset] details.ig-used").first();
+    assertThat(used.select(".ig-used-summary").text()).isEqualTo("Used by 1 conformance profile and 2 segments");
+    assertThat(texts(used.select(".ig-used-kind"))).containsExactly("Conformance profile", "Segments");
+    assertThat(texts(used.select(".ig-used-entry > a.ig-ref"))).containsExactly("Z22", "PID", "NK1");
+    // PID binds it on two fields and repeats one of them in its bindings table: listed once each
+    assertThat(texts(used.select("a.ig-ref-row"))).containsExactly("PID-8", "PID-9", "NK1-15");
+    assertThat(used.select("a.ig-ref-row").last().attr("href")).isEqualTo("#nk1-15");
+  }
+
+  @Test
+  public void wordListsWhereUsedAtTheEndOfTheResource() throws IOException {
+    Document doc = enhance(resources(), Target.WORD);
+    assertThat(doc.select("details")).isEmpty();
+    Element block = doc.select("div.ig-used").first();
+    assertThat(block).isNotNull();
+    assertThat(block.select("p.IgSubhead").text()).isEqualTo("Where used");
+    assertThat(block.select("p.IgMeta").text()).isEqualTo("Segment: PID (PID-1)");
+    assertThat(block.select("a[href=#ig_pid]")).hasSize(1);
+    // rows are not bookmarks in Word, so only the resource is a link
+    assertThat(block.select("a")).hasSize(1);
+    assertThat(doc.select("tr[id]")).isEmpty();
+    // it follows the content of the datatype it belongs to
+    assertThat(block.previousElementSibling().text()).isEqualTo("Sequence.");
+  }
+
+  @Test
+  public void repeatedIdsKeepOnlyTheirFirstElement() throws IOException {
+    String content = "<h1 id=\"a\" data-kind=\"TEXT\">A</h1>"
+        + "<table id=\"parent\"><thead><tr><th>Seq</th><th>Usage</th></tr></thead><tbody><tr><td>1</td><td>R</td></tr></tbody></table>"
+        + "<table id=\"parent\"><thead><tr><th>Seq</th><th>Usage</th></tr></thead><tbody><tr><td>2</td><td>O</td></tr></tbody></table>"
+        + "<h1 id=\"a\" data-kind=\"TEXT\">B</h1>";
+    Document doc = enhance(content, Target.HTML);
+    java.util.Set<String> ids = new java.util.HashSet<String>();
+    for (Element element : doc.select("[id]")) {
+      assertThat(ids.add(element.id())).as("duplicate id %s", element.id()).isTrue();
+    }
+    assertThat(doc.select("table#parent")).hasSize(1);
+    // the second heading still gets an address of its own, and both are in the contents
+    assertThat(doc.select("#ig-sidebar .ig-toc a")).hasSize(2);
+  }
+
   /** Text of each element (jsoup 1.9 has no eachText). */
   private static java.util.List<String> texts(org.jsoup.select.Elements elements) {
     java.util.List<String> texts = new java.util.ArrayList<String>();

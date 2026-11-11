@@ -1,5 +1,6 @@
 /*
- * Behaviour of the HTML export: contents tree, search, table filters, theme.
+ * Behaviour of the HTML export: contents tree, search, table filters, theme,
+ * previews on links and the field detail panel.
  * Inlined at the end of the exported file. No dependency, and the document stays
  * fully readable (and printable) when scripts do not run.
  */
@@ -203,6 +204,451 @@
       }
       count.textContent = terms.length ? shown + ' of ' + rows.length : '';
     });
+  });
+
+  /* ---------------------------------------------------------------- shared lookups */
+
+  function text(node) { return node ? node.textContent.replace(/\s+/g, ' ').trim() : ''; }
+  function make(tag, className, content) {
+    var node = document.createElement(tag);
+    if (className) { node.className = className; }
+    if (content !== undefined) { node.textContent = content; }
+    return node;
+  }
+  function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function resourceOf(node) { return node && node.closest ? node.closest('section.ig-resource') : null; }
+  function headingOf(section) { return section ? section.querySelector(':scope > .ig-heading') : null; }
+  function describe(section) {
+    var heading = headingOf(section);
+    return {
+      id: heading ? heading.id : '',
+      kind: section.getAttribute('data-kind') || '',
+      kindLabel: text(heading && heading.querySelector('.ig-kind')),
+      code: text(heading && heading.querySelector('.ig-code')),
+      name: text(heading && heading.querySelector('.ig-rname'))
+    };
+  }
+  /** A copy that can be shown elsewhere: no ids, no nested links, no filter boxes. */
+  function inert(node) {
+    var copy = node.cloneNode(true);
+    if (copy.removeAttribute) { copy.removeAttribute('id'); copy.removeAttribute('tabindex'); copy.classList.remove('ig-field-row', 'is-selected'); }
+    each(copy.querySelectorAll('[id]'), function (child) { child.removeAttribute('id'); });
+    each(copy.querySelectorAll('.ig-table-tools'), function (child) { child.parentNode.removeChild(child); });
+    each(copy.querySelectorAll('[hidden]'), function (child) { child.hidden = false; });
+    return copy;
+  }
+  /** The first rows of a table, with a note when there are more. */
+  function excerpt(table, limit, keepLinks) {
+    var holder = make('div', 'ig-excerpt');
+    var copy = make('table', table.className);
+    copy.classList.add('ig-mini');
+    if (table.tHead) { copy.appendChild(inert(table.tHead)); }
+    var bodyCopy = document.createElement('tbody');
+    var rows = table.tBodies.length ? table.tBodies[0].rows : [];
+    for (var i = 0; i < rows.length && i < limit; i++) { bodyCopy.appendChild(inert(rows[i])); }
+    copy.appendChild(bodyCopy);
+    if (!keepLinks) {
+      each(copy.querySelectorAll('a'), function (link) {
+        var span = make('span', 'ig-ref-plain', link.textContent);
+        link.parentNode.replaceChild(span, link);
+      });
+    }
+    holder.appendChild(copy);
+    if (rows.length > limit) {
+      holder.appendChild(make('p', 'ig-excerpt-more', (rows.length - limit) + ' more ' + (rows.length - limit === 1 ? 'row' : 'rows')));
+    }
+    return holder;
+  }
+  function definitionTable(section) {
+    var tables = section.querySelectorAll(':scope > .ig-table-wrap > table');
+    for (var i = 0; i < tables.length; i++) {
+      if (!tables[i].classList.contains('ig-annotations')) { return tables[i]; }
+    }
+    return null;
+  }
+
+  /* ---------------------------------------------------------------- fields and components */
+
+  function isFieldRow(row) {
+    if (!row || row.tagName !== 'TR' || !row.id) { return false; }
+    var section = resourceOf(row);
+    if (!section || row.parentNode.parentNode.parentNode.parentNode !== section) { return false; }
+    var kind = section.getAttribute('data-kind');
+    return (kind === 'Segment' || kind === 'Datatype') && !!row.querySelector('td.c-seq') && !!row.querySelector('td.c-name');
+  }
+  function fieldOf(row) {
+    var section = resourceOf(row);
+    var owner = describe(section);
+    var segment = owner.kind === 'Segment';
+    var sequence = text(row.querySelector('td.c-seq'));
+    return {
+      row: row,
+      section: section,
+      owner: owner,
+      base: owner.code.split('_')[0],
+      sequence: sequence,
+      name: text(row.querySelector('td.c-name')),
+      label: segment ? 'Field' : 'Component',
+      token: owner.code + (segment ? '-' : '.') + sequence
+    };
+  }
+  /** Matches "PID-3", "PID_IZ-3", "PID.3" and their sub-elements ("PID-3.1"), but not "PID-30". */
+  function mentionOf(field) {
+    var names = escapeRegExp(field.owner.code) + (field.base !== field.owner.code ? '|' + escapeRegExp(field.base) : '');
+    return new RegExp('(^|[^A-Za-z0-9_])(' + names + ')[-.]' + escapeRegExp(field.sequence) + '(?![0-9])');
+  }
+
+  /* ---------------------------------------------------------------- previews on links */
+
+  function previewOf(id) {
+    var target = document.getElementById(id);
+    if (!target) { return null; }
+    var card = make('div', 'ig-preview-body');
+    var head = make('div', 'ig-preview-head');
+    card.appendChild(head);
+    if (isFieldRow(target)) {
+      var field = fieldOf(target);
+      head.appendChild(make('span', 'ig-preview-kind', field.label));
+      head.appendChild(make('span', 'ig-preview-code', field.token));
+      head.appendChild(make('span', 'ig-preview-name', field.name));
+      var table = target.parentNode.parentNode;
+      var one = make('table', table.className);
+      one.classList.add('ig-mini');
+      if (table.tHead) { one.appendChild(inert(table.tHead)); }
+      var oneBody = document.createElement('tbody');
+      oneBody.appendChild(inert(target));
+      one.appendChild(oneBody);
+      each(one.querySelectorAll('a'), function (link) { link.parentNode.replaceChild(make('span', 'ig-ref-plain', link.textContent), link); });
+      card.appendChild(one);
+      return card;
+    }
+    var section = target.closest ? target.closest('section') : null;
+    if (!section || !section.classList.contains('ig-resource')) { return null; }
+    var info = describe(section);
+    head.appendChild(make('span', 'ig-preview-kind', info.kindLabel));
+    head.appendChild(make('span', 'ig-preview-code', info.code));
+    if (info.name) { head.appendChild(make('span', 'ig-preview-name', info.name)); }
+    var definition = definitionTable(section);
+    if (definition && definition.tBodies.length && definition.tBodies[0].rows.length) {
+      card.appendChild(excerpt(definition, 8, false));
+    } else {
+      var narrative = section.querySelector(':scope > .ig-narrative, :scope > .ig-note .ig-note-body');
+      var summary = text(narrative);
+      card.appendChild(make('p', 'ig-preview-empty', summary ? (summary.length > 260 ? summary.slice(0, 260) + '…' : summary)
+        : 'No table is listed for this ' + (info.kindLabel || 'resource').toLowerCase() + ' in this export.'));
+    }
+    return card;
+  }
+
+  var preview = make('div', 'ig-preview');
+  preview.id = 'ig-preview';
+  preview.setAttribute('role', 'tooltip');
+  preview.hidden = true;
+  body.appendChild(preview);
+  var previewLink = null;
+  var previewTimer = null;
+  var canHover = !window.matchMedia || window.matchMedia('(hover: hover)').matches;
+
+  function hidePreview() {
+    window.clearTimeout(previewTimer);
+    previewTimer = null;
+    if (previewLink) { previewLink.removeAttribute('aria-describedby'); }
+    previewLink = null;
+    preview.hidden = true;
+    preview.innerHTML = '';
+  }
+  function showPreview(link) {
+    var href = link.getAttribute('href') || '';
+    if (href.charAt(0) !== '#') { return; }
+    var content = previewOf(href.slice(1));
+    if (!content) { return; }
+    hidePreview();
+    previewLink = link;
+    preview.appendChild(content);
+    preview.hidden = false;
+    link.setAttribute('aria-describedby', 'ig-preview');
+    // below the link when there is room, above otherwise, always inside the window
+    var anchor = link.getBoundingClientRect();
+    var box = preview.getBoundingClientRect();
+    var margin = 12;
+    var left = Math.min(Math.max(margin, anchor.left), Math.max(margin, window.innerWidth - box.width - margin));
+    var below = anchor.bottom + 8;
+    var top = below + box.height + margin <= window.innerHeight ? below
+      : (anchor.top - 8 - box.height >= margin ? anchor.top - 8 - box.height : Math.max(margin, window.innerHeight - box.height - margin));
+    preview.style.left = Math.round(left) + 'px';
+    preview.style.top = Math.round(top) + 'px';
+  }
+  function referenceOf(event) {
+    var link = event.target.closest ? event.target.closest('a.ig-ref') : null;
+    return link && !link.closest('.ig-preview') ? link : null;
+  }
+  if (canHover) {
+    document.addEventListener('mouseover', function (event) {
+      var link = referenceOf(event);
+      if (!link || link === previewLink) { return; }
+      window.clearTimeout(previewTimer);
+      previewTimer = window.setTimeout(function () { showPreview(link); }, 280);
+    });
+    document.addEventListener('mouseout', function (event) {
+      var link = referenceOf(event);
+      if (!link) { return; }
+      if (event.relatedTarget && link.contains(event.relatedTarget)) { return; }
+      hidePreview();
+    });
+  }
+  document.addEventListener('focusin', function (event) {
+    var link = referenceOf(event);
+    // only for keyboard focus: a click also focuses the link, and then the reader is leaving
+    if (link && link.matches && link.matches(':focus-visible')) { showPreview(link); }
+  });
+  document.addEventListener('focusout', function (event) { if (referenceOf(event)) { hidePreview(); } });
+  document.addEventListener('click', function (event) { if (referenceOf(event)) { hidePreview(); } }, true);
+  window.addEventListener('scroll', function () { if (!preview.hidden) { hidePreview(); } }, { passive: true, capture: true });
+
+  /* ---------------------------------------------------------------- field detail panel */
+
+  var panel = make('aside', 'ig-panel');
+  panel.id = 'ig-panel';
+  panel.hidden = true;
+  panel.setAttribute('aria-label', 'Field details');
+  var panelHead = make('div', 'ig-panel-head');
+  var panelTitle = make('div', 'ig-panel-title');
+  var panelClose = make('button', 'ig-icon-button ig-panel-close', '×');
+  panelClose.type = 'button';
+  panelClose.setAttribute('aria-label', 'Close the details');
+  panelClose.title = 'Close (Esc)';
+  panelHead.appendChild(panelTitle);
+  panelHead.appendChild(panelClose);
+  var panelBody = make('div', 'ig-panel-body');
+  panel.appendChild(panelHead);
+  panel.appendChild(panelBody);
+  body.appendChild(panel);
+
+  var fieldRows = [];
+  each(main.querySelectorAll('section.ig-resource[data-kind="Segment"] > .ig-table-wrap > table > tbody > tr[id], section.ig-resource[data-kind="Datatype"] > .ig-table-wrap > table > tbody > tr[id]'), function (row) {
+    if (!isFieldRow(row)) { return; }
+    row.classList.add('ig-field-row');
+    row.tabIndex = 0;
+    row.setAttribute('aria-haspopup', 'dialog');
+    row.title = 'Show everything this guide says about this element';
+    fieldRows.push(row);
+  });
+
+  function panelSection(title) {
+    var section = make('section', 'ig-panel-section');
+    section.appendChild(make('h3', 'ig-panel-subhead', title));
+    panelBody.appendChild(section);
+    return section;
+  }
+  function miniTable(table, rows) {
+    var copy = make('table', table.className);
+    copy.classList.add('ig-mini');
+    if (table.tHead) { copy.appendChild(inert(table.tHead)); }
+    var bodyCopy = document.createElement('tbody');
+    rows.forEach(function (row) { bodyCopy.appendChild(inert(row)); });
+    copy.appendChild(bodyCopy);
+    var wrap = make('div', 'ig-panel-table');
+    wrap.appendChild(copy);
+    return wrap;
+  }
+  /** Rows of a table that are about the field: they name it, or (constant values) carry its name. */
+  function rowsAbout(table, field, mention) {
+    var byName = table.tHead && /^element name$/i.test(text(table.tHead.rows[0].cells[0]));
+    var matched = [];
+    each(table.tBodies.length ? table.tBodies[0].rows : [], function (row) {
+      // cell by cell: the text of a row runs its cells together ("IZ-PID-01PID-1 ...")
+      var about = byName && text(row.cells[0]) === field.name;
+      for (var i = 0; !about && i < row.cells.length; i++) { about = mention.test(row.cells[i].textContent); }
+      if (about) { matched.push(row); }
+    });
+    return matched;
+  }
+
+  function describeField(field) {
+    var mention = mentionOf(field);
+    var row = field.row;
+    var found = 0;
+
+    // what the definition row itself says
+    var facts = make('dl', 'ig-panel-facts');
+    var table = row.parentNode.parentNode;
+    each(row.cells, function (cell, index) {
+      var header = table.tHead ? text(table.tHead.rows[0].cells[index]) : '';
+      if (!header || cell.classList.contains('c-seq') || cell.classList.contains('c-name')) { return; }
+      var item = make('div', 'ig-panel-fact');
+      item.appendChild(make('dt', '', header));
+      var value = make('dd', '');
+      if (cell.classList.contains('ig-na')) {
+        value.appendChild(make('span', 'ig-panel-none', 'Not applicable'));
+      } else if (!text(cell)) {
+        value.appendChild(make('span', 'ig-panel-none', 'None'));
+      } else {
+        each(inert(cell).childNodes, function (child) { value.appendChild(child.cloneNode(true)); });
+      }
+      item.appendChild(value);
+      facts.appendChild(item);
+    });
+    panelBody.appendChild(facts);
+
+    // every other block of the same segment or datatype that mentions it
+    var title = '';
+    var caption = null;
+    each(field.section.children, function (child) {
+      if (child.classList.contains('ig-subhead')) { title = text(child); caption = null; return; }
+      if (child.classList.contains('ig-caption')) { caption = child; return; }
+      var block = child.classList.contains('ig-table-wrap') ? child.querySelector('table') : null;
+      if (!block || block === table) { caption = null; return; }
+      var wholeBlock = caption && (mention.test(caption.textContent)
+        || (/^slicing$/i.test(title) && text(caption).indexOf(field.sequence + '.') === 0));
+      var rows = wholeBlock ? Array.prototype.slice.call(block.tBodies.length ? block.tBodies[0].rows : []) : rowsAbout(block, field, mention);
+      if (rows.length) {
+        var section = panelSection(title || 'Related');
+        found++;
+        if (caption) { section.appendChild(inert(caption)); }
+        if (block.classList.contains('ig-annotations')) {
+          rows.forEach(function (annotation) {
+            var entry = make('div', 'ig-panel-prose');
+            var where = text(annotation.cells[0]);
+            if (!new RegExp('^(' + escapeRegExp(field.owner.code) + '|' + escapeRegExp(field.base) + ')[-.]' + escapeRegExp(field.sequence) + '$').test(where)) {
+              entry.appendChild(make('span', 'ig-panel-where', where));
+            }
+            each(inert(annotation.cells[1]).childNodes, function (node) { entry.appendChild(node.cloneNode(true)); });
+            section.appendChild(entry);
+          });
+        } else {
+          section.appendChild(miniTable(block, rows));
+        }
+      }
+      caption = null;
+    });
+
+    // co-constraint tables, in any profile, that have a column for this field
+    if (field.owner.kind === 'Segment') {
+      var columnName = new RegExp('^(' + escapeRegExp(field.owner.code) + '|' + escapeRegExp(field.base) + ')-' + escapeRegExp(field.sequence) + '(?![0-9.])');
+      var places = [];
+      each(main.querySelectorAll('.ig-coconstraint'), function (block, index) {
+        var path = text(block.querySelector('.ig-caption .ig-caption-code'));
+        var segmentName = path.split('.').pop();
+        if (segmentName !== field.base && segmentName !== field.owner.code) { return; }
+        var columns = [];
+        each(block.querySelectorAll('thead th'), function (cell) { if (columnName.test(text(cell))) { columns.push(text(cell)); } });
+        if (!columns.length) { return; }
+        if (!block.id) { block.id = 'ig-coconstraint-' + (index + 1); }
+        var table = block.querySelector('table');
+        places.push({
+          block: block, columns: columns, path: path, profile: describe(resourceOf(block)),
+          rows: table && table.tBodies.length ? table.tBodies[0].rows.length : 0,
+          condition: text(block.querySelector('.ig-condition'))
+        });
+      });
+      if (places.length) {
+        var coSection = panelSection('Co-constraints');
+        found++;
+        var list = make('ul', 'ig-panel-list');
+        places.forEach(function (place) {
+          var item = document.createElement('li');
+          var link = make('a', 'ig-ref', place.profile.code || 'Co-constraint table');
+          link.href = '#' + place.block.id;
+          item.appendChild(link);
+          item.appendChild(document.createTextNode(' has a column ' + place.columns.join(', ') + ' for ' + place.path +
+            ' (' + place.rows + (place.rows === 1 ? ' row' : ' rows') + ')'));
+          if (place.condition) { item.appendChild(make('span', 'ig-panel-note', place.condition)); }
+          list.appendChild(item);
+        });
+        coSection.appendChild(list);
+      }
+    }
+
+    // the datatype and value sets the field points to
+    each(row.querySelectorAll('td.c-datatype a.ig-ref, td.c-valueset a.ig-ref'), function (link) {
+      var target = document.getElementById((link.getAttribute('href') || '').slice(1));
+      var section = target && target.closest ? target.closest('section.ig-resource') : null;
+      var definition = section ? definitionTable(section) : null;
+      if (!section || !definition || !definition.tBodies.length || !definition.tBodies[0].rows.length) { return; }
+      var info = describe(section);
+      var related = panelSection(info.kindLabel + ' ' + info.code);
+      found++;
+      if (info.name) { related.appendChild(make('p', 'ig-panel-note', info.name)); }
+      var holder = excerpt(definition, 12, true);
+      holder.classList.add('ig-panel-table');
+      related.appendChild(holder);
+      var more = make('a', 'ig-ref ig-panel-more', 'Open ' + info.code);
+      more.href = link.getAttribute('href');
+      related.appendChild(more);
+    });
+
+    if (!found) {
+      panelBody.appendChild(make('p', 'ig-panel-empty', 'Nothing else in this guide refers to this ' + field.label.toLowerCase() + '.'));
+    }
+  }
+
+  var openRow = null;
+  var openedByKeyboard = false;
+  function closePanel() {
+    if (!openRow) { return; }
+    var row = openRow;
+    openRow = null;
+    row.classList.remove('is-selected');
+    panel.hidden = true;
+    body.classList.remove('ig-panel-open');
+    panelBody.innerHTML = '';
+    if (openedByKeyboard && document.body.contains(row)) { row.focus(); }
+  }
+  function openPanel(row, byKeyboard) {
+    if (openRow === row) { return; }
+    if (openRow) { openRow.classList.remove('is-selected'); }
+    hidePreview();
+    var field = fieldOf(row);
+    openRow = row;
+    openedByKeyboard = !!byKeyboard;
+    row.classList.add('is-selected');
+    panelTitle.innerHTML = '';
+    panelTitle.appendChild(make('span', 'ig-panel-kind', field.label + ' of ' + field.owner.kindLabel.toLowerCase() + ' ' + field.owner.code));
+    var heading = make('h2', 'ig-panel-name');
+    heading.appendChild(make('span', 'ig-panel-code', field.token));
+    heading.appendChild(document.createTextNode(' ' + field.name));
+    panelTitle.appendChild(heading);
+    panelBody.innerHTML = '';
+    panelBody.scrollTop = 0;
+    describeField(field);
+    panel.hidden = false;
+    body.classList.add('ig-panel-open');
+    if (byKeyboard) { panelClose.focus(); }
+  }
+
+  main.addEventListener('click', function (event) {
+    var row = event.target.closest ? event.target.closest('tr.ig-field-row') : null;
+    if (!row || event.target.closest('a, button, input, label')) { return; }
+    if (window.getSelection && String(window.getSelection())) { return; }
+    if (openRow === row) { closePanel(); } else { openPanel(row, false); }
+  });
+  main.addEventListener('keydown', function (event) {
+    if ((event.key !== 'Enter' && event.key !== ' ') || !event.target.classList || !event.target.classList.contains('ig-field-row')) { return; }
+    event.preventDefault();
+    if (openRow === event.target) { closePanel(); } else { openPanel(event.target, true); }
+  });
+  panelClose.addEventListener('click', closePanel);
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape') { return; }
+    if (!preview.hidden) { hidePreview(); return; }
+    if (openRow && document.activeElement !== document.getElementById('ig-search')) { closePanel(); }
+  });
+  // a link to a field (search result, "where used") opens its details as well
+  document.addEventListener('click', function (event) {
+    var link = event.target.closest ? event.target.closest('a[href^="#"]') : null;
+    var target = link ? document.getElementById(link.getAttribute('href').slice(1)) : null;
+    if (target && isFieldRow(target)) { openPanel(target, false); }
+  });
+  function openFromHash() {
+    var target = window.location.hash.length > 1 ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null;
+    if (target && isFieldRow(target)) { openPanel(target, false); }
+  }
+  window.addEventListener('hashchange', openFromHash);
+  openFromHash();
+
+  window.addEventListener('beforeprint', function () {
+    hidePreview();
+    each(main.querySelectorAll('details.ig-used'), function (details) { details.open = true; });
   });
 
   /* ---------------------------------------------------------------- search */
