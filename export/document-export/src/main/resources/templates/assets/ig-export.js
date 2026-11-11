@@ -425,10 +425,10 @@ var IgExportText = (function () {
       var link = referenceOf(event);
       if (!link) { return; }
       if (event.relatedTarget && link.contains(event.relatedTarget)) { return; }
-      if (link !== previewLink) { window.clearTimeout(previewTimer); return; }
-      // a moment to reach the card: it stays while the pointer is on it
+      if (link !== previewLink) { window.clearTimeout(previewTimer); }
+      // a moment to reach the card: it stays while the pointer is on it or back on its link
       window.clearTimeout(previewLeave);
-      previewLeave = window.setTimeout(hidePreview, 160);
+      if (previewLink) { previewLeave = window.setTimeout(hidePreview, 160); }
     });
     preview.addEventListener('mouseenter', function () { window.clearTimeout(previewLeave); });
     preview.addEventListener('mouseleave', hidePreview);
@@ -531,6 +531,26 @@ var IgExportText = (function () {
     return matched;
   }
 
+  /**
+   * Links to the segments a profile has at a path such as "ORDER.OBSERVATION.OBX", read from its
+   * structure table. When the path is not found there, every segment the profile links to.
+   */
+  function segmentsAt(profile, path) {
+    var found = [];
+    var groups = [];
+    var structure = profile.querySelector('table.ig-structure');
+    each(structure && structure.tBodies.length ? structure.tBodies[0].rows : [], function (row) {
+      if (row.classList.contains('ig-group-begin')) { groups.push(text(row.querySelector('td.c-name')).replace(/^Group\s+/, '')); return; }
+      if (row.classList.contains('ig-group-end')) { groups.pop(); return; }
+      var link = row.querySelector('td.c-flavor a.ig-ref');
+      if (link && groups.concat([text(row.querySelector('td.c-segment'))]).join('.') === path) { found.push(link.getAttribute('href')); }
+    });
+    if (!found.length) {
+      each(profile.querySelectorAll('a.ig-ref'), function (link) { if (!link.closest('.ig-used')) { found.push(link.getAttribute('href')); } });
+    }
+    return found;
+  }
+
   function describeField(field) {
     var mention = mentionOf(field);
     var row = field.row;
@@ -598,15 +618,14 @@ var IgExportText = (function () {
         var path = text(block.querySelector('.ig-caption .ig-caption-code'));
         var segmentName = path.split('.').pop();
         if (segmentName !== field.base && segmentName !== field.owner.code) { return; }
-        // the path names the base segment: only the profiles that use this flavor are concerned
+        // the path names the base segment: the structure of the profile says which flavor sits there
         var profile = resourceOf(block);
-        var profileId = profile ? describe(profile).id : '';
-        if (usesThisSegment[profileId] === undefined) {
-          usesThisSegment[profileId] = !!profile && Array.prototype.some.call(profile.querySelectorAll('a.ig-ref'), function (link) {
-            return !link.closest('.ig-used') && link.getAttribute('href') === '#' + field.owner.id;
-          });
+        var key = (profile ? describe(profile).id : '') + ' ' + path;
+        if (usesThisSegment[key] === undefined) {
+          var flavors = profile ? segmentsAt(profile, path) : [];
+          usesThisSegment[key] = flavors.indexOf('#' + field.owner.id) !== -1;
         }
-        if (!usesThisSegment[profileId]) { return; }
+        if (!usesThisSegment[key]) { return; }
         var columns = [];
         each(block.querySelectorAll('thead th'), function (cell) { if (columnName.test(text(cell))) { columns.push(text(cell)); } });
         if (!columns.length) { return; }
@@ -665,25 +684,22 @@ var IgExportText = (function () {
 
   var openRow = null;
   var openedByKeyboard = false;
-  var opener = null;
   function closePanel() {
     if (!openRow) { return; }
     var row = openRow;
-    // focus goes back to where the reader was, unless it never was in the panel
+    // focus goes back to the row the reader is on, unless it never was in the panel
     var restore = openedByKeyboard || panel.contains(document.activeElement);
-    var back = opener && document.body.contains(opener) && opener.getClientRects().length ? opener : row;
     openRow = null;
-    opener = null;
     row.classList.remove('is-selected');
     panel.hidden = true;
     body.classList.remove('ig-panel-open');
     panelBody.innerHTML = '';
-    if (restore && document.body.contains(back)) { back.focus(); }
+    if (restore && document.body.contains(row)) { row.focus(); }
   }
-  /** byKeyboard: focus moves into the panel. from: the link that opened it, when it was not the row. */
-  function openPanel(row, byKeyboard, from) {
+  /** byKeyboard: focus moves into the panel, and comes back to the row when it closes. */
+  function openPanel(row, byKeyboard) {
     if (openRow === row) {
-      if (byKeyboard) { focusPanel(row); }
+      if (byKeyboard) { openedByKeyboard = true; focusPanel(row); }
       return;
     }
     if (openRow) { openRow.classList.remove('is-selected'); }
@@ -691,7 +707,6 @@ var IgExportText = (function () {
     var field = fieldOf(row);
     openRow = row;
     openedByKeyboard = !!byKeyboard;
-    opener = from || null;
     row.classList.add('is-selected');
     panelTitle.innerHTML = '';
     panelTitle.appendChild(make('span', 'ig-panel-kind', field.label + ' of ' + field.owner.kindLabel.toLowerCase() + ' ' + field.owner.code));
@@ -744,13 +759,21 @@ var IgExportText = (function () {
     var link = event.target.closest ? event.target.closest('a[href^="#"]') : null;
     var target = link ? document.getElementById(link.getAttribute('href').slice(1)) : null;
     // a click made with the keyboard (Enter on the link) has no pointer detail
-    if (target && isFieldRow(target)) { openPanel(target, event.detail === 0, link); }
+    if (target && isFieldRow(target)) { openPanel(target, event.detail === 0); reveal(target); }
   });
+  /** After the browser jumped to a row: the jump puts it at the very top, under the bar. */
+  function reveal(row) {
+    window.setTimeout(function () {
+      var box = row.getBoundingClientRect();
+      var bar = document.querySelector('.ig-topbar');
+      if (box.top < (bar ? bar.offsetHeight : 0) + 8 || box.bottom > window.innerHeight) { row.scrollIntoView({ block: 'center' }); }
+    }, 0);
+  }
   function openFromHash() {
     var id = window.location.hash.slice(1);
     try { id = decodeURIComponent(id); } catch (e) { /* a hash that is not valid percent-encoding: taken as written */ }
     var target = id ? document.getElementById(id) : null;
-    if (target && isFieldRow(target)) { openPanel(target, false); }
+    if (target && isFieldRow(target)) { openPanel(target, false); reveal(target); }
   }
   window.addEventListener('hashchange', openFromHash);
   openFromHash();

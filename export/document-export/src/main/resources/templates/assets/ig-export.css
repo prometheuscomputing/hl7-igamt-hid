@@ -615,6 +615,8 @@ table.ig-mini .ig-usage { height: 17px; min-width: 24px; font-size: 10.5px; }
 
 /* ------------------------------------------------------------------ field detail panel */
 
+/* a link to a row does not leave it under the bar (and under the sticky header of its table) */
+.ig-table tbody tr[id] { scroll-margin-top: calc(var(--ig-topbar-height) + 56px); }
 tr.ig-field-row { cursor: pointer; }
 tr.ig-field-row:hover > td { background-color: var(--ig-hover); }
 tr.ig-field-row:focus-visible { outline: 2px solid var(--ig-accent); outline-offset: -2px; }

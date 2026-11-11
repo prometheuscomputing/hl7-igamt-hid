@@ -162,6 +162,13 @@ module.exports = async (page) => {
       await page.waitForTimeout(60);
       await link.hover();
       await page.waitForTimeout(380);
+      // sections that render late can move the link away from under the pointer (and their
+      // scroll closes the card): once the page has settled, the pointer goes back on the link
+      if (await page.evaluate(() => document.getElementById('ig-preview').hidden)) {
+        await page.mouse.move(5, 300);
+        await link.hover();
+        await page.waitForTimeout(450);
+      }
       const state = await page.evaluate((i) => {
         const card = document.getElementById('ig-preview');
         const link = document.querySelector('[data-test-ref="' + i + '"]');
@@ -346,7 +353,7 @@ module.exports = async (page) => {
     overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     bodyDisplay: getComputedStyle(document.body).display
   }));
-  if (ccItems.items.length !== 4) fail('known', 'OBX-3 should list 4 co-constraint tables: ' + JSON.stringify(ccItems.items));
+  if (ccItems.items.length !== 2) fail('known', 'OBX_IZ-3 should list the 2 co-constraint tables of Z22: ' + JSON.stringify(ccItems.items));
   if (new Set(ccItems.items).size !== ccItems.items.length) fail('known', 'co-constraint entries cannot be told apart: ' + JSON.stringify(ccItems.items));
   if (!ccItems.items.some((t) => t.indexOf('13 rows') !== -1) || !ccItems.items.some((t) => t.indexOf('Applies when') !== -1)) fail('known', 'co-constraint entries lack row count or condition: ' + JSON.stringify(ccItems.items));
   if (ccItems.overflow > 0 || ccItems.bodyDisplay !== 'block') fail('known', 'open panel changes the page layout: ' + JSON.stringify({ overflow: ccItems.overflow, body: ccItems.bodyDisplay }));
@@ -413,9 +420,12 @@ module.exports = async (page) => {
   await page.waitForTimeout(200);
   let focus = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, inPanel: document.getElementById('ig-panel').contains(document.activeElement) }));
   if (focus.hidden || !focus.inPanel) fail('known', 'keyboard use of a where-used link does not focus the panel: ' + JSON.stringify(focus));
+  // the reader followed the link: closing leaves them on the row, without scrolling back to the link
+  const before = await page.evaluate(() => window.scrollY);
   await page.keyboard.press('Escape');
-  focus = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, onLink: document.activeElement.classList.contains('ig-ref-row') }));
-  if (!focus.hidden || !focus.onLink) fail('known', 'focus did not return to the where-used link: ' + JSON.stringify(focus));
+  await page.waitForTimeout(150);
+  focus = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, onRow: document.activeElement.id, hash: decodeURIComponent(location.hash.slice(1)), scrollY: window.scrollY }));
+  if (!focus.hidden || !focus.onRow || focus.onRow !== focus.hash || Math.abs(focus.scrollY - before) > 4) fail('known', 'closing after a where-used link: ' + JSON.stringify(focus) + ' scroll before ' + before);
 
   // search with the keyboard: focus in the panel, and the same result opens it again after it was closed
   for (let round = 0; round < 2; round++) {
@@ -441,15 +451,17 @@ module.exports = async (page) => {
       const out = Array.prototype.map.call(document.querySelectorAll('#ig-panel .ig-panel-list li'), (li) => {
         const block = document.getElementById(li.querySelector('a').getAttribute('href').slice(1));
         const profile = block.closest('section.ig-resource');
-        return { profile: li.querySelector('a').textContent, uses: Array.prototype.some.call(profile.querySelectorAll('a.ig-ref'), (a) => !a.closest('.ig-used') && a.getAttribute('href') === '#' + id) };
+        // the flavor the structure of that profile has for an OBX segment
+        const structure = Array.prototype.filter.call(profile.querySelectorAll('table.ig-structure td.c-flavor a.ig-ref'), (a) => a.closest('tr').querySelector('td.c-segment').textContent.trim() === 'OBX');
+        return { profile: li.querySelector('a').textContent, uses: structure.length > 0 && structure.every((a) => a.getAttribute('href') === '#' + id) };
       });
       document.querySelector('.ig-panel-close').click();
       return out;
     };
     return { ref: items('OBX_REF_1'), iz: items('OBX_IZ') };
   }, sectionOf);
-  if (!flavors.iz || flavors.iz.length !== 4 || flavors.iz.some((x) => !x.uses)) fail('known', 'OBX_IZ-3 co-constraints: ' + JSON.stringify(flavors.iz));
-  if (flavors.ref && (flavors.ref.some((x) => !x.uses) || flavors.ref.some((x) => x.profile === 'Z22'))) fail('known', 'OBX_REF_1-3 lists co-constraints of profiles that do not use it: ' + JSON.stringify(flavors.ref));
+  if (!flavors.iz || flavors.iz.length !== 2 || flavors.iz.some((x) => !x.uses || x.profile !== 'Z22')) fail('known', 'OBX_IZ-3 co-constraints: ' + JSON.stringify(flavors.iz));
+  if (flavors.ref && (flavors.ref.length !== 2 || flavors.ref.some((x) => !x.uses || x.profile !== 'Z22_Refusal'))) fail('known', 'OBX_REF_1-3 lists co-constraints of profiles that do not use it: ' + JSON.stringify(flavors.ref));
   report.coConstraintFlavors = { OBX_IZ: flavors.iz && flavors.iz.length, OBX_REF_1: flavors.ref && flavors.ref.map((x) => x.profile) };
 
   // the parts of a date format are not called components
@@ -504,6 +516,60 @@ module.exports = async (page) => {
     await page.evaluate(() => { const input = document.querySelector('a[data-e2e="filtered"]'); input.removeAttribute('data-e2e'); });
   }
   report.filteredPreview = filtered;
+
+  // card of a first link, a quick pass over a second link, then away: nothing stays open
+  let pair = await page.evaluate(() => {
+    const row = Array.prototype.find.call(document.querySelectorAll('tr.ig-field-row'), (r) => r.querySelector('td.c-datatype a.ig-ref') && r.querySelector('td.c-valueset a.ig-ref'));
+    if (!row) return null;
+    row.setAttribute('data-e2e', 'pair');
+    return true;
+  });
+  if (pair) {
+    const first = page.locator('tr[data-e2e="pair"] td.c-datatype a.ig-ref').first();
+    const second = page.locator('tr[data-e2e="pair"] td.c-valueset a.ig-ref').first();
+    const centre = async (locator) => { const b = await locator.boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+    // sections above render late and move the row: a first hover brings it near, the second one is on the link
+    await first.hover();
+    await page.waitForTimeout(400);
+    await page.mouse.move(5, 5);
+    await first.hover();
+    await page.waitForTimeout(450);
+    if (await page.evaluate(() => document.getElementById('ig-preview').hidden)) fail('known', 'no preview on the first link of the pair');
+    pair = { a: await centre(first), b: await centre(second) };
+    await page.mouse.move(pair.b.x, pair.b.y);
+    await page.waitForTimeout(60);
+    await page.mouse.move(pair.b.x, pair.b.y + 260);
+    await page.waitForTimeout(500);
+    if (!(await page.evaluate(() => document.getElementById('ig-preview').hidden))) fail('known', 'a preview stays open after a quick pass over a second link');
+    // and resting on the second link replaces the card
+    await page.mouse.move(pair.a.x, pair.a.y, { steps: 3 });
+    await page.waitForTimeout(450);
+    const firstCode = await page.evaluate(() => (document.querySelector('#ig-preview .ig-preview-code') || {}).textContent);
+    await page.mouse.move(pair.b.x, pair.b.y, { steps: 3 });
+    await page.waitForTimeout(450);
+    const shown2 = await page.evaluate(() => ({ hidden: document.getElementById('ig-preview').hidden, code: (document.querySelector('#ig-preview .ig-preview-code') || {}).textContent }));
+    if (shown2.hidden || !shown2.code || shown2.code === firstCode) fail('known', 'moving to a second link does not replace the card: ' + firstCode + ' -> ' + JSON.stringify(shown2));
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(300);
+    await page.evaluate(() => document.querySelector('tr[data-e2e="pair"]').removeAttribute('data-e2e'));
+  }
+
+  // a link to a far field row shows the row, clear of the bar and of the header of its table
+  for (const way of ['link', 'load']) {
+    await page.goto(BASE + 'rich-all.html?t=' + Date.now() + (way === 'load' ? '#HL7CTD-V2-5-1-1' : ''));
+    await page.waitForTimeout(400);
+    if (way === 'link') {
+      await page.evaluate(() => { const a = document.createElement('a'); a.href = '#HL7CTD-V2-5-1-1'; a.textContent = 'x'; document.getElementById('ig-content').prepend(a); a.click(); });
+    }
+    await page.waitForTimeout(700);
+    const where = await page.evaluate(() => {
+      const row = document.getElementById('HL7CTD-V2-5-1-1');
+      const box = row.getBoundingClientRect();
+      const at = document.elementFromPoint(box.left + 30, box.top + box.height / 2);
+      return { top: Math.round(box.top), bottom: Math.round(box.bottom), height: window.innerHeight, uncovered: !!at && row.contains(at), panel: !document.getElementById('ig-panel').hidden };
+    });
+    if (!where.panel || !where.uncovered || where.top < 52 || where.bottom > where.height) fail('known', 'field row reached by ' + way + ' is not visible: ' + JSON.stringify(where));
+  }
 
   // a hash that is not valid percent-encoding does not stop the page from working
   const hashErrors = [];

@@ -44,6 +44,7 @@ import org.docx4j.openpackaging.parts.WordprocessingML.MainDocumentPart;
 import org.docx4j.openpackaging.parts.WordprocessingML.NumberingDefinitionsPart;
 import org.docx4j.relationships.Relationship;
 import org.docx4j.wml.BooleanDefaultTrue;
+import org.docx4j.wml.Br;
 import org.docx4j.wml.CTBookmark;
 import org.docx4j.wml.CTSettings;
 import org.docx4j.wml.CTTblLayoutType;
@@ -606,7 +607,11 @@ public class WordUtil {
     for (Object run : getAllElementFromObject(paragraph, R.class)) {
       for (Object node : ((R) run).getContent()) {
         Object value = unwrap(node);
-        text.append(value instanceof Text ? ((Text) value).getValue() : " ");
+        if (value instanceof Text) {
+          text.append(((Text) value).getValue());
+        } else if (value instanceof Br || value instanceof R.Tab) {
+          text.append(' ');
+        }
       }
     }
     int longest = 0;
