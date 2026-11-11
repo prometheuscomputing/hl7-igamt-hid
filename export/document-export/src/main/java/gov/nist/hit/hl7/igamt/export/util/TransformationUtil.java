@@ -19,6 +19,7 @@ import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.xml.transform.ErrorListener;
 import javax.xml.transform.Source;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
@@ -59,8 +60,37 @@ public class TransformationUtil {
         transformer.setParameter(param.getKey(), param.getValue());
       }
     }
-    transformer.transform(new StreamSource(tmpXmlFile), new StreamResult(tmpHtmlFile));
+    transformer.setErrorListener(STRICT);
+    try {
+      transformer.transform(new StreamSource(tmpXmlFile), new StreamResult(tmpHtmlFile));
+    } catch (TransformerException | RuntimeException failure) {
+      FileUtils.deleteQuietly(tmpHtmlFile);
+      throw failure;
+    } finally {
+      FileUtils.deleteQuietly(tmpXmlFile);
+    }
     return tmpHtmlFile;
   }
+
+  /**
+   * Xalan's default listener prints stylesheet errors and carries on, which yields a truncated
+   * document that still looks like a successful export. Fail instead.
+   */
+  private static final ErrorListener STRICT = new ErrorListener() {
+    @Override
+    public void warning(TransformerException exception) {
+      // warnings do not affect the output
+    }
+
+    @Override
+    public void error(TransformerException exception) throws TransformerException {
+      throw exception;
+    }
+
+    @Override
+    public void fatalError(TransformerException exception) throws TransformerException {
+      throw exception;
+    }
+  };
 
 }

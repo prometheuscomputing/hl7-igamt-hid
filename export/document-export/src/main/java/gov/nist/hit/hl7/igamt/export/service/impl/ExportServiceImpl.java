@@ -13,15 +13,10 @@
  */
 package gov.nist.hit.hl7.igamt.export.service.impl;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Scanner;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.io.FileUtils;
 import org.springframework.stereotype.Service;
@@ -29,7 +24,7 @@ import org.springframework.stereotype.Service;
 import gov.nist.hit.hl7.igamt.export.domain.ExportParameters;
 import gov.nist.hit.hl7.igamt.export.exception.ExportException;
 import gov.nist.hit.hl7.igamt.export.service.ExportService;
-import gov.nist.hit.hl7.igamt.export.util.HtmlUtil;
+import gov.nist.hit.hl7.igamt.export.util.ExportHtmlEnhancer;
 import gov.nist.hit.hl7.igamt.export.util.TransformationUtil;
 
 /**
@@ -39,32 +34,25 @@ import gov.nist.hit.hl7.igamt.export.util.TransformationUtil;
 @Service("exportService")
 public class ExportServiceImpl implements ExportService {
 
-  // private static String DOCUMENT_TITLE_IMPLEMENTATION_GUIDE = "Implementation Guide";
-  // private static String DOCUMENT_TITLE_DATATYPE_LIBRARY = "Datatype Library";
-  // private static String EXPORT_FORMAT_HTML = "html";
-  // private static String EXPORT_FORMAT_WORD = "word";
-  private static String GLOBAL_STYLESHEET = "/generalExport.xsl";
+  private static final String DEFAULT_STYLESHEET = "/IGDocumentExport.xsl";
 
   @Override
   public InputStream exportSerializedElementToHtml(String serializedElement, String xsltPath,
       ExportParameters exportParameters) throws ExportException {
+    File htmlFile = null;
     try {
-      File htmlFile = TransformationUtil.doTransformToTempHtml(serializedElement,
-          xsltPath != null ? xsltPath : GLOBAL_STYLESHEET, exportParameters);
-      InputStream htmlInputStream = FileUtils.openInputStream(htmlFile); 
-      return HtmlUtil.cleanHtml(htmlInputStream);
-//      return htmlInputStream;
-
+      htmlFile = TransformationUtil.doTransformToTempHtml(serializedElement,
+          xsltPath != null ? xsltPath : DEFAULT_STYLESHEET, exportParameters);
+      try (InputStream rawHtml = FileUtils.openInputStream(htmlFile)) {
+        String document = ExportHtmlEnhancer.enhance(rawHtml,
+            ExportHtmlEnhancer.Target.fromFormat(exportParameters.getTargetFormat()));
+        return new ByteArrayInputStream(document.getBytes(StandardCharsets.UTF_8));
+      }
     } catch (Exception exception) {
       throw new ExportException(exception);
+    } finally {
+      FileUtils.deleteQuietly(htmlFile);
     }
   }
-
-  public String convert(InputStream inputStream, Charset charset) throws IOException {
-		
-		try (Scanner scanner = new Scanner(inputStream, charset.name())) {
-			return scanner.useDelimiter("\\A").next();
-		}
-	}
 
 }

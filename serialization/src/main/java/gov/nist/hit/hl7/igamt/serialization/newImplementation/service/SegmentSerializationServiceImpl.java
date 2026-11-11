@@ -331,7 +331,7 @@ public class SegmentSerializationServiceImpl implements SegmentSerializationServ
               : ""));
       dynamicMappingElement.addAttribute(new Attribute("variesDatatypePath",
           dynamicMappingInfo.getVariesFieldId() != null
-          ? dynamicMappingInfo.getReferenceFieldId()
+          ? dynamicMappingInfo.getVariesFieldId()
               : ""));
       for (DynamicMappingItem dynamicMappingItem : dynamicMappingList) {
         if (dynamicMappingItem != null) {

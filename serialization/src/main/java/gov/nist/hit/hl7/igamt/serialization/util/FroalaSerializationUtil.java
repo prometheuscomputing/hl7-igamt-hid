@@ -62,7 +62,9 @@ public class FroalaSerializationUtil {
     input = input.replace("</p>", "</div>");
     // input = input.replace("&reg;","&amp;reg;");
     input = input.replace("&lsquo;", "&#39;");
-    input = input.replaceAll("[^\\p{Print}]", "?");
+    // Keep the author's text as written (accents, symbols, non-Latin scripts); only drop
+    // control characters, which XML cannot carry.
+    input = input.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]", "");
     Document doc = Jsoup.parse(input);
     Elements elements1 = doc.select("h1");
     elements1.tagName("p").attr("style",

@@ -68,7 +68,6 @@ public void setExcelContent(XSSFWorkbook excelContent) {
     this.fileName =
         documentTitle + "-" + documentKey  + "_" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + "."
             + exportFormat.getValue();
-    System.out.println("wqlo");
   }
 
   private String cleanDocumentTitle(String documentTitle) {

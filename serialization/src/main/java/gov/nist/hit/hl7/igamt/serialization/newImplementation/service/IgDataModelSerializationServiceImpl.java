@@ -121,11 +121,14 @@ public class IgDataModelSerializationServiceImpl implements IgDataModelSerializa
 	public Element serializeDocumentMetadata(DocumentMetadata metadata, DomainInfo domainInfo,
 			PublicationInfo publicationInfo, DocumentMetadataConfiguration documentMetadataConfiguration) throws IllegalStateException, IOException {
 		Element metadataElement = new Element("Metadata");
-		if(metadata.getCoverPicture() != null) {
+		// The picture is read once and tolerated when absent: a guide whose cover
+		// file is gone from storage still has to export.
+		String[] coverPicture = this.saveCoverPicture(metadata.getCoverPicture());
+		if(coverPicture != null) {
 			Element coverPictureElement = new Element("CoverPicture");
-			coverPictureElement.appendChild(this.saveCoverPicture(metadata.getCoverPicture()));
+			coverPictureElement.addAttribute(new Attribute("contentType", coverPicture[0]));
+			coverPictureElement.appendChild(coverPicture[1]);
 			metadataElement.appendChild(coverPictureElement);
-
 		}
 		metadataElement.addAttribute(new Attribute("topics", metadata.getTopics() != null ? metadata.getTopics() : ""));
 		metadataElement.addAttribute(new Attribute("description",
@@ -138,7 +141,7 @@ public class IgDataModelSerializationServiceImpl implements IgDataModelSerializa
 		.addAttribute(new Attribute("orgName", metadata.getOrgName() != null ? metadata.getOrgName() : ""));
 		metadataElement.addAttribute(new Attribute("title", metadata.getTitle() != null ? metadata.getTitle() : ""));
 		metadataElement.addAttribute(
-				new Attribute("coverPicture", metadata.getCoverPicture() != null ?  this.saveCoverPicture(metadata.getCoverPicture()) : ""));
+				new Attribute("coverPicture", coverPicture != null ? coverPicture[1] : ""));
 		if(metadata.getCustomAttributes() != null && !metadata.getCustomAttributes().isEmpty()) {
 			List<CustomAttribute> customAttributes = metadata.getCustomAttributes();
 			Element customAttributesElement = new Element("customAttributes");
@@ -179,17 +182,47 @@ public class IgDataModelSerializationServiceImpl implements IgDataModelSerializa
 	}
 
 
-	private String saveCoverPicture(String coverPictureUrl) throws IllegalStateException, IOException {
+	/**
+	 * Reads the cover picture from storage.
+	 *
+	 * @return {content type, base64 content}, or null when the guide has no cover
+	 *         picture or the file can no longer be read
+	 */
+	private String[] saveCoverPicture(String coverPictureUrl) {
 		// /api/storage/file?name=84ec6b5c-0fe8-466a-ac30-59d9b6a04ab5.png
-		String coverPictureName = coverPictureUrl.split("name=")[1];
-		GridFSFile gridFSFile = this.fileStorageService.findOneByFilename(coverPictureName);
-		String ctnType = gridFSFile.getMetadata().getString("_contentType");
-		InputStream inputStream = this.gridFsTemplate.getResource(gridFSFile).getInputStream();
-		byte[] sourceBytes = IOUtils.toByteArray(inputStream);
-		String encodedString = Base64.getEncoder().encodeToString(sourceBytes);
-		
-		return encodedString;
+		if (coverPictureUrl == null || !coverPictureUrl.contains("name=")) {
+			return null;
+		}
+		try {
+			String coverPictureName = coverPictureUrl.substring(coverPictureUrl.indexOf("name=") + "name=".length());
+			GridFSFile gridFSFile = this.fileStorageService.findOneByFilename(coverPictureName);
+			if (gridFSFile == null) {
+				return null;
 			}
+			String contentType = gridFSFile.getMetadata() != null ? gridFSFile.getMetadata().getString("_contentType") : null;
+			if (contentType == null || contentType.isEmpty()) {
+				String lower = coverPictureName.toLowerCase();
+				if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+					contentType = "image/jpeg";
+				} else if (lower.endsWith(".gif")) {
+					contentType = "image/gif";
+				} else if (lower.endsWith(".svg")) {
+					contentType = "image/svg+xml";
+				} else {
+					contentType = "image/png";
+				}
+			}
+			try (InputStream inputStream = this.gridFsTemplate.getResource(gridFSFile).getInputStream()) {
+				byte[] sourceBytes = IOUtils.toByteArray(inputStream);
+				if (sourceBytes.length == 0) {
+					return null;
+				}
+				return new String[] { contentType, Base64.getEncoder().encodeToString(sourceBytes) };
+			}
+		} catch (Exception e) {
+			return null;
+		}
+	}
 
 	public Element serializeAbstractDomain(AbstractDomain abstractDomain, Type type, int position, String title, AbstractDomainExportConfiguration abstractDomainExportConfiguration) {
 		Element element = getElement(type, position, abstractDomain.getId(), title);

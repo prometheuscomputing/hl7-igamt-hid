@@ -1,116 +1,50 @@
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-    
-        		
-    
-
-    <xsl:template match=".//Slicings" name="Slicings" mode="toc">
-                  <xsl:if test="count(./Slicings/Slicing) &gt; 0">
-    
-        <xsl:element name="span">
-            <xsl:element name="b">
-                <xsl:text>Slicing</xsl:text>
-            </xsl:element>
-        </xsl:element>
-                            </xsl:if>
-        
-                        <xsl:element name="br"/>
-        <xsl:for-each select=".//Slicing">
-                  
-        <xsl:element name="span">
-                <xsl:text>Type : </xsl:text>
-                <xsl:value-of select="@type" />
-        </xsl:element>
-                        <xsl:element name="br"/>
-        
-        <xsl:element name="span">
-                <xsl:text>Location : </xsl:text>
-                                <xsl:value-of select="concat(@path,'.',@name)" />          
-        </xsl:element>
-                        <xsl:element name="br"/>
-                        
-                         <xsl:element name="span">
-                <xsl:text>Default Element : </xsl:text>
-                                <xsl:value-of select="@element" />          
-        </xsl:element>
-                        <xsl:element name="br"/>
-                        
-                        
-        
-
-        <xsl:element name="table">
-            <xsl:attribute name="class">
-                <xsl:text>contentTable</xsl:text>
-            </xsl:attribute>
-             <xsl:element name="col">
-                <xsl:attribute name="width">
-                    <xsl:text>30%</xsl:text>
-                </xsl:attribute>
-            </xsl:element> 
-            <xsl:element name="col">
-                <xsl:attribute name="width">
-                    <xsl:text>35%</xsl:text>
-                </xsl:attribute>
-            </xsl:element>
-            <xsl:element name="col">
-                <xsl:attribute name="width">
-                    <xsl:text>35%</xsl:text>
-                </xsl:attribute>
-            </xsl:element>
-            <xsl:element name="thead">
-                <xsl:attribute name="class">
-                    <xsl:text>contentThead</xsl:text>
-                </xsl:attribute>
-                <xsl:element name="tr">
-                    <xsl:if test="./@type='OCCURRENCE'">
-                        <xsl:element name="th">
-                            <xsl:text>Occurence</xsl:text>
-                        </xsl:element>
-                    </xsl:if>
-                    <xsl:if test="./@type='ASSERTION'">
-                        <xsl:element name="th">
-                            <xsl:text>ASSERTION</xsl:text>
-                        </xsl:element>
-                    </xsl:if>
-                        <xsl:element name="th">
-                            <xsl:text>Flavor</xsl:text>
-                        </xsl:element>
-                        <xsl:element name="th">
-                            <xsl:text>Comments</xsl:text>
-                        </xsl:element>
-                    
-                </xsl:element>
-                <xsl:element name="tbody">
-                    <xsl:for-each select="./Slice">
-                        <xsl:element name="tr">
-                     
-                    <xsl:if test="../@type='OCCURRENCE'">
-                                <xsl:element name="td">
-                                    <xsl:value-of select="./@occurence"/>
-                                </xsl:element>
-                            </xsl:if>
-                    <xsl:if test="../@type='ASSERTION'">
-                                <xsl:element name="td">
-                                    <xsl:value-of select="@assertion"/>
-                                </xsl:element>
-                            </xsl:if>
-                            <xsl:element name="td">
-                                    <xsl:value-of select="@flavor"/>
-                                </xsl:element>
-                                <xsl:element name="td">
-                                    <xsl:value-of select="@comment"/>
-                                </xsl:element>
-                        </xsl:element>
-                    </xsl:for-each>
-                </xsl:element>
-            </xsl:element>
-        </xsl:element>
-                <xsl:element name="br"/>
-                
-                                    </xsl:for-each>
-              
-                
-                		
-
-    </xsl:template>
-
+	<!-- Slicing: which flavor applies to which occurrence (or under which assertion) of an element. -->
+	<xsl:template name="Slicings">
+		<xsl:if test="count(./Slicings/Slicing) &gt; 0">
+			<p class="ig-subhead">Slicing</p>
+			<xsl:for-each select="./Slicings/Slicing">
+				<p class="ig-caption">
+					<span class="ig-caption-code"><xsl:value-of select="concat(@path,'.',@name)"/></span>
+					<xsl:text> sliced by </xsl:text>
+					<xsl:choose>
+						<xsl:when test="@type='OCCURRENCE'">occurrence</xsl:when>
+						<xsl:otherwise>assertion</xsl:otherwise>
+					</xsl:choose>
+					<xsl:if test="normalize-space(@element)!=''">
+						<xsl:text>, default flavor </xsl:text>
+						<span class="ig-caption-code"><xsl:value-of select="@element"/></span>
+					</xsl:if>
+				</p>
+				<table class="contentTable">
+					<thead>
+						<tr>
+							<th>
+								<xsl:choose>
+									<xsl:when test="@type='OCCURRENCE'">Occurrence</xsl:when>
+									<xsl:otherwise>Assertion</xsl:otherwise>
+								</xsl:choose>
+							</th>
+							<th>Flavor</th>
+							<th>Comment</th>
+						</tr>
+					</thead>
+					<tbody>
+						<xsl:for-each select="./Slice">
+							<tr>
+								<td>
+									<xsl:choose>
+										<xsl:when test="../@type='OCCURRENCE'"><xsl:value-of select="@occurence"/></xsl:when>
+										<xsl:otherwise><xsl:value-of select="@assertion"/></xsl:otherwise>
+									</xsl:choose>
+								</td>
+								<td><xsl:value-of select="@flavor"/></td>
+								<td><xsl:value-of select="@comment"/></td>
+							</tr>
+						</xsl:for-each>
+					</tbody>
+				</table>
+			</xsl:for-each>
+		</xsl:if>
+	</xsl:template>
 </xsl:stylesheet>

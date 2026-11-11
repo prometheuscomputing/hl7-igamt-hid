@@ -29,10 +29,10 @@
                     <xsl:text>Location</xsl:text>
                 </xsl:element>
                 <xsl:element name="th">
-                    <xsl:text>TrueUsage</xsl:text>
+                    <xsl:text>True usage</xsl:text>
                 </xsl:element>
                 <xsl:element name="th">
-                    <xsl:text>FalseUsage</xsl:text>
+                    <xsl:text>False usage</xsl:text>
                 </xsl:element>
                 <xsl:element name="th">
                     <xsl:text>Description</xsl:text>

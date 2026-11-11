@@ -1,0 +1,188 @@
+package gov.nist.hit.hl7.igamt.export.util;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
+
+import javax.xml.transform.TransformerException;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.docx4j.XmlUtils;
+import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import gov.nist.hit.hl7.igamt.common.base.domain.DocumentMetadata;
+import gov.nist.hit.hl7.igamt.common.base.domain.Type;
+import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportConfiguration;
+import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportType;
+import gov.nist.hit.hl7.igamt.export.domain.ExportFormat;
+import gov.nist.hit.hl7.igamt.export.domain.ExportParameters;
+import gov.nist.hit.hl7.igamt.export.domain.ExportedFile;
+import gov.nist.hit.hl7.igamt.export.service.impl.ExportServiceImpl;
+
+/**
+ * Runs the real stylesheets and post-processing on a small serialized implementation guide
+ * (a conformance profile with co-constraints and slicing, segments, datatypes, value sets,
+ * a profile component and narrative sections).
+ */
+public class ExportPipelineTest {
+
+  private static final String TITLE = "HL7 Version 2.5.1 Implementation Guide: Immunization Messaging (Export Showcase)";
+
+  private static String xml;
+  private static Document html;
+
+  @BeforeClass
+  public static void exportOnce() throws Exception {
+    try (InputStream in = ExportPipelineTest.class.getResourceAsStream("/export/sample-ig.xml")) {
+      xml = IOUtils.toString(in, StandardCharsets.UTF_8);
+    }
+    html = Jsoup.parse(export("html"));
+  }
+
+  private static String export(String format) throws Exception {
+    ExportConfiguration configuration = ExportConfiguration.getBasicExportConfiguration(false, ExportType.IGDOCUMENT);
+    ExportParameters parameters = new ExportParameters(false, true, format, TITLE, null, configuration,
+        configuration.getExportFontConfiguration(), "test", Type.IGDOCUMENT);
+    try (InputStream in = new ExportServiceImpl().exportSerializedElementToHtml(xml, null, parameters)) {
+      return IOUtils.toString(in, StandardCharsets.UTF_8);
+    }
+  }
+
+  @Test
+  public void htmlIsOneSelfContainedFile() {
+    assertThat(html.select("link[rel=stylesheet], script[src], img[src^=http]")).isEmpty();
+    assertThat(html.select("head style").html()).contains("--ig-accent");
+    assertThat(html.select("body script").html()).contains("ig-search");
+  }
+
+  @Test
+  public void htmlHasCoverNavigationAndSearch() {
+    assertThat(html.title()).isEqualTo(TITLE);
+    assertThat(html.select("#ig-cover .ig-title").text()).isEqualTo(TITLE);
+    assertThat(html.select("#ig-cover img.ig-cover-picture").attr("src")).startsWith("data:image/png;base64,");
+    assertThat(html.select("#ig-cover .ig-fact").size()).isGreaterThan(2);
+    assertThat(html.select("#ig-sidebar ul.ig-toc li").size()).isGreaterThan(10);
+    assertThat(html.select("#ig-search")).hasSize(1);
+    assertThat(html.select("#ig-theme")).hasSize(1);
+  }
+
+  @Test
+  public void headingsAreNumberedInDocumentOrder() {
+    assertThat(html.select("#ig-content .ig-heading .ig-num").first().text()).isEqualTo("1");
+    assertThat(texts(html.select("#ig-content .ig-heading .ig-num"))).contains("1.1", "2", "2.1");
+  }
+
+  @Test
+  public void everyInternalLinkHasATarget() {
+    Set<String> ids = new HashSet<String>();
+    for (Element element : html.select("[id]")) {
+      ids.add(element.id());
+    }
+    assertThat(html.select("a.ig-ref").size()).isGreaterThan(5);
+    for (Element anchor : html.select("a[href^=#]")) {
+      assertThat(ids).as("target of %s", anchor.outerHtml()).contains(anchor.attr("href").substring(1));
+    }
+  }
+
+  @Test
+  public void resourcesAreSectionsWithTypedTables() {
+    assertThat(html.select("section.ig-resource[data-kind=Segment]").size()).isEqualTo(3);
+    assertThat(html.select("section.ig-resource[data-kind=ConformanceProfile]").size()).isEqualTo(1);
+    assertThat(html.select("table.ig-structure tr.ig-group-begin")).isNotEmpty();
+    assertThat(html.select("td.c-usage span.ig-usage.u-r")).isNotEmpty();
+    assertThat(html.select("td.c-usage span.ig-usage-conditional")).isNotEmpty();
+    assertThat(html.select("table.ig-table col, table.ig-table[summary]")).isEmpty();
+  }
+
+  @Test
+  public void authorNotesKeepTheirText() {
+    assertThat(html.select(".ig-note").size()).isGreaterThan(0);
+    for (Element note : html.select(".ig-note")) {
+      assertThat(note.select(".ig-note-body").text()).as(note.select(".ig-subhead").text()).isNotEmpty();
+    }
+  }
+
+  @Test
+  public void coConstraintsAreOneFlatTable() {
+    Element grid = html.select(".ig-coconstraint table.ig-grid").first();
+    assertThat(grid).isNotNull();
+    assertThat(grid.select("table")).hasSize(1);
+    assertThat(grid.select("span.cc-code")).isNotEmpty();
+    assertThat(grid.select("tr tr")).isEmpty();
+    assertThat(html.select(".ig-coconstraint .ig-caption").first().text()).startsWith("Segment ");
+  }
+
+  @Test
+  public void slicingCommentsAndDynamicMappingAreTables() {
+    assertThat(texts(html.select("p.ig-subhead"))).contains("Slicing", "Comments", "Definition texts", "Dynamic mapping", "Co-constraints");
+    assertThat(html.select("table.ig-annotations")).isNotEmpty();
+    assertThat(html.select("p.ig-caption").text()).contains("sliced by occurrence").contains("is selected by the value of");
+  }
+
+  @Test
+  public void narrativeKeepsNonAsciiText() {
+    assertThat(html.text()).contains("café");
+  }
+
+  @Test
+  public void wordDocumentHasStylesContentsAndValidBookmarks() throws Exception {
+    DocumentMetadata metadata = new DocumentMetadata();
+    metadata.setTitle(TITLE);
+    metadata.setOrgName("Example Public Health Informatics Consortium");
+    InputStream wordHtml = IOUtils.toInputStream(export("docx"), StandardCharsets.UTF_8);
+    ExportedFile source = new ExportedFile(wordHtml, TITLE, "id", ExportFormat.WORD);
+    ExportedFile word = WordUtil.convertHtmlToWord(source, metadata, new Date(), "2.5.1");
+
+    File docx = File.createTempFile("export-test", ".docx");
+    try {
+      try (InputStream in = word.getContent()) {
+        FileUtils.copyInputStreamToFile(in, docx);
+      }
+      WordprocessingMLPackage wordPackage = WordprocessingMLPackage.load(docx);
+      String body = XmlUtils.marshaltoString(wordPackage.getMainDocumentPart().getJaxbElement(), true, false);
+
+      assertThat(body).contains("w:val=\"Title\"").contains("w:val=\"Heading1\"").contains("w:val=\"Heading2\"");
+      assertThat(body).contains("w:val=\"IgTable\"").contains("w:val=\"IgGridTable\"").contains("w:val=\"TOCHeading\"");
+      assertThat(body).contains("TOC \\o").doesNotContain(WordUtil.TOC_MARKER);
+      assertThat(body).contains("café");
+      assertThat(body).doesNotContainPattern("<w:bookmarkStart[^>]*w:name=\"[^A-Za-z_]");
+      assertThat(wordPackage.getMainDocumentPart().getStyleDefinitionsPart().getJaxbElement().getStyle().size()).isGreaterThan(20);
+      assertThat(wordPackage.getMainDocumentPart().getNumberingDefinitionsPart()).isNotNull();
+      assertThat(wordPackage.getDocumentModel().getSections().get(0).getHeaderFooterPolicy().getDefaultHeader()).isNotNull();
+      assertThat(wordPackage.getDocumentModel().getSections().get(0).getHeaderFooterPolicy().getDefaultFooter()).isNotNull();
+    } finally {
+      FileUtils.deleteQuietly(docx);
+    }
+  }
+
+  @Test
+  public void stylesheetFailureStopsTheExport() {
+    ExportConfiguration configuration = ExportConfiguration.getBasicExportConfiguration(false, ExportType.IGDOCUMENT);
+    final ExportParameters parameters = new ExportParameters(false, true, "html", TITLE, null, configuration,
+        configuration.getExportFontConfiguration(), "test", Type.IGDOCUMENT);
+    assertThatThrownBy(() -> TransformationUtil.doTransformToTempHtml("<Document/>", "/export/failing.xsl", parameters))
+        .isInstanceOf(TransformerException.class);
+  }
+
+  /** Text of each element (jsoup 1.9 has no eachText). */
+  private static java.util.List<String> texts(org.jsoup.select.Elements elements) {
+    java.util.List<String> texts = new java.util.ArrayList<String>();
+    for (Element element : elements) {
+      texts.add(element.text());
+    }
+    return texts;
+  }
+}

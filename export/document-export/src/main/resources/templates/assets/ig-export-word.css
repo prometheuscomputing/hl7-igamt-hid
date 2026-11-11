@@ -1,0 +1,62 @@
+/*
+ * Stylesheet of the Word export. The Word importer reads it to decide the formatting it cannot get
+ * from a Word style: it understands CSS 2.1 only, and of that mostly fonts, colors, backgrounds,
+ * alignment and spacing. Structure (headings, tables, cover) comes from word-styles.xml.
+ */
+body { font-family: Calibri, Arial, sans-serif; font-size: 10.5pt; color: #15212b; }
+p { margin: 0 0 6pt 0; }
+div { margin: 0; }
+td p, th p, li p { margin: 0; }
+h1 { font-size: 22pt; }
+h2 { font-size: 16pt; }
+h3 { font-size: 13pt; }
+h4 { font-size: 11.5pt; }
+h5, h6 { font-size: 10.5pt; }
+small, sub, sup { font-size: 8pt; }
+big { font-size: 12pt; }
+a { color: #0a5c78; text-decoration: none; }
+b, strong { font-weight: bold; }
+
+table { width: 100%; border-collapse: collapse; }
+td, th { font-size: 9pt; text-align: left; vertical-align: top; }
+th { font-weight: bold; }
+
+.c-seq, .c-path, .c-card, .c-length, .c-datatype, .c-valueset, .c-flavor, .c-code, .c-codesystem,
+.ig-seg, .ig-bracket, .ig-group-name { font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; }
+th.c-seq, th.c-path, th.c-card, th.c-length, th.c-datatype, th.c-valueset, th.c-flavor, th.c-code, th.c-codesystem { font-family: Calibri, Arial, sans-serif; font-size: 8.5pt; }
+td.c-code, .ig-seg, .ig-group-name { font-weight: bold; }
+.ig-group-word { color: #6d7b87; }
+tr.ig-group-end td { color: #6d7b87; font-size: 8pt; }
+tr.ig-group-end .ig-group-name { font-weight: normal; }
+.ig-bracket { color: #0a5c78; font-weight: bold; }
+td.ig-na, th.ig-na { background-color: #eef1f3; }
+
+.ig-usage { font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; font-weight: bold; }
+.u-r { color: #0a5c78; }
+.u-re { color: #0a5c78; }
+.u-c, .u-ce, .u-cab { color: #8a5400; }
+.u-o, .u-p { color: #45535f; font-weight: normal; }
+.u-x, .u-e { color: #9b2c2c; }
+.u-b, .u-w, .u-ix, .u-d { color: #6d7b87; font-weight: normal; }
+.ig-usage-branches { font-weight: normal; }
+.ig-strength.s-required { color: #07475d; font-weight: bold; }
+
+.fr-view p, .fr-view div { margin-bottom: 6pt; }
+.fr-view td, .fr-view th { font-size: 9pt; }
+.fr-view th { background-color: #f4f6f8; }
+.ig-nh { font-weight: bold; margin-top: 10pt; margin-bottom: 4pt; }
+.ig-nh1 { font-size: 14pt; }
+.ig-nh2 { font-size: 12.5pt; }
+.ig-nh3 { font-size: 11.5pt; }
+.ig-nh4 { font-size: 10.5pt; color: #45535f; }
+pre, .codeParagraph, .fr-exmsg-body { font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; }
+code, kbd, samp { font-family: Consolas, "Courier New", monospace; font-size: 9pt; }
+blockquote { margin-left: 18pt; color: #45535f; }
+.fr-exmsg-link { font-weight: bold; }
+.fr-exmsg-file { font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; color: #6d7b87; }
+.fr-exmsg-warning { color: #9b2c2c; }
+.masterDatatypeLabel { color: #9b2c2c; font-weight: bold; }
+.requiredDTM { background-color: #e7f1f4; }
+.lightGreyCell { background-color: #f4f6f8; }
+.alignCenter { text-align: center; }
+.ig-empty { color: #6d7b87; font-style: italic; font-size: 9.5pt; }

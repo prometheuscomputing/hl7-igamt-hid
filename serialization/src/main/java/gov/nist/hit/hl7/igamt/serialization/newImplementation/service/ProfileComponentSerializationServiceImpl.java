@@ -445,7 +445,8 @@ public class ProfileComponentSerializationServiceImpl implements ProfileComponen
 		dynamicMappingItem.addAttribute(
 				new Attribute("datatypeName", pcDynamicMappingItem.getDatatypeName() != null ? pcDynamicMappingItem.getDatatypeName() : "")
 		);
-		Datatype datatype = datatypeService.findById(pcDynamicMappingItem.getFlavorId());
+		// A removed mapping has no flavor to look up.
+		Datatype datatype = pcDynamicMappingItem.getFlavorId() != null ? datatypeService.findById(pcDynamicMappingItem.getFlavorId()) : null;
 		dynamicMappingItem.addAttribute(
 				new Attribute("flavor", datatype != null ? datatype.getLabel() : "")
 		);
