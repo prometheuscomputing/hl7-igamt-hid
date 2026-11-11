@@ -419,7 +419,11 @@ var IgExportText = (function () {
       window.clearTimeout(previewLeave);
       if (link === previewLink) { return; }
       window.clearTimeout(previewTimer);
-      previewTimer = window.setTimeout(function () { showPreview(link); }, 280);
+      previewTimer = window.setTimeout(function () {
+        showPreview(link);
+        // nothing to show for this link: the card of the previous one does not stay under it
+        if (previewLink && previewLink !== link) { hidePreview(); }
+      }, 280);
     });
     document.addEventListener('mouseout', function (event) {
       var link = referenceOf(event);
@@ -431,7 +435,10 @@ var IgExportText = (function () {
       if (previewLink) { previewLeave = window.setTimeout(hidePreview, 160); }
     });
     preview.addEventListener('mouseenter', function () { window.clearTimeout(previewLeave); });
-    preview.addEventListener('mouseleave', hidePreview);
+    preview.addEventListener('mouseleave', function () {
+      window.clearTimeout(previewLeave);
+      previewLeave = window.setTimeout(hidePreview, 160);
+    });
   }
   document.addEventListener('focusin', function (event) {
     var link = referenceOf(event);
@@ -534,18 +541,23 @@ var IgExportText = (function () {
   /**
    * Links to the segments a profile has at a path such as "ORDER.OBSERVATION.OBX", read from its
    * structure table. When the path is not found there, every segment the profile links to.
+   * The path only has names: two segments of the same name in one group are both returned.
    */
   function segmentsAt(profile, path) {
     var found = [];
     var groups = [];
+    var matched = false;
     var structure = profile.querySelector('table.ig-structure');
     each(structure && structure.tBodies.length ? structure.tBodies[0].rows : [], function (row) {
       if (row.classList.contains('ig-group-begin')) { groups.push(text(row.querySelector('td.c-name')).replace(/^Group\s+/, '')); return; }
       if (row.classList.contains('ig-group-end')) { groups.pop(); return; }
+      if (!row.querySelector('td.c-segment') || groups.concat([text(row.querySelector('td.c-segment'))]).join('.') !== path) { return; }
+      matched = true;
+      // a segment that is not part of this export has no link, and then no field row to show either
       var link = row.querySelector('td.c-flavor a.ig-ref');
-      if (link && groups.concat([text(row.querySelector('td.c-segment'))]).join('.') === path) { found.push(link.getAttribute('href')); }
+      if (link) { found.push(link.getAttribute('href')); }
     });
-    if (!found.length) {
+    if (!matched) {
       each(profile.querySelectorAll('a.ig-ref'), function (link) { if (!link.closest('.ig-used')) { found.push(link.getAttribute('href')); } });
     }
     return found;
@@ -694,7 +706,8 @@ var IgExportText = (function () {
     panel.hidden = true;
     body.classList.remove('ig-panel-open');
     panelBody.innerHTML = '';
-    if (restore && document.body.contains(row)) { row.focus(); }
+    // without scrolling: the reader may have moved on in the document while the panel was open
+    if (restore && document.body.contains(row)) { row.focus({ preventScroll: true }); }
   }
   /** byKeyboard: focus moves into the panel, and comes back to the row when it closes. */
   function openPanel(row, byKeyboard) {

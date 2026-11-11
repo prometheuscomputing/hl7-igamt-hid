@@ -427,6 +427,24 @@ module.exports = async (page) => {
   focus = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, onRow: document.activeElement.id, hash: decodeURIComponent(location.hash.slice(1)), scrollY: window.scrollY }));
   if (!focus.hidden || !focus.onRow || focus.onRow !== focus.hash || Math.abs(focus.scrollY - before) > 4) fail('known', 'closing after a where-used link: ' + JSON.stringify(focus) + ' scroll before ' + before);
 
+  // the reader scrolled on while the panel was open: closing does not pull the page back to the row
+  for (const way of ['button', 'Escape']) {
+    await page.evaluate((find) => {
+      const row = eval(find)('PID_IZ').querySelector('tr.ig-field-row');
+      row.scrollIntoView({ block: 'center' });
+      row.click();
+    }, sectionOf);
+    await page.waitForTimeout(200);
+    await page.mouse.move(400, 500);
+    await page.mouse.wheel(0, 4000);
+    await page.waitForTimeout(400);
+    const away = await page.evaluate(() => window.scrollY);
+    if (way === 'button') { await page.locator('.ig-panel-close').click(); } else { await page.locator('.ig-panel-close').focus(); await page.keyboard.press('Escape'); }
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() => ({ hidden: document.getElementById('ig-panel').hidden, scrollY: window.scrollY, onRow: document.activeElement.classList.contains('ig-field-row') }));
+    if (!after.hidden || !after.onRow || Math.abs(after.scrollY - away) > 4) fail('known', 'closing by ' + way + ' after scrolling away: ' + JSON.stringify(after) + ', was at ' + away);
+  }
+
   // search with the keyboard: focus in the panel, and the same result opens it again after it was closed
   for (let round = 0; round < 2; round++) {
     await page.fill('#ig-search', 'PID-3');
@@ -463,6 +481,25 @@ module.exports = async (page) => {
   if (!flavors.iz || flavors.iz.length !== 2 || flavors.iz.some((x) => !x.uses || x.profile !== 'Z22')) fail('known', 'OBX_IZ-3 co-constraints: ' + JSON.stringify(flavors.iz));
   if (flavors.ref && (flavors.ref.length !== 2 || flavors.ref.some((x) => !x.uses || x.profile !== 'Z22_Refusal'))) fail('known', 'OBX_REF_1-3 lists co-constraints of profiles that do not use it: ' + JSON.stringify(flavors.ref));
   report.coConstraintFlavors = { OBX_IZ: flavors.iz && flavors.iz.length, OBX_REF_1: flavors.ref && flavors.ref.map((x) => x.profile) };
+
+  // a profile whose segment at that path is not linked (left out of the export) lends its tables to no other flavor
+  const unlinked = await page.evaluate((find) => {
+    const profile = eval(find)('Z22');
+    const cell = Array.prototype.find.call(profile.querySelectorAll('table.ig-structure td.c-flavor'), (td) => td.closest('tr').querySelector('td.c-segment').textContent.trim() === 'OBX');
+    const saved = cell.innerHTML;
+    cell.textContent = cell.textContent;
+    const count = (code) => {
+      const row = Array.prototype.find.call(eval(find)(code).querySelectorAll('tr.ig-field-row'), (r) => r.querySelector('td.c-seq').textContent.trim() === '3');
+      row.click();
+      const items = Array.prototype.map.call(document.querySelectorAll('#ig-panel .ig-panel-list li a'), (a) => a.textContent);
+      document.querySelector('.ig-panel-close').click();
+      return items;
+    };
+    const out = { iz: count('OBX_IZ'), ref: count('OBX_REF_1') };
+    cell.innerHTML = saved;
+    return out;
+  }, sectionOf);
+  if (unlinked.iz.length !== 0 || unlinked.ref.some((code) => code !== 'Z22_Refusal')) fail('known', 'co-constraints of an unlinked segment are credited elsewhere: ' + JSON.stringify(unlinked));
 
   // the parts of a date format are not called components
   const part = await page.evaluate((find) => {
