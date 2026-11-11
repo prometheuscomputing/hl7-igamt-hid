@@ -240,9 +240,13 @@
         var name = row.querySelector('td.c-name');
         if (!seq || !name || !name.textContent.trim()) { return; }
         if (!row.id) { row.id = section.querySelector(':scope > .ig-heading').id + '-r' + (position + 1); }
+        var separator = kind === 'Segment' ? '-' : '.';
+        var base = owner.split('_')[0];
         entries.push({
           kind: kind === 'Segment' ? 'Field' : 'Component',
-          code: owner + (kind === 'Segment' ? '-' : '.') + seq.textContent.trim(),
+          // a flavor is also found under the name of its base: "PID-3" finds PID_IZ-3
+          alias: base !== owner ? base + separator + seq.textContent.trim() : '',
+          code: owner + separator + seq.textContent.trim(),
           title: name.textContent.trim(),
           context: owner,
           href: '#' + row.id,
@@ -251,7 +255,8 @@
       });
     });
     entries.forEach(function (entry) {
-      entry.haystack = (entry.code + ' ' + entry.title).toLowerCase();
+      entry.haystack = (entry.code + ' ' + (entry.alias || '') + ' ' + entry.title).toLowerCase();
+      entry.aliasLower = (entry.alias || '').toLowerCase();
       entry.codeLower = entry.code.toLowerCase();
     });
   }
@@ -280,7 +285,7 @@
       for (var t = 0; t < terms.length; t++) { if (entry.haystack.indexOf(terms[t]) === -1) { ok = false; break; } }
       if (!ok) { continue; }
       var score = entry.weight;
-      if (entry.codeLower === terms[0]) { score += 20; } else if (entry.codeLower.indexOf(terms[0]) === 0) { score += 10; }
+      if (entry.codeLower === terms[0] || entry.aliasLower === terms[0]) { score += 20; } else if (entry.codeLower.indexOf(terms[0]) === 0) { score += 10; }
       if (entry.title.toLowerCase().indexOf(terms[0]) === 0) { score += 4; }
       scored.push({ entry: entry, score: score, order: i });
     }
@@ -292,7 +297,7 @@
     } else {
       resultsBox.innerHTML = scored.map(function (item) {
         var entry = item.entry;
-        return '<a class="ig-result" href="' + entry.href + '">' +
+        return '<a class="ig-result" href="' + escapeHtml(entry.href) + '">' +
           '<span class="ig-result-kind">' + escapeHtml(entry.kind) + '</span>' +
           '<span class="ig-result-title">' + (entry.code ? '<code>' + highlight(entry.code, terms) + '</code> ' : '') + highlight(entry.title, terms) + '</span>' +
           '<span class="ig-result-context">' + escapeHtml(entry.context) + '</span></a>';

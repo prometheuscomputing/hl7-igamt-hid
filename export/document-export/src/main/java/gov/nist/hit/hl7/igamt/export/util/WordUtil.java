@@ -247,7 +247,7 @@ public class WordUtil {
     }
     content.remove(index);
 
-    List<String> entries = new ArrayList<String>();
+    List<String[]> entries = new ArrayList<String[]>();
     int[] counters = new int[TOC_DEPTH + 1];
     int generated = 0;
     for (Object item : content) {
@@ -281,9 +281,10 @@ public class WordUtil {
       for (int i = 1; i <= level; i++) {
         number.append(i > 1 ? "." : "").append(Math.max(counters[i], 1));
       }
-      entries.add("<w:pPr><w:pStyle w:val=\"TOC" + level + "\"/></w:pPr>%s<w:hyperlink w:anchor=\"" + bookmark + "\" w:history=\"1\">"
+      // [paragraph properties, runs]: the field opening goes between the two on the first entry
+      entries.add(new String[] {"<w:pPr><w:pStyle w:val=\"TOC" + level + "\"/></w:pPr>", "<w:hyperlink w:anchor=\"" + bookmark + "\" w:history=\"1\">"
           + "<w:r><w:t xml:space=\"preserve\">" + number + "</w:t></w:r><w:r><w:tab/></w:r>"
-          + "<w:r><w:t xml:space=\"preserve\">" + escape(text) + "</w:t></w:r></w:hyperlink>");
+          + "<w:r><w:t xml:space=\"preserve\">" + escape(text) + "</w:t></w:r></w:hyperlink>"});
     }
     if (entries.isEmpty()) {
       return;
@@ -294,7 +295,7 @@ public class WordUtil {
     for (int i = 0; i < entries.size(); i++) {
       String fieldStart = i > 0 ? "" : "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> "
           + TOC_INSTRUCTION + "</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>";
-      toc.add(XmlUtils.unmarshalString("<w:p " + WORD_NAMESPACE + ">" + String.format(entries.get(i).replace("%", "%%").replace("%%s", "%s"), fieldStart)
+      toc.add(XmlUtils.unmarshalString("<w:p " + WORD_NAMESPACE + ">" + entries.get(i)[0] + fieldStart + entries.get(i)[1]
           + "</w:p>"));
     }
     toc.add(XmlUtils.unmarshalString("<w:p " + WORD_NAMESPACE + "><w:pPr><w:spacing w:after=\"0\"/></w:pPr>"

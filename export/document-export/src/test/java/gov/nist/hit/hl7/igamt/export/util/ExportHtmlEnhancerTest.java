@@ -138,6 +138,53 @@ public class ExportHtmlEnhancerTest {
     assertThat(doc.select("p.Title").text()).isEqualTo("Guide");
   }
 
+  @Test
+  public void shortLabelledValuesKeepLinksAndPictures() throws IOException {
+    String content = "<h1 id=\"a\" data-kind=\"TEXT\">A</h1>"
+        + "<b>Reference : </b><a href=\"https://example.org/spec\">the spec</a><br/>"
+        + "<b>Logo : </b><img src=\"data:image/png;base64,AAAA\" alt=\"logo\"/><br/>"
+        + "Plain <i>italic</i> and <a href=\"https://example.org\">link</a> tail";
+    Document doc = enhance(content, Target.HTML);
+    assertThat(doc.select("dl.ig-meta dd a[href=https://example.org/spec]").text()).isEqualTo("the spec");
+    assertThat(doc.select("#ig-content img[alt=logo]")).hasSize(1);
+    assertThat(doc.select("#ig-content p").last().html()).contains("<i>italic</i>").contains("tail");
+    assertThat(doc.select("#ig-content p").last().text()).isEqualTo("Plain italic and link tail");
+  }
+
+  @Test
+  public void embeddedPageFurnitureDoesNotBecomeSections() throws IOException {
+    String content = "<h1 id=\"dts\" data-kind=\"DATATYPEREGISTRY\">Data Types</h1>"
+        + "<h2 id=\"hd\" data-kind=\"Datatype\" data-code=\"HD_01\"><span class=\"masterDatatypeLabel\">MAS</span> - HD_01-Hierarchic Designator</h2>"
+        + "<style>table, th, td { border: 2px solid black; }</style>"
+        + "<center><table width=\"800\"><tr><td><div align=\"center\"><h2><u><b>HD_01 banner</b></u></h2></div></td></tr></table></center>"
+        + "<table><thead><tr><th>Seq</th><th>Usage</th></tr></thead><tbody><tr><td>1</td><td>R</td></tr></tbody></table>";
+    Document doc = enhance(content, Target.HTML);
+    assertThat(doc.select("body style")).isEmpty();
+    assertThat(doc.select("#ig-sidebar .ig-toc a")).hasSize(2);
+    assertThat(doc.select(".ig-inventory").text()).contains("1").doesNotContain("2");
+    assertThat(doc.select("#hd .ig-code").text()).isEqualTo("HD_01");
+    assertThat(doc.select("#hd .ig-rname").text()).isEqualTo("Hierarchic Designator");
+    assertThat(texts(doc.select("p.ig-subhead"))).contains("HD_01 banner");
+  }
+
+  @Test
+  public void wordBookmarksStayUniqueAndPreKeepsItsLines() throws IOException {
+    String longId = "0123456789012345678901234567890123456789";
+    String content = "<h1 id=\"a-b\" data-kind=\"TEXT\">One</h1><h1 id=\"a_b\" data-kind=\"TEXT\">Two</h1>"
+        + "<h1 id=\"" + longId + "X\" data-kind=\"TEXT\">Three</h1><h1 id=\"" + longId + "Y\" data-kind=\"TEXT\">Four</h1>"
+        + "<div class=\"ig-narrative\"><pre>MSH|a\n  PID|b</pre></div>";
+    Document doc = enhance(content, Target.WORD);
+    java.util.Set<String> ids = new java.util.HashSet<String>();
+    for (Element element : doc.select("[id]")) {
+      assertThat(ids.add(element.id())).as("duplicate id %s", element.id()).isTrue();
+      assertThat(element.id().length()).isLessThanOrEqualTo(40);
+    }
+    assertThat(ids).contains("ig_a_b", "ig_a_b_2");
+    Element code = doc.select("p.IgCodeBlock").first();
+    assertThat(code.select("br")).hasSize(1);
+    assertThat(code.text()).contains("MSH|a").contains("PID|b");
+  }
+
   /** Text of each element (jsoup 1.9 has no eachText). */
   private static java.util.List<String> texts(org.jsoup.select.Elements elements) {
     java.util.List<String> texts = new java.util.ArrayList<String>();

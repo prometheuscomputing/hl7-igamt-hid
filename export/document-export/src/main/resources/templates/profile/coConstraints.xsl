@@ -5,8 +5,9 @@
 			<p class="ig-subhead">Co-constraints</p>
 			<xsl:for-each select="./coConstraintBindingElement">
 				<xsl:variable name="context" select="normalize-space(./coConstraintContext)"/>
-				<xsl:variable name="segment" select="normalize-space(./coConstraintBindingSegmentElement/coConstraintSegmentName)"/>
-				<xsl:for-each select="./coConstraintBindingSegmentElement/coConstraintTableConditionalBindingElement">
+				<xsl:for-each select="./coConstraintBindingSegmentElement">
+				<xsl:variable name="segment" select="normalize-space(./coConstraintSegmentName)"/>
+				<xsl:for-each select="./coConstraintTableConditionalBindingElement">
 					<div class="ig-coconstraint">
 						<!-- differential export: the whole table was added or removed -->
 						<xsl:if test="./@background">
@@ -37,6 +38,7 @@
 						</xsl:if>
 						<xsl:copy-of select="./coConstraintsTable/coconstraints/table"/>
 					</div>
+				</xsl:for-each>
 				</xsl:for-each>
 			</xsl:for-each>
 		</xsl:if>

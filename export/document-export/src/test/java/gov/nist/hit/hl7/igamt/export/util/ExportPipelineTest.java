@@ -142,7 +142,10 @@ public class ExportPipelineTest {
     DocumentMetadata metadata = new DocumentMetadata();
     metadata.setTitle(TITLE);
     metadata.setOrgName("Example Public Health Informatics Consortium");
-    InputStream wordHtml = IOUtils.toInputStream(export("docx"), StandardCharsets.UTF_8);
+    // a title with a format specifier used to break the table of contents
+    String wordSource = export("docx").replaceFirst(">Introduction<", ">Introduction 100%s sure<");
+    assertThat(wordSource).contains("100%s sure");
+    InputStream wordHtml = IOUtils.toInputStream(wordSource, StandardCharsets.UTF_8);
     ExportedFile source = new ExportedFile(wordHtml, TITLE, "id", ExportFormat.WORD);
     ExportedFile word = WordUtil.convertHtmlToWord(source, metadata, new Date(), "2.5.1");
 
@@ -159,6 +162,13 @@ public class ExportPipelineTest {
       assertThat(body).contains("TOC \\o").doesNotContain(WordUtil.TOC_MARKER);
       assertThat(body).contains("café");
       assertThat(body).doesNotContainPattern("<w:bookmarkStart[^>]*w:name=\"[^A-Za-z_]");
+      assertThat(body).contains("100%s sure");
+      java.util.regex.Matcher names = java.util.regex.Pattern.compile("<w:bookmarkStart[^>]*w:name=\"([^\"]+)\"").matcher(body);
+      Set<String> seen = new HashSet<String>();
+      while (names.find()) {
+        assertThat(seen.add(names.group(1))).as("duplicate bookmark %s", names.group(1)).isTrue();
+      }
+      assertThat(seen.size()).isGreaterThan(10);
       assertThat(wordPackage.getMainDocumentPart().getStyleDefinitionsPart().getJaxbElement().getStyle().size()).isGreaterThan(20);
       assertThat(wordPackage.getMainDocumentPart().getNumberingDefinitionsPart()).isNotNull();
       assertThat(wordPackage.getDocumentModel().getSections().get(0).getHeaderFooterPolicy().getDefaultHeader()).isNotNull();

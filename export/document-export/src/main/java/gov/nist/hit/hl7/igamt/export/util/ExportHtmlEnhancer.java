@@ -170,6 +170,7 @@ public class ExportHtmlEnhancer {
   }
 
   private void run() {
+    tidyEmbeddedFragments();
     normalizeHeadings();
     normalizeNarratives();
     flattenWrappers(content);
@@ -189,6 +190,41 @@ public class ExportHtmlEnhancer {
   // ---------------------------------------------------------------- headings
 
   /** Older templates still write {@code <h3><u id="..." class="section3">title</u></h3>}. */
+  /**
+   * Some templates (datatype library tables) emit a small page of their own: a style block and a
+   * one-cell banner table holding a heading. Keep the content, drop the page furniture.
+   */
+  private void tidyEmbeddedFragments() {
+    doc.body().select("style").remove();
+    for (Element center : content.select("center")) {
+      if (!isInNarrative(center)) {
+        center.unwrap();
+      }
+    }
+    for (Element heading : content.select("table h1, table h2, table h3, table h4, table h5, table h6")) {
+      if (isInNarrative(heading)) {
+        continue;
+      }
+      String title = heading.text().trim();
+      Element table = heading.parent();
+      while (table != null && !table.tagName().equals("table")) {
+        table = table.parent();
+      }
+      Element banner = doc.createElement("p").addClass("ig-subhead").text(title);
+      if (table != null && table.select("td, th").size() == 1) {
+        if (title.isEmpty()) {
+          table.remove();
+        } else {
+          table.replaceWith(banner);
+        }
+      } else if (title.isEmpty()) {
+        heading.remove();
+      } else {
+        heading.replaceWith(banner);
+      }
+    }
+  }
+
   private void normalizeHeadings() {
     for (Element underline : doc.select("h1 > u, h2 > u, h3 > u, h4 > u, h5 > u, h6 > u")) {
       Element heading = underline.parent();
@@ -211,7 +247,7 @@ public class ExportHtmlEnhancer {
       Heading heading = new Heading();
       heading.element = element;
       heading.level = level;
-      heading.title = element.text().trim();
+      heading.title = titleOf(element);
       heading.kind = element.attr("data-kind");
       heading.code = element.attr("data-code").trim();
       if (!element.hasAttr("id") || element.attr("id").trim().isEmpty()) {
@@ -276,6 +312,16 @@ public class ExportHtmlEnhancer {
         }
       }
     }
+  }
+
+  /** Text of a heading without the "MAS - " badge that marks a master datatype. */
+  private static String titleOf(Element heading) {
+    if (heading.select("span.masterDatatypeLabel").isEmpty()) {
+      return heading.text().trim();
+    }
+    Element copy = heading.clone();
+    copy.select("span.masterDatatypeLabel").remove();
+    return copy.text().trim().replaceFirst("^-\\s*", "");
   }
 
   /** Name of a resource without the code that prefixes it in the section title. */
@@ -452,8 +498,13 @@ public class ExportHtmlEnhancer {
       if (node instanceof TextNode) {
         TextNode text = (TextNode) node;
         if (!text.isBlank()) {
+          // loose text and the inline elements that follow it are one paragraph
           Element paragraph = doc.createElement("p");
-          paragraph.text(text.text().trim());
+          paragraph.appendChild(new TextNode(text.text().replaceFirst("^\\s+", ""), ""));
+          while (i + 1 < nodes.size() && isInline(nodes.get(i + 1))) {
+            Node next = nodes.get(++i);
+            paragraph.appendChild(next instanceof TextNode ? new TextNode(((TextNode) next).text(), "") : next);
+          }
           out.add(paragraph);
           facts = null;
         }
@@ -535,6 +586,24 @@ public class ExportHtmlEnhancer {
     }
   }
 
+  /** Text, or an inline element that is not one of the "Label :" markers handled separately. */
+  private static boolean isInline(Node node) {
+    if (node instanceof TextNode) {
+      return true;
+    }
+    if (!(node instanceof Element)) {
+      return false;
+    }
+    Element element = (Element) node;
+    String tag = element.tagName();
+    if (tag.equals("br") || tag.equals("hr") || isBlock(element) || containsBlock(element)) {
+      return false;
+    }
+    boolean label = (tag.equals("b") || tag.equals("strong") || tag.equals("span")) && (endsWithColon(element.text()) || labelOf(element) != null);
+    return !label && (tag.equals("i") || tag.equals("em") || tag.equals("a") || tag.equals("code") || tag.equals("sub")
+        || tag.equals("sup") || tag.equals("u") || tag.equals("b") || tag.equals("strong"));
+  }
+
   /** Everything that follows {@code marker} inside {@code container}, in document order. */
   private static void collectAfter(Element container, Element marker, List<Node> into) {
     Node current = marker;
@@ -557,10 +626,15 @@ public class ExportHtmlEnhancer {
   /** Adds "label: value" either to the running list of facts or, when it is long, as a note. */
   private Element addLabelled(List<Node> out, Element facts, String label, List<Node> value) {
     boolean block = false;
+    boolean rich = false;
+    boolean picture = false;
     StringBuilder text = new StringBuilder();
     for (Node node : value) {
       if (node instanceof Element) {
         Element element = (Element) node;
+        // links, superscripts, pictures: keep the author's markup instead of flattening it to text
+        rich |= !element.tagName().equals("br") && !element.tagName().equals("span");
+        picture |= element.tagName().equals("img") || !element.select("img").isEmpty();
         if (isBlock(element) || containsBlock(element)) {
           block = true;
         }
@@ -570,15 +644,15 @@ public class ExportHtmlEnhancer {
       }
     }
     String plain = text.toString().replace(' ', ' ').trim();
-    if (plain.isEmpty()) {
+    if (plain.isEmpty() && !picture) {
       return facts;
     }
-    if (!block && plain.length() <= 90) {
+    if (!block && !picture && plain.length() <= 90) {
       if (target == Target.WORD) {
         Element line = doc.createElement("p");
         line.addClass("ig-meta-line");
         line.appendElement("b").text(label + ": ");
-        line.appendText(plain);
+        appendValue(line, value, plain, rich);
         out.add(line);
         return null;
       }
@@ -590,7 +664,7 @@ public class ExportHtmlEnhancer {
       }
       Element item = list.appendElement("div").addClass("ig-meta-item");
       item.appendElement("dt").text(label);
-      item.appendElement("dd").text(plain);
+      appendValue(item.appendElement("dd"), value, plain, rich);
       return list;
     }
     Element note = doc.createElement("div");
@@ -605,6 +679,18 @@ public class ExportHtmlEnhancer {
     }
     out.add(note);
     return null;
+  }
+
+  private static void appendValue(Element holder, List<Node> value, String plain, boolean rich) {
+    if (!rich) {
+      holder.appendText(plain);
+      return;
+    }
+    for (Node node : value) {
+      if (!(node instanceof Element && ((Element) node).tagName().equals("br"))) {
+        holder.appendChild(node);
+      }
+    }
   }
 
   // ---------------------------------------------------------------- tables
@@ -1091,11 +1177,18 @@ public class ExportHtmlEnhancer {
    */
   private void prepareForWord() {
     Map<String, String> renamed = new HashMap<String, String>();
+    java.util.Set<String> used = new java.util.HashSet<String>();
     for (Element element : doc.select("[id]")) {
       String id = element.attr("id");
+      // Word bookmark names: a letter first, at most 40 characters, unique in the document
       String safe = "ig_" + id.replaceAll("[^A-Za-z0-9_]", "_");
       if (safe.length() > 40) {
         safe = safe.substring(0, 40);
+      }
+      String base = safe;
+      for (int n = 2; !used.add(safe); n++) {
+        String suffix = "_" + n;
+        safe = base.substring(0, Math.min(base.length(), 40 - suffix.length())) + suffix;
       }
       renamed.put(id, safe);
       element.attr("id", safe);
@@ -1136,6 +1229,30 @@ public class ExportHtmlEnhancer {
       line.attr("class", "IgMeta");
     }
     for (Element code : doc.select("p.codeParagraph, pre")) {
+      // a paragraph collapses white space: make the line breaks and indents of a <pre> explicit
+      if (code.tagName().equals("pre")) {
+        for (TextNode text : textNodesOf(code)) {
+          String[] lines = text.getWholeText().split("\r?\n", -1);
+          if (lines.length == 1) {
+            continue;
+          }
+          for (int i = 0; i < lines.length; i++) {
+            if (i > 0) {
+              text.before(doc.createElement("br"));
+            }
+            int indent = 0;
+            while (indent < lines[i].length() && lines[i].charAt(indent) == ' ') {
+              indent++;
+            }
+            StringBuilder line = new StringBuilder();
+            for (int j = 0; j < indent; j++) {
+              line.append('\u00a0');
+            }
+            text.before(new TextNode(line + lines[i].substring(indent), ""));
+          }
+          text.remove();
+        }
+      }
       code.tagName("p").attr("class", "IgCodeBlock");
     }
     for (Element table : doc.select("table")) {
@@ -1202,6 +1319,10 @@ public class ExportHtmlEnhancer {
       if (customFont) {
         css.append("\n:root{--ig-font-body:").append(cssValue(fontFamily)).append(";}");
       }
+      // The configured size applies to the running text; tables keep their own compact scale
+      if (fontSize.matches("\\d{1,2}") && (customFont || !UNSET_FONT_SIZE.equals(fontSize))) {
+        css.append("\n.ig-narrative, .ig-narrative .fr-view{font-size:").append(fontSize).append("pt;}");
+      }
       body.addClass("ig-doc");
     } else {
       css.append(asset("ig-export-word.css"));
@@ -1216,7 +1337,7 @@ public class ExportHtmlEnhancer {
   }
 
   private static String cssValue(String value) {
-    return value.replaceAll("[;{}<>]", "").trim();
+    return value.replaceAll("[;{}<>&]", "").trim();
   }
 
   private static String asset(String name) {
@@ -1247,7 +1368,8 @@ public class ExportHtmlEnhancer {
           node.remove();
         }
       }
-      return doc.outerHtml();
+      // characters XML cannot carry would make the whole Word import fail
+      return doc.outerHtml().replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\uFFFE\\uFFFF]", "");
     }
     settings.syntax(Document.OutputSettings.Syntax.html);
     for (Node node : new ArrayList<Node>(doc.childNodes())) {
