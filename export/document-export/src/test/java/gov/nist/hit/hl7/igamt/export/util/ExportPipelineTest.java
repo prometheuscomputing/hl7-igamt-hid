@@ -126,6 +126,20 @@ public class ExportPipelineTest {
   }
 
   @Test
+  public void aCoConstraintTableNamesTheSegmentFlavorItIsFor() throws Exception {
+    // the detail panel of a field lists the co-constraint tables of its own flavor only
+    Element block = html.select(".ig-coconstraint").first();
+    String segment = block.attr("data-segment");
+    assertThat(segment).isNotEmpty();
+    Element heading = html.getElementById(segment);
+    assertThat(heading).as("the section of segment %s", segment).isNotNull();
+    assertThat(heading.parent().attr("data-kind")).isEqualTo("Segment");
+    assertThat(heading.select(".ig-code").text()).startsWith("OBX");
+    // an attribute for the script of the page only
+    assertThat(export("docx")).doesNotContain("data-segment");
+  }
+
+  @Test
   public void slicingCommentsAndDynamicMappingAreTables() {
     assertThat(texts(html.select("p.ig-subhead"))).contains("Slicing", "Comments", "Definition texts", "Dynamic mapping", "Co-constraints");
     assertThat(html.select("table.ig-annotations")).isNotEmpty();
@@ -169,6 +183,19 @@ public class ExportPipelineTest {
         assertThat(seen.add(names.group(1))).as("duplicate bookmark %s", names.group(1)).isTrue();
       }
       assertThat(seen.size()).isGreaterThan(10);
+      // what strict readers of the format require: a pattern on every shading, an id of its own for every picture
+      java.util.regex.Matcher shadings = java.util.regex.Pattern.compile("<w:shd [^>]*>").matcher(body);
+      int shadingCount = 0;
+      while (shadings.find()) {
+        shadingCount++;
+        assertThat(shadings.group()).contains("w:val=");
+      }
+      assertThat(shadingCount).isGreaterThan(0);
+      java.util.regex.Matcher pictures = java.util.regex.Pattern.compile("<wp:docPr [^>]*\\bid=\"(\\d+)\"").matcher(body);
+      Set<String> pictureIds = new HashSet<String>();
+      while (pictures.find()) {
+        assertThat(pictureIds.add(pictures.group(1))).as("duplicate picture id %s", pictures.group(1)).isTrue();
+      }
       assertThat(wordPackage.getMainDocumentPart().getStyleDefinitionsPart().getJaxbElement().getStyle().size()).isGreaterThan(20);
       assertThat(wordPackage.getMainDocumentPart().getNumberingDefinitionsPart()).isNotNull();
       assertThat(wordPackage.getDocumentModel().getSections().get(0).getHeaderFooterPolicy().getDefaultHeader()).isNotNull();

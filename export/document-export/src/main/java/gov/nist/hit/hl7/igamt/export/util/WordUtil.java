@@ -32,6 +32,7 @@ import org.docx4j.XmlUtils;
 import org.docx4j.convert.in.xhtml.FormattingOption;
 import org.docx4j.convert.in.xhtml.XHTMLImporterImpl;
 import org.docx4j.dml.CTPositiveSize2D;
+import org.docx4j.dml.wordprocessingDrawing.Anchor;
 import org.docx4j.dml.wordprocessingDrawing.Inline;
 import org.docx4j.jaxb.Context;
 import org.docx4j.model.structure.PageSizePaper;
@@ -47,6 +48,7 @@ import org.docx4j.wml.BooleanDefaultTrue;
 import org.docx4j.wml.Br;
 import org.docx4j.wml.CTBookmark;
 import org.docx4j.wml.CTSettings;
+import org.docx4j.wml.CTShd;
 import org.docx4j.wml.CTTblLayoutType;
 import org.docx4j.wml.CTTblLook;
 import org.docx4j.wml.CTTblPrBase.TblStyle;
@@ -65,6 +67,7 @@ import org.docx4j.wml.P;
 import org.docx4j.wml.PPr;
 import org.docx4j.wml.R;
 import org.docx4j.wml.RPr;
+import org.docx4j.wml.STShd;
 import org.docx4j.wml.STTblLayoutType;
 import org.docx4j.wml.SectPr;
 import org.docx4j.wml.Styles;
@@ -157,6 +160,7 @@ public class WordUtil {
       cleanFormatting(document);
       formatTables(document);
       fitImages(document);
+      completeShading(document);
       keepCaptionsWithTables(document);
       insertTableOfContents(wordMLPackage);
       requestFieldUpdate(wordMLPackage);
@@ -645,10 +649,47 @@ public class WordUtil {
   // ---------------------------------------------------------------- images
 
   /** Pictures wider than the text area are scaled down; the cover picture is kept to logo size. */
+  /**
+   * The importer writes cell backgrounds as a shading with a fill and no pattern, which the format
+   * requires ("clear": the fill alone). Strict readers reject the document without it.
+   */
+  private static void completeShading(Object node) {
+    node = unwrap(node);
+    if (node instanceof Tc && ((Tc) node).getTcPr() != null) {
+      completeShading(((Tc) node).getTcPr().getShd());
+    } else if (node instanceof P && ((P) node).getPPr() != null) {
+      completeShading(((P) node).getPPr().getShd());
+    } else if (node instanceof R && ((R) node).getRPr() != null) {
+      completeShading(((R) node).getRPr().getShd());
+    } else if (node instanceof Tbl && ((Tbl) node).getTblPr() != null) {
+      completeShading(((Tbl) node).getTblPr().getShd());
+    }
+    if (node instanceof ContentAccessor) {
+      for (Object child : ((ContentAccessor) node).getContent()) {
+        completeShading(child);
+      }
+    }
+  }
+
+  private static void completeShading(CTShd shading) {
+    if (shading != null && shading.getVal() == null) {
+      shading.setVal(STShd.CLEAR);
+    }
+  }
+
   private static void fitImages(MainDocumentPart document) {
     boolean cover = true;
+    long pictureId = 1;
     for (Object node : getAllElementFromObject(document, Drawing.class)) {
       Drawing drawing = (Drawing) node;
+      // every picture of the document needs an id of its own (the importer gives them all the same)
+      for (Object placed : drawing.getAnchorOrInline()) {
+        if (placed instanceof Inline && ((Inline) placed).getDocPr() != null) {
+          ((Inline) placed).getDocPr().setId(pictureId++);
+        } else if (placed instanceof Anchor && ((Anchor) placed).getDocPr() != null) {
+          ((Anchor) placed).getDocPr().setId(pictureId++);
+        }
+      }
       if (drawing.getAnchorOrInline().isEmpty() || !(drawing.getAnchorOrInline().get(0) instanceof Inline)) {
         continue;
       }

@@ -538,31 +538,6 @@ var IgExportText = (function () {
     return matched;
   }
 
-  /**
-   * Links to the segments a profile has at a path such as "ORDER.OBSERVATION.OBX", read from its
-   * structure table. When the path is not found there, every segment the profile links to.
-   * The path only has names: two segments of the same name in one group are both returned.
-   */
-  function segmentsAt(profile, path) {
-    var found = [];
-    var groups = [];
-    var matched = false;
-    var structure = profile.querySelector('table.ig-structure');
-    each(structure && structure.tBodies.length ? structure.tBodies[0].rows : [], function (row) {
-      if (row.classList.contains('ig-group-begin')) { groups.push(text(row.querySelector('td.c-name')).replace(/^Group\s+/, '')); return; }
-      if (row.classList.contains('ig-group-end')) { groups.pop(); return; }
-      if (!row.querySelector('td.c-segment') || groups.concat([text(row.querySelector('td.c-segment'))]).join('.') !== path) { return; }
-      matched = true;
-      // a segment that is not part of this export has no link, and then no field row to show either
-      var link = row.querySelector('td.c-flavor a.ig-ref');
-      if (link) { found.push(link.getAttribute('href')); }
-    });
-    if (!matched) {
-      each(profile.querySelectorAll('a.ig-ref'), function (link) { if (!link.closest('.ig-used')) { found.push(link.getAttribute('href')); } });
-    }
-    return found;
-  }
-
   function describeField(field) {
     var mention = mentionOf(field);
     var row = field.row;
@@ -625,19 +600,10 @@ var IgExportText = (function () {
     if (field.owner.kind === 'Segment') {
       var columnName = IgExportText.columnPattern(field.owner.code, field.sequence);
       var places = [];
-      var usesThisSegment = {};
       each(main.querySelectorAll('.ig-coconstraint'), function (block, index) {
         var path = text(block.querySelector('.ig-caption .ig-caption-code'));
-        var segmentName = path.split('.').pop();
-        if (segmentName !== field.base && segmentName !== field.owner.code) { return; }
-        // the path names the base segment: the structure of the profile says which flavor sits there
-        var profile = resourceOf(block);
-        var key = (profile ? describe(profile).id : '') + ' ' + path;
-        if (usesThisSegment[key] === undefined) {
-          var flavors = profile ? segmentsAt(profile, path) : [];
-          usesThisSegment[key] = flavors.indexOf('#' + field.owner.id) !== -1;
-        }
-        if (!usesThisSegment[key]) { return; }
+        // the export says which segment flavor the table is for
+        if (block.getAttribute('data-segment') !== field.owner.id) { return; }
         var columns = [];
         each(block.querySelectorAll('thead th'), function (cell) { if (columnName.test(text(cell))) { columns.push(text(cell)); } });
         if (!columns.length) { return; }
@@ -700,7 +666,9 @@ var IgExportText = (function () {
     if (!openRow) { return; }
     var row = openRow;
     // focus goes back to the row the reader is on, unless it never was in the panel
-    var restore = openedByKeyboard || panel.contains(document.activeElement);
+    // (some browsers do not focus a button that is clicked: focus is then on nothing at all)
+    var focused = document.activeElement;
+    var restore = openedByKeyboard || !focused || focused === body || panel.contains(focused);
     openRow = null;
     row.classList.remove('is-selected');
     panel.hidden = true;
@@ -735,10 +703,18 @@ var IgExportText = (function () {
     body.classList.add('ig-panel-open');
     if (byKeyboard) { focusPanel(row); }
   }
-  /** Now, and once more after the browser followed the link: the jump to the row takes focus with it. */
+  /**
+   * Now, and again when the browser has followed the link: its jump to the row takes focus with it,
+   * at a moment that differs between browsers.
+   */
   function focusPanel(row) {
+    var until = Date.now() + 700;
+    function take() { if (openRow === row && Date.now() < until) { panelClose.focus(); } }
+    function taken() { window.setTimeout(take, 0); }
     panelClose.focus();
-    window.setTimeout(function () { if (openRow === row) { panelClose.focus(); } }, 0);
+    window.setTimeout(take, 0);
+    row.addEventListener('focus', taken);
+    window.setTimeout(function () { row.removeEventListener('focus', taken); }, 700);
   }
 
   main.addEventListener('click', function (event) {
@@ -771,8 +747,15 @@ var IgExportText = (function () {
   document.addEventListener('click', function (event) {
     var link = event.target.closest ? event.target.closest('a[href^="#"]') : null;
     var target = link ? document.getElementById(link.getAttribute('href').slice(1)) : null;
-    // a click made with the keyboard (Enter on the link) has no pointer detail
-    if (target && isFieldRow(target)) { openPanel(target, event.detail === 0); reveal(target); }
+    if (target && isFieldRow(target)) { openPanel(target, keyboardInUse); reveal(target); }
+  });
+  // whether the reader is using the keyboard: browsers do not agree on how a click made with Enter reports itself
+  var keyboardInUse = false;
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Shift' && event.key !== 'Control' && event.key !== 'Alt' && event.key !== 'Meta') { keyboardInUse = true; }
+  }, true);
+  ['mousedown', 'pointerdown', 'touchstart'].forEach(function (type) {
+    document.addEventListener(type, function () { keyboardInUse = false; }, true);
   });
   /** After the browser jumped to a row: the jump puts it at the very top, under the bar. */
   function reveal(row) {

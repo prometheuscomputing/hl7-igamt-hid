@@ -1,13 +1,53 @@
 // See README.md in this folder.
-module.exports = async (page) => {
+module.exports = async (page, options) => {
   // where the four exports are served, and an optional folder (with a trailing slash) for screenshots
   const BASE = 'http://127.0.0.1:8777/';
-  const SHOTS = null;
+  const SHOTS = (options && options.shots) || null;
   const shot = (name) => (SHOTS ? page.screenshot({ path: SHOTS + name, type: 'jpeg', quality: 70 }) : null);
-  const pages = ['rich-all', 'rich-default', 'derived-diff', 'base-default'];
+  // options.pages: other exports to run the generic checks on (then the checks of the showcase guide are skipped)
+  const pages = (options && options.pages) || ['rich-all', 'rich-default', 'derived-diff', 'base-default'];
   const report = {};
   const failures = [];
   const fail = (name, message) => failures.push(name + ': ' + message);
+  // Puts the pointer on an element, the way a reader gets there: a link to its section, then the wheel.
+  // Sections render when they come near the window and only then have their real height and place; for
+  // an element of a section that is not rendered, some browsers report a position that is out of date.
+  const pointAt = async (locator) => {
+    const window0 = page.viewportSize() || { width: 1360, height: 900 };
+    const measure = () => locator.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const top = y > 70 && y < window.innerHeight - 20 ? document.elementFromPoint(x, y) : null;
+      return { x, y, ready: !!top && (top === el || el.contains(top)), away: y - window.innerHeight / 2 };
+    });
+    let point = await measure();
+    if (!point.ready) {
+      await locator.evaluate((el) => {
+        const section = el.closest('section.ig-section');
+        const heading = section && section.querySelector(':scope > .ig-heading[id]');
+        if (heading) { window.location.hash = '#' + heading.id; }
+      });
+      await page.waitForTimeout(350);
+    }
+    // in steps a wheel makes: after one long jump over sections that then render, WebKit keeps
+    // reporting the place the element had before they grew
+    for (let i = 0; i < 80; i++) {
+      point = await measure();
+      if (point.ready) {
+        await page.waitForTimeout(200);
+        const again = await locator.boundingBox();
+        if (again && Math.abs(again.y + again.height / 2 - point.y) < 1) { break; }
+        continue;
+      }
+      const onScreen = Math.abs(point.away) < window0.height / 2 - 80;
+      await page.mouse.move(360, 80); // on the page, away from links and from a card
+      await page.mouse.wheel(0, onScreen ? (i % 2 ? -160 : 240) : Math.max(-700, Math.min(700, point.away)));
+      await page.waitForTimeout(onScreen ? 250 : 90);
+    }
+    await page.mouse.move(point.x, point.y, { steps: 2 });
+    return { x: point.x, y: point.y, reached: point.ready };
+  };
 
   for (const name of pages) {
     const errors = [];
@@ -86,7 +126,8 @@ module.exports = async (page) => {
     });
     r.whereUsed = used;
     if (used.problemCount) fail(name, 'where used: ' + used.problems.join(' | '));
-    if (name !== 'base-default' && used.blocks === 0) fail(name, 'no where-used block');
+    // (a document whose resources do not refer to each other, such as a small library, has nothing to list)
+    if (used.targets > 0 && used.blocks === 0) fail(name, 'no where-used block');
 
     // ---- field panel: open every field and component row
     const panel = await page.evaluate(() => {
@@ -158,15 +199,15 @@ module.exports = async (page) => {
     r.previews = { total: sample.total, hovered: sample.picked.length, kinds: Array.from(new Set(sample.picked)) };
     for (let i = 0; i < sample.picked.length; i++) {
       const link = page.locator('[data-test-ref="' + i + '"]');
-      await link.evaluate((el) => { el.closest('details') && (el.closest('details').open = true); el.scrollIntoView({ block: 'center' }); });
-      await page.waitForTimeout(60);
-      await link.hover();
-      await page.waitForTimeout(380);
+      await link.evaluate((el) => { el.closest('details') && (el.closest('details').open = true); });
+      await page.mouse.move(5, 300);
+      let pointed = await pointAt(link);
+      await page.waitForTimeout(420);
       // sections that render late can move the link away from under the pointer (and their
       // scroll closes the card): once the page has settled, the pointer goes back on the link
       if (await page.evaluate(() => document.getElementById('ig-preview').hidden)) {
         await page.mouse.move(5, 300);
-        await link.hover();
+        pointed = await pointAt(link);
         await page.waitForTimeout(450);
       }
       const state = await page.evaluate((i) => {
@@ -185,7 +226,18 @@ module.exports = async (page) => {
           describedBy: link.getAttribute('aria-describedby')
         };
       }, i);
-      if (state.hidden) fail(name, 'preview hidden for ' + sample.picked[i]);
+      if (state.hidden) {
+        // say what is in the way: the usual reason is something lying over the link
+        const over = await link.evaluate((el) => {
+          const b = el.getBoundingClientRect();
+          const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+          return { link: el.textContent, inside: el.closest('td, p, li, summary, div') ? el.closest('td, p, li, summary, div').className : '', scrollY: Math.round(window.scrollY), at: [Math.round(b.left), Math.round(b.top)], under: top ? top.tagName + '.' + String(top.className).slice(0, 40) : null, panelOpen: !document.getElementById('ig-panel').hidden, hover: matchMedia('(hover: hover)').matches };
+        });
+        over.pointerReachedTheLink = pointed.reached;
+        over.matches = await link.count();
+        if (SHOTS) { await shot('preview-missing-' + name + '-' + i + '.jpg'); }
+        fail(name, 'preview hidden for ' + sample.picked[i] + ' ' + JSON.stringify(over));
+      }
       else {
         if (state.expectedCode && state.code !== state.expectedCode) fail(name, 'preview code ' + state.code + ' != ' + state.expectedCode);
         if (!state.hasBody) fail(name, 'preview without body for ' + sample.picked[i]);
@@ -204,10 +256,11 @@ module.exports = async (page) => {
     const firstRow = page.locator('tr.ig-field-row').first();
     if (await firstRow.count()) {
       // a link inside a row navigates and does not open the panel
-      const inner = await page.evaluate(() => {
+      const inner = await page.evaluate(async () => {
         const row = Array.prototype.find.call(document.querySelectorAll('tr.ig-field-row'), (r) => r.querySelector('a.ig-ref'));
         if (!row) return null;
         row.querySelector('a.ig-ref').click();
+        await new Promise((done) => setTimeout(done, 200)); // some browsers change the address a moment later
         return { hidden: document.getElementById('ig-panel').hidden, hash: location.hash, expected: row.querySelector('a.ig-ref').getAttribute('href') };
       });
       if (inner && (!inner.hidden || inner.hash !== inner.expected)) fail(name, 'link inside a row opened the panel or did not navigate');
@@ -285,6 +338,8 @@ module.exports = async (page) => {
     page.off('pageerror', onError);
     page.off('console', onConsole);
   }
+
+  if (options && options.pages) { return JSON.stringify({ failures, report }, null, 1); }
 
   // ---- known content of the rich guide
   await page.goto(BASE + 'rich-all.html?t=' + Date.now());
@@ -482,24 +537,13 @@ module.exports = async (page) => {
   if (flavors.ref && (flavors.ref.length !== 2 || flavors.ref.some((x) => !x.uses || x.profile !== 'Z22_Refusal'))) fail('known', 'OBX_REF_1-3 lists co-constraints of profiles that do not use it: ' + JSON.stringify(flavors.ref));
   report.coConstraintFlavors = { OBX_IZ: flavors.iz && flavors.iz.length, OBX_REF_1: flavors.ref && flavors.ref.map((x) => x.profile) };
 
-  // a profile whose segment at that path is not linked (left out of the export) lends its tables to no other flavor
-  const unlinked = await page.evaluate((find) => {
-    const profile = eval(find)('Z22');
-    const cell = Array.prototype.find.call(profile.querySelectorAll('table.ig-structure td.c-flavor'), (td) => td.closest('tr').querySelector('td.c-segment').textContent.trim() === 'OBX');
-    const saved = cell.innerHTML;
-    cell.textContent = cell.textContent;
-    const count = (code) => {
-      const row = Array.prototype.find.call(eval(find)(code).querySelectorAll('tr.ig-field-row'), (r) => r.querySelector('td.c-seq').textContent.trim() === '3');
-      row.click();
-      const items = Array.prototype.map.call(document.querySelectorAll('#ig-panel .ig-panel-list li a'), (a) => a.textContent);
-      document.querySelector('.ig-panel-close').click();
-      return items;
-    };
-    const out = { iz: count('OBX_IZ'), ref: count('OBX_REF_1') };
-    cell.innerHTML = saved;
-    return out;
-  }, sectionOf);
-  if (unlinked.iz.length !== 0 || unlinked.ref.some((code) => code !== 'Z22_Refusal')) fail('known', 'co-constraints of an unlinked segment are credited elsewhere: ' + JSON.stringify(unlinked));
+  // every co-constraint table names the segment flavor it is for
+  const named = await page.evaluate(() => Array.prototype.map.call(document.querySelectorAll('.ig-coconstraint'), (block) => {
+    const target = document.getElementById(block.getAttribute('data-segment') || ' ');
+    const section = target && target.closest('section.ig-resource');
+    return (block.getAttribute('data-segment') ? '' : 'missing ') + (section ? section.getAttribute('data-kind') : 'not in this export');
+  }));
+  if (!named.length || named.some((kind) => kind !== 'Segment')) fail('known', 'co-constraint tables and their segment: ' + JSON.stringify(named));
 
   // the parts of a date format are not called components
   const part = await page.evaluate((find) => {
@@ -533,7 +577,7 @@ module.exports = async (page) => {
   });
   if (filtered) {
     if (filtered.hiddenRows < 8) fail('known', 'the filter did not hide the first rows: ' + JSON.stringify(filtered));
-    await page.locator('a[data-e2e="filtered"]').hover();
+    await pointAt(page.locator('a[data-e2e="filtered"]'));
     await page.waitForTimeout(450);
     const shown = await page.evaluate(() => {
       const card = document.getElementById('ig-preview');
@@ -565,19 +609,30 @@ module.exports = async (page) => {
     const first = page.locator('tr[data-e2e="pair"] td.c-datatype a.ig-ref').first();
     const second = page.locator('tr[data-e2e="pair"] td.c-valueset a.ig-ref').first();
     const centre = async (locator) => { const b = await locator.boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
-    // sections above render late and move the row: a first hover brings it near, the second one is on the link
-    await first.hover();
-    await page.waitForTimeout(400);
-    await page.mouse.move(5, 5);
-    await first.hover();
+    pair = { a: await pointAt(first) };
     await page.waitForTimeout(450);
     if (await page.evaluate(() => document.getElementById('ig-preview').hidden)) fail('known', 'no preview on the first link of the pair');
-    pair = { a: await centre(first), b: await centre(second) };
+    pair.b = await centre(second);
     await page.mouse.move(pair.b.x, pair.b.y);
     await page.waitForTimeout(60);
-    await page.mouse.move(pair.b.x, pair.b.y + 260);
+    // away, to a place inside the window that has no link and is not the card itself (it stays while the pointer is on it)
+    const away = await page.evaluate(() => {
+      const card = document.getElementById('ig-preview').getBoundingClientRect();
+      for (const y of [120, 300, 500, 700]) {
+        for (const x of [360, 600, 900]) {
+          const top = document.elementFromPoint(x, y);
+          const inCard = x >= card.left - 4 && x <= card.right + 4 && y >= card.top - 4 && y <= card.bottom + 4;
+          if (top && !inCard && !top.closest('a, #ig-preview, #ig-panel, .ig-topbar')) { return [x, y]; }
+        }
+      }
+      return [360, 120];
+    });
+    await page.mouse.move(away[0], away[1]);
     await page.waitForTimeout(500);
-    if (!(await page.evaluate(() => document.getElementById('ig-preview').hidden))) fail('known', 'a preview stays open after a quick pass over a second link');
+    if (!(await page.evaluate(() => document.getElementById('ig-preview').hidden))) {
+      const still = await page.evaluate(([x, y]) => { const top = document.elementFromPoint(x, y); return { code: (document.querySelector('#ig-preview .ig-preview-code') || {}).textContent, pointerOn: top ? top.tagName + '.' + String(top.className).slice(0, 40) : null, inCard: !!(top && top.closest('#ig-preview')) }; }, [pair.b.x + 40, pair.b.y > 450 ? pair.b.y - 200 : pair.b.y + 200]);
+      fail('known', 'a preview stays open after a quick pass over a second link ' + JSON.stringify(still));
+    }
     // and resting on the second link replaces the card
     await page.mouse.move(pair.a.x, pair.a.y, { steps: 3 });
     await page.waitForTimeout(450);

@@ -329,164 +329,110 @@
 <!--				</xsl:element>-->
 <!--			</xsl:template>-->
 		</xsl:when>
-		<!-- If exportTypeVar is "dl", use content from Transformtotabledl.xsl -->
+		<!--
+			Data type library. Same building blocks as in a guide (facts, then a definition table that
+			ExportHtmlEnhancer types, links and indexes), with what a library adds: the facts of the
+			flavor, and the usage of the standard next to the usage of the flavor.
+		-->
 		<xsl:otherwise>
-
-				<html>
-					<head>
-						<style>
-							table, th, td {
-							border: 2px solid black;
-							border-collapse: collapse;
-							}
-							th, td, p {
-							padding: 5px;
-							text-align: left;
-							}
-							.grisfonce {
-							background-color:#c1c1d7;
-							}
-							.rose {
-							background-color:#ffcccc;
-							color: #333333;
-							}
-							#customers tr:nth-child(even) {
-							background-color: #ffcccc;
-							}
-							#customers tr:hover {
-							background-color: #ddd;
-							}
-							.centered-table {
-							text-align: center;
-							}
-
-						</style>
-					</head>
-					<body>
-						<center>
-							<table style="background-color:#e0e0eb;" width="800" border="1"
-								   cellspacing="1" cellpadding="1">
+			<xsl:call-template name="LibraryFlavorFacts" />
+			<xsl:call-template name="PreDef" />
+			<xsl:if test="count(Component) &gt; 0">
+				<xsl:element name="span">
+					<xsl:element name="span">
+						<xsl:element name="b">
+							<xsl:text>Data Type Definition </xsl:text>
+						</xsl:element>
+					</xsl:element>
+					<table class="contentTable">
+						<thead class="contentThead">
+							<tr>
+								<th>Seq</th>
+								<th>Element name</th>
+								<th>Data type</th>
+								<th>Usage</th>
+								<th>Old usage</th>
+								<th>Condition predicate</th>
+							</tr>
+						</thead>
+						<tbody>
+							<xsl:for-each select="Component">
+								<xsl:sort select="@position" data-type="number" order="ascending" />
 								<tr>
+									<td><xsl:value-of select="@position" /></td>
+									<td><xsl:value-of select="@name" /></td>
+									<td><xsl:value-of select="@datatype" /></td>
+									<td><xsl:value-of select="@usage" /></td>
+									<td><xsl:value-of select="@oldUsage" /></td>
 									<td>
-										<div align="center">
-											<h2>
-												<U>
-													<b>
-														<xsl:value-of select="../@title" />
-													</b>
-												</U>
-											</h2>
-											<p>
-												<b>Purpose and Use : </b>
-												<xsl:value-of select="substring-before(substring-after(@usageNotes, '&gt;'), '&lt;')"  />
-											</p>
-											<table class="centered-table" width="800">
-												<tr>
-													<th class="grisfonce" colspan="10" style="text-align: center;">
-														<font color="#cc0000"><xsl:value-of select="concat(@datatypeFlavor,'(',@datatypeName,')',' Data type')" /></font>
-													</th>
-												</tr>
-												<tr>
-													<th colspan="3" class="rose"> Data Type Flavor</th>
-													<td colspan="7">
-														<xsl:value-of select="@datatypeFlavor" />
-													</td>
-												</tr>
-												<tr>
-													<th colspan="3" class="rose"> Data Type Name</th>
-													<td colspan="7">
-														<xsl:value-of select="@datatypeName" />
-													</td>
-												</tr>
-												<tr>
-													<th colspan="3" class="rose"> Short Description</th>
-													<td colspan="7">
-														<xsl:value-of select="@shortDescription" />
-													</td>
-												</tr>
-												<tr>
-													<th colspan="3" class="rose"> HL7 Versions</th>
-													<td colspan="7">
-														<xsl:value-of select="@hl7versions" />
-													</td>
-												</tr>
-												<tr>
-													<th colspan="3" class="rose"> Status</th>
-													<td colspan="7"><xsl:value-of select="@status" /></td>
-												</tr>
-												<tr>
-													<th colspan="3" class="rose"> Publication Date</th>
-													<td colspan="7">
-														<xsl:value-of select="@publicationDate" />
-													</td>
-												</tr>
-												<tr>
-													<th colspan="10" class="grisfonce" style="text-align: center;">
-														<font color="#cc0000"><xsl:value-of select="concat(../@title,' ','Standard Data Type Definition')" /></font>
-													</th>
-												</tr>
-											</table>
-											<table class="centered-table" id="customers" width="800">
-												<tr>
-													<td colspan="1" width="50">
-														<font color="#cc0000">SEQ</font>
-													</td>
-													<td colspan="5">
-														<font color="#cc0000">Name</font>
-													</td>
-													<td colspan="1">
-														<font color="#cc0000">DT</font>
-													</td>
-													<td colspan="1">
-														<font color="#cc0000">Usage</font>
-													</td>
-													<td colspan="1">
-														<font color="#cc0000">Old Usage</font>
-													</td>
-													<td colspan="2">
-														<font color="#cc0000">Condition Predicate</font>
-													</td>
-												</tr>
-												<xsl:for-each select="Component">
-													<xsl:sort select="@position" data-type="number"
-															  order="ascending" />
-
-													<tr>
-														<td colspan="1">
-															<xsl:value-of select="@position" />
-														</td>
-														<td colspan="5" class="rouge">
-															<xsl:value-of select="@name" />
-														</td>
-														<td colspan="1" class="rouge">
-																<xsl:value-of select="@datatype" />
-														</td>
-														<td colspan="1" class="rouge">
-															<xsl:value-of select="@usage" />
-														</td>
-														<td colspan="1" class="rouge">
-															<xsl:value-of select="@oldUsage" />
-														</td>
-														<td colspan="2" class="rouge">
-														<xsl:choose>
-															<xsl:when test="@predicate">
-																<xsl:value-of select="@predicate" />
-															</xsl:when>
-															<xsl:otherwise>N/A</xsl:otherwise>
-														</xsl:choose>
-														</td>
-													</tr>
-												</xsl:for-each>
-											</table>
-										</div>
+										<xsl:choose>
+											<xsl:when test="normalize-space(@predicate) != ''">
+												<xsl:value-of select="@predicate" />
+											</xsl:when>
+											<xsl:otherwise>
+												<xsl:attribute name="class">
+													<xsl:text>greyCell</xsl:text>
+												</xsl:attribute>
+											</xsl:otherwise>
+										</xsl:choose>
 									</td>
 								</tr>
-							</table>
-						</center>
-					</body>
-				</html>
+							</xsl:for-each>
+						</tbody>
+					</table>
+				</xsl:element>
+				<xsl:call-template name="CommentList" />
+				<xsl:call-template name="DefinitionText2" />
+				<xsl:call-template name="ValueSetBindingList" />
+				<xsl:call-template name="SingleCodeBinding" />
+				<xsl:if test="count(Constraints/ConformanceStatement) &gt; 0">
+					<xsl:call-template name="Constraint">
+						<xsl:with-param name="title">
+							<xsl:text>Conformance Statements</xsl:text>
+						</xsl:with-param>
+						<xsl:with-param name="constraintMode">
+							<xsl:text>standalone</xsl:text>
+						</xsl:with-param>
+						<xsl:with-param name="type">
+							<xsl:text>cs</xsl:text>
+						</xsl:with-param>
+						<xsl:with-param name="headerLevel">
+							<xsl:text>h4</xsl:text>
+						</xsl:with-param>
+					</xsl:call-template>
+				</xsl:if>
+			</xsl:if>
+			<xsl:call-template name="PostDef" />
 		</xsl:otherwise>
 	</xsl:choose>
+	</xsl:template>
+
+	<!-- What a data type library says about one of its flavors, as facts above its definition. -->
+	<xsl:template name="LibraryFlavorFacts">
+		<xsl:call-template name="DatatypeFlavor" />
+		<xsl:call-template name="DatatypeName" />
+		<xsl:call-template name="ShortDescription" />
+		<xsl:call-template name="Hl7versions" />
+		<xsl:call-template name="Status" />
+		<xsl:call-template name="PublicationDate" />
+		<xsl:choose>
+			<xsl:when test="normalize-space(@purposeAndUse) != ''">
+				<div class="ig-note">
+					<p class="ig-subhead">Purpose and use</p>
+					<div class="ig-note-body ig-narrative">
+						<xsl:value-of disable-output-escaping="yes" select="@purposeAndUse" />
+					</div>
+				</div>
+			</xsl:when>
+			<xsl:when test="normalize-space(@usageNotes) != ''">
+				<div class="ig-note">
+					<p class="ig-subhead">Purpose and use</p>
+					<div class="ig-note-body ig-narrative">
+						<xsl:value-of disable-output-escaping="yes" select="@usageNotes" />
+					</div>
+				</div>
+			</xsl:when>
+		</xsl:choose>
 	</xsl:template>
 
 

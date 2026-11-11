@@ -655,6 +655,10 @@ tr.ig-field-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--i
 .ig-panel-more { display: inline-block; margin-top: 8px; font-size: 12.5px; }
 .ig-panel-empty { margin: 22px 0 0 0; font-size: 13.5px; color: var(--ig-ink-3); }
 .ig-coconstraint { scroll-margin-top: calc(var(--ig-topbar-height) + 12px); }
+@media (pointer: coarse) {
+  /* a finger needs more room than a pointer */
+  .ig-panel-close { min-width: 44px; min-height: 44px; }
+}
 @media (min-width: 1500px) {
   /* enough room: the document moves aside instead of being covered */
   body.ig-panel-open .ig-main { padding-right: 540px; }

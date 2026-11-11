@@ -389,6 +389,8 @@ public class ProfileComponentSerializationServiceImpl implements ProfileComponen
                                         ResourceSkeletonBone segmentRef = this.coConstraintSerializationHelper.getSegmentRef(conformanceProfileSkeleton, coConstraintBinding.getContext(), coConstraintBindingSegment.getSegment());
                                         ResourceSkeleton segmentSkeleton = this.coConstraintSerializationHelper.getSegmentSkeleton(segmentRef.getResource().getId());
                                         coConstraintSegmentName.appendChild(segmentRef.getLocationInfo().getHl7Path());
+                                        // which flavor of the segment sits there: the export links the table to the fields of that one
+                                        coConstraintSegmentName.addAttribute(new Attribute("segmentId", segmentRef.getResource().getId()));
                                         coConstraintBindingSegmentElement.appendChild(coConstraintSegmentName);
                                         for (CoConstraintTableConditionalBinding coConstraintTableConditionalBinding : coConstraintBindingSegment.getTables()) {
                                             CoConstraintTable mergedCoConstraintTable = coConstraintService.resolveRefAndMerge(coConstraintTableConditionalBinding.getValue());

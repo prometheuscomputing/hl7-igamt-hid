@@ -7,8 +7,15 @@
 				<xsl:variable name="context" select="normalize-space(./coConstraintContext)"/>
 				<xsl:for-each select="./coConstraintBindingSegmentElement">
 				<xsl:variable name="segment" select="normalize-space(./coConstraintSegmentName)"/>
+				<xsl:variable name="segmentId" select="normalize-space(./coConstraintSegmentName/@segmentId)"/>
 				<xsl:for-each select="./coConstraintTableConditionalBindingElement">
 					<div class="ig-coconstraint">
+						<!-- the segment flavor at that path, for the links from its fields to this table -->
+						<xsl:if test="$segmentId != ''">
+							<xsl:attribute name="data-segment">
+								<xsl:value-of select="$segmentId"/>
+							</xsl:attribute>
+						</xsl:if>
 						<!-- differential export: the whole table was added or removed -->
 						<xsl:if test="./@background">
 							<xsl:attribute name="style">

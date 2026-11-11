@@ -129,6 +129,8 @@ public class ExportHtmlEnhancer {
     COLUMN_TYPES.put("definition", "text");
     COLUMN_TYPES.put("true usage", "usage");
     COLUMN_TYPES.put("false usage", "usage");
+    COLUMN_TYPES.put("old usage", "usage");
+    COLUMN_TYPES.put("condition predicate", "text");
     COLUMN_TYPES.put("comments", "text");
     COLUMN_TYPES.put("assertion", "text");
     COLUMN_TYPES.put("occurrence", "seq");
@@ -1362,6 +1364,8 @@ public class ExportHtmlEnhancer {
 
     Element head = doc.head();
     head.prependElement("meta").attr("name", "viewport").attr("content", "width=device-width, initial-scale=1");
+    // the file carries everything it needs: served from a web server, it does not ask for a favicon either
+    head.appendElement("link").attr("rel", "icon").attr("href", "data:,");
     head.prependElement("meta").attr("charset", "utf-8");
     head.appendElement("meta").attr("name", "generator").attr("content", "IGAMT");
     body.appendElement("script").appendChild(new org.jsoup.nodes.DataNode(asset("ig-export.js"), ""));
@@ -1464,10 +1468,11 @@ public class ExportHtmlEnhancer {
     for (Element anchor : doc.select("a:not([href])")) {
       anchor.unwrap();
     }
-    for (Element element : doc.select("[data-kind], [data-code], [data-depth]")) {
+    for (Element element : doc.select("[data-kind], [data-code], [data-depth], [data-segment]")) {
       element.removeAttr("data-kind");
       element.removeAttr("data-code");
       element.removeAttr("data-depth");
+      element.removeAttr("data-segment");
     }
     doc.select("script").remove();
     Element body = doc.body();
