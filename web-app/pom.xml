@@ -14,7 +14,22 @@
 		<java.version>1.8</java.version>
 	</properties>
 
-	<dependencies>
+	<build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- The existing Logback binding owns test logging; exclude the legacy
+               transitive binding whose Log4j classes are absent. -->
+          <classpathDependencyExcludes>
+            <classpathDependencyExclude>org.slf4j:slf4j-log4j12</classpathDependencyExclude>
+          </classpathDependencyExcludes>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+  <dependencies>
 
 		<dependency>
 			<groupId>org.springframework</groupId>

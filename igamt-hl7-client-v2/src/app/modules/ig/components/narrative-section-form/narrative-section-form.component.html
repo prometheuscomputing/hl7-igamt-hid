@@ -6,6 +6,86 @@
   </label>
   <div id="content" *ngIf="!viewOnly" [froalaEditor]="froalaConfig$ | async"
     formControlName="description"
-    style="flex-grow: 1; display: flex; flex-direction: column;"></div>
+    style="flex-grow: 1; display: flex; flex-direction: column; min-height: 160px;"></div>
   <div *ngIf="viewOnly" [froalaView]="getDescription()"  [froalaEditor]="froalaConfig$ | async"></div>
+
+  <p *ngIf="!viewOnly && narrativeLengthWarning" class="narrative-length-hint" role="note">This narrative is longer than a typical card. Consider separate child sections for distinct topics; your content is preserved.</p>
+
+  <div class="narrative-identify" *ngIf="!viewOnly">
+    <button type="button" class="narrative-identify__btn" (click)="openIdentify()">
+      Identify requirements…
+    </button>
+    <span class="narrative-identify__hint">Scan Content for SHALL / SHOULD / MAY lines — you confirm before anything moves.</span>
+  </div>
+
+  <div class="narrative-identify-panel" *ngIf="identifyOpen && !viewOnly">
+    <div class="narrative-identify-panel__title">
+      <strong>Candidates from Content</strong>
+      <span *ngIf="identifyCandidates.length"> — pick what to promote</span>
+    </div>
+
+    <div *ngIf="!identifyCandidates.length" class="narrative-requirements__empty">
+      {{ identifyMessage || 'No candidates.' }}
+    </div>
+
+    <div class="narrative-identify-panel__toolbar" *ngIf="identifyCandidates.length">
+      <button type="button" class="narrative-requirements__icon" (click)="selectAllIdentify(true)">All</button>
+      <button type="button" class="narrative-requirements__icon" (click)="selectAllIdentify(false)">None</button>
+      <label class="narrative-identify-panel__strip">
+        <input type="checkbox" [(ngModel)]="identifyStripFromContent" [ngModelOptions]="{standalone: true}" />
+        Remove selected from Content after promote
+      </label>
+    </div>
+
+    <div *ngFor="let c of identifyCandidates; let candidateIndex = index" class="narrative-identify-panel__row">
+      <input type="checkbox" [attr.aria-label]="'Promote candidate ' + (candidateIndex + 1)" [(ngModel)]="c.selected" [ngModelOptions]="{standalone: true}" />
+      <select [attr.aria-label]="'Conformance verb for candidate ' + (candidateIndex + 1)" [(ngModel)]="c.verb" [ngModelOptions]="{standalone: true}" class="narrative-requirements__verb">
+        <option *ngFor="let v of verbs" [value]="v">{{ v }}</option>
+      </select>
+      <input type="text" [attr.aria-label]="'Statement for candidate ' + (candidateIndex + 1)" [(ngModel)]="c.text" [ngModelOptions]="{standalone: true}" class="narrative-requirements__text" />
+    </div>
+
+    <div class="narrative-identify-panel__actions" *ngIf="identifyCandidates.length">
+      <button type="button" class="narrative-identify__btn narrative-identify__btn--primary" (click)="applyIdentify()">Promote selected</button>
+      <button type="button" class="narrative-requirements__add" (click)="cancelIdentify()">Cancel</button>
+    </div>
+    <div class="narrative-identify-panel__actions" *ngIf="!identifyCandidates.length">
+      <button type="button" class="narrative-requirements__add" (click)="cancelIdentify()">Close</button>
+    </div>
+    <div *ngIf="identifyMessage && identifyCandidates.length" class="narrative-requirements__empty">{{ identifyMessage }}</div>
+  </div>
+
+  <div *ngIf="identifyMessage && !identifyOpen" class="narrative-identify__flash" role="status" aria-live="polite">{{ identifyMessage }}</div>
+
+  <div class="narrative-requirements" formArrayName="requirements">
+    <div class="narrative-requirements__header">
+      <strong>Requirements</strong>
+      <span class="narrative-requirements__hint">SHALL / SHOULD / MAY (separate from narrative paragraphs)</span>
+    </div>
+
+    <div *ngIf="viewOnly && requirements.length === 0" class="narrative-requirements__empty">
+      No structured requirements on this section.
+    </div>
+
+    <div *ngFor="let req of requirements.controls; let i = index" [formGroupName]="i" class="narrative-requirements__row" [attr.id]="'req-' + req.value.id">
+      <ng-container *ngIf="!viewOnly; else viewRow">
+        <select formControlName="verb" class="narrative-requirements__verb" [attr.aria-label]="'Conformance verb for requirement ' + (i + 1)">
+          <option *ngFor="let v of verbs" [value]="v">{{ v }}</option>
+        </select>
+        <input type="text" [attr.aria-label]="'Statement for requirement ' + (i + 1)" [attr.aria-invalid]="req.get('text').invalid && req.get('text').touched" formControlName="text" class="narrative-requirements__text" placeholder="Requirement statement (without retyping the verb)" />
+        <button type="button" class="narrative-requirements__icon" (click)="moveRequirement(i, -1)" [disabled]="i === 0" [attr.aria-label]="'Move requirement ' + (i + 1) + ' up'" title="Move up">↑</button>
+        <button type="button" class="narrative-requirements__icon" (click)="moveRequirement(i, 1)" [disabled]="i === requirements.length - 1" [attr.aria-label]="'Move requirement ' + (i + 1) + ' down'" title="Move down">↓</button>
+        <button type="button" class="narrative-requirements__icon" (click)="demoteRequirement(i)" [attr.aria-label]="'Move requirement ' + (i + 1) + ' back into Content as a bullet'" title="Move back into Content as a bullet">↩</button>
+        <button type="button" class="narrative-requirements__icon narrative-requirements__icon--danger" (click)="removeRequirement(i)" [attr.aria-label]="'Remove requirement ' + (i + 1)" title="Remove">✕</button>
+      </ng-container>
+      <ng-template #viewRow>
+        <span class="verb-badge" [ngClass]="'verb-badge--' + (req.value.verb | lowercase)">{{ req.value.verb }}</span>
+        <span class="narrative-requirements__text-view">{{ req.value.text }}</span>
+      </ng-template>
+    </div>
+
+    <button *ngIf="!viewOnly" type="button" class="narrative-requirements__add" (click)="addRequirement()">
+      + Add requirement
+    </button>
+  </div>
 </form>

@@ -400,6 +400,10 @@ public class IGDocumentController extends BaseController {
 		igSection.setLabel(section.getLabel());
 		igSection.setMessageId(section.getMessageId());
 		igSection.setSnippetId(section.getSnippetId());
+		// An omitted list is a legacy client save; an explicit empty list clears it.
+		if (section.getRequirements() != null) {
+			igSection.setRequirements(section.getRequirements());
+		}
 		this.igService.save(ig);
 		return new ResponseMessage<Object>(Status.SUCCESS, TABLE_OF_CONTENT_UPDATED, ig.getId(), new Date());
 
@@ -425,6 +429,7 @@ public class IGDocumentController extends BaseController {
 			Authentication authentication) throws IGNotFoundException, IGUpdateException {
 
 		Set<TextSection> content = displayConverter.convertTocToDomain(toc);
+		preserveNarrativeRequirements(content, findIgById(id).getContent());
 
 		UpdateResult updateResult = igService.updateAttribute(id, "content", content, Ig.class, true);
 		if (!updateResult.wasAcknowledged()) {
@@ -455,6 +460,7 @@ public class IGDocumentController extends BaseController {
 	}
 
 	private void updateAndClean(Set<TextSection> content, Ig ig) throws Exception {
+		preserveNarrativeRequirements(content, ig.getContent());
 		TextSection orderdMessages  = findRegistryByType(Type.CONFORMANCEPROFILEREGISTRY, content);
 		if(orderdMessages  != null ) {
 			updateRegistryPosition(orderdMessages,  ig.getConformanceProfileRegistry());
@@ -475,6 +481,36 @@ public class IGDocumentController extends BaseController {
 		}
 		ig.setContent(content);
 
+	}
+
+
+
+	/** Keep additive narrative data when a TOC/legacy client only posts layout fields. */
+	private void preserveNarrativeRequirements(Set<TextSection> incoming, Set<TextSection> previous) {
+		Map<String, TextSection> byId = new HashMap<>();
+		indexNarrativeSections(previous, byId);
+		preserveNarrativeRequirementsById(incoming, byId);
+	}
+
+	private void indexNarrativeSections(Set<TextSection> sections, Map<String, TextSection> byId) {
+		if (sections == null) return;
+		for (TextSection section : sections) {
+			if (section == null) continue;
+			byId.put(section.getId(), section);
+			indexNarrativeSections(section.getChildren(), byId);
+		}
+	}
+
+	private void preserveNarrativeRequirementsById(Set<TextSection> sections, Map<String, TextSection> byId) {
+		if (sections == null) return;
+		for (TextSection section : sections) {
+			if (section == null) continue;
+			TextSection previous = byId.get(section.getId());
+			if (section.getRequirements() == null && previous != null) {
+				section.setRequirements(previous.getRequirements());
+			}
+			preserveNarrativeRequirementsById(section.getChildren(), byId);
+		}
 	}
 
 

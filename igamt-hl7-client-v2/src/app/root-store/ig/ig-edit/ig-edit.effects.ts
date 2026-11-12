@@ -39,6 +39,7 @@ import {
   GroupValueSetsSuccess,
   OpenConformanceStatementSummaryEditorNode,
   OpenIgVerificationEditor,
+  OpenNarrativePublishEditor,
   OpenValueSetsSummaryEditorNode,
   RefreshUpdateInfo,
   UpdateDocumentConfig,
@@ -288,6 +289,7 @@ export class IgEditEffects extends DamWidgetEffect {
                     id: section.id,
                     label: section.label,
                     description: section.description,
+                    requirements: section.requirements || [],
                   },
                 }),
               ];
@@ -994,7 +996,29 @@ deleteResourcesSuccess$ = this.actions$.pipe(
     }),
   );
 
+
   @Effect()
+  openNarrativePublishEditor$ = this.actions$.pipe(
+    ofType(IgEditActionTypes.OpenNarrativePublishEditor),
+    mergeMap((action: OpenNarrativePublishEditor) => {
+      return combineLatest(
+        this.store.select(selectIgDocument),
+      )
+        .pipe(
+          take(1),
+          map(([ig]) => {
+            return new fromDAM.OpenEditor({
+              id: action.payload.id,
+              display: this.igService.igToIDisplayElement(ig),
+              editor: action.payload.editor,
+              initial: {},
+            });
+          }),
+        );
+    }),
+  );
+
+@Effect()
   UpdateConfig$ = this.actions$.pipe(
     ofType(IgEditActionTypes.UpdateDocumentConfig),
     switchMap((action: UpdateDocumentConfig) => {

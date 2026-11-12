@@ -15,6 +15,21 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!-- Use the existing Logback binding in tests; this legacy transitive
+					     binding requires Log4j classes excluded by this module. -->
+					<classpathDependencyExcludes>
+						<classpathDependencyExclude>org.slf4j:slf4j-log4j12</classpathDependencyExclude>
+					</classpathDependencyExcludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 	<dependencies>
 		<dependency>
 			<groupId>net.sf.jtidy</groupId>

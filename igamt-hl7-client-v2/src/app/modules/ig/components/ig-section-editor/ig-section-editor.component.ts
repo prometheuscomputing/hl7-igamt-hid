@@ -84,4 +84,5 @@ export interface INarrative {
   id: string;
   label: string;
   description: string;
+  requirements?: import('../../../shared/models/content.interface').INarrativeRequirement[];
 }
