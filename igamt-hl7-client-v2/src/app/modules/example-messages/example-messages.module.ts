@@ -11,6 +11,7 @@ import { ExampleMessagesEffects } from 'src/app/root-store/example-messages/exam
 import { TableOfContentComponent } from './components/table-of-content/table-of-content.component';
 import { SideBarComponent } from './components/side-bar/side-bar.component';
 import { CreateDialogComponent } from './components/create-dialog/create-dialog.component';
+import { DeleteUsageDialogComponent } from './components/delete-usage-dialog/delete-usage-dialog.component';
 import { LocateContextDialogComponent } from './components/locate-context-dialog/locate-context-dialog.component';
 import { MessageEditorComponent } from './components/message-editor/message-editor.component';
 import { SnippetEditorComponent } from './components/snippet-editor/snippet-editor.component';
@@ -61,6 +62,7 @@ CodeMirror.defineMode('hl7v2', () => {
     TableOfContentComponent,
     SideBarComponent,
     CreateDialogComponent,
+    DeleteUsageDialogComponent,
     LocateContextDialogComponent,
     MessageEditorComponent,
     SnippetEditorComponent,
@@ -80,6 +82,7 @@ CodeMirror.defineMode('hl7v2', () => {
   entryComponents: [
     ExampleMessagesContainerComponent,
     CreateDialogComponent,
+    DeleteUsageDialogComponent,
     LocateContextDialogComponent,
   ],
 })

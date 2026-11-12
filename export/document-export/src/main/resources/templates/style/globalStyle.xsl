@@ -47,12 +47,16 @@
         <xsl:text>.greenContent{background-color:#a7d6a9;}</xsl:text>
         
         <xsl:text>.codeParagraph{display: block;padding: 9.5px;margin: 0 0 10px;line-height: 1.428571429;word-break: break-all;word-wrap: break-word;color: #333;background-color: #f5f5f5;border: 1px solid #ccc;border-radius: 4px;}</xsl:text>
-        <xsl:text>.fr-exmsg{display:block;margin:10px 0;padding:10px 12px;border:1px solid #c5cae9;border-radius:4px;background:#f8f9ff;}</xsl:text>
-        <xsl:text>.fr-exmsg .fr-exmsg-link{display:inline-block;margin-bottom:8px;font-weight:700;color:#1565c0;}</xsl:text>
-        <xsl:text>.fr-exmsg .fr-exmsg-file{display:block;margin:0 0 8px;font-family:Consolas,Monaco,monospace;font-size:9pt;color:#546e7a;}</xsl:text>
+        <xsl:text>.fr-exmsg{display:block;margin:10px 0;padding:0;border:0;background:transparent;}</xsl:text>
+        <xsl:text>.fr-exmsg .fr-exmsg-info{border-collapse:collapse;margin:0 0 8px;border:0;background:transparent;}</xsl:text>
+        <xsl:text>.fr-exmsg .fr-exmsg-info th,.fr-exmsg .fr-exmsg-info td{border:0;padding:1px 12px 1px 0;text-align:left;vertical-align:baseline;background:transparent;font-weight:normal;}</xsl:text>
+        <xsl:text>.fr-exmsg .fr-exmsg-info th{color:#555;font-weight:600;white-space:nowrap;}</xsl:text>
+        <xsl:text>.fr-exmsg .fr-exmsg-info a{color:#1565c0;}</xsl:text>
         <xsl:text>.fr-exmsg .fr-exmsg-warning{display:block;margin:0 0 8px;color:#b71c1c;}</xsl:text>
+        <xsl:text>.fr-exmsg .fr-exmsg-description{display:block;margin:0 0 8px;line-height:1.5;}</xsl:text>
         <xsl:text>.fr-exmsg .fr-exmsg-body,.fr-exmsg pre.fr-exmsg-body{display:block;margin:0;padding:9.5px;font-family:Consolas,Monaco,monospace;font-size:10pt;line-height:1.4;white-space:pre-wrap;word-break:break-all;color:#333;background:#f5f5f5;border:1px solid #ccc;border-radius:4px;}</xsl:text>
         <xsl:text>.fr-exmsg .fr-exmsg-line{white-space:pre-wrap;}</xsl:text>
+        <xsl:text>.fr-exmsg .fr-exmsg-mark{background:#fff176;border-bottom:2px solid #f9a825;color:inherit;}</xsl:text>
     </xsl:template>
 
 </xsl:stylesheet>

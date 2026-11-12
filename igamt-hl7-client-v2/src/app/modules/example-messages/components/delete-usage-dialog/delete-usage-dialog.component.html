@@ -1,0 +1,28 @@
+<h2 mat-dialog-title>Delete {{ data.name }}</h2>
+<mat-dialog-content>
+  <div *ngIf="loading" style="padding: 12px 0; color: #666;">Looking for references in the guide…</div>
+  <div *ngIf="error" style="color: #c62828; font-size: 13px; margin-bottom: 10px;">{{ error }}</div>
+  <div *ngIf="!loading && usages.length" style="font-size: 13px; color: #333; margin-bottom: 10px;">
+    This {{ data.kind === 'snippet' ? 'snippet' : 'example message' }} is used in the guide.
+    Detach the references, then delete it. Detach cannot be undone.
+  </div>
+  <div *ngIf="!loading && !usages.length && !error" style="font-size: 13px; color: #333; margin-bottom: 10px;">
+    Nothing in the guide references this {{ data.kind === 'snippet' ? 'snippet' : 'example message' }}.
+  </div>
+  <div *ngFor="let usage of usages" style="display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #eee; font-size: 13px;">
+    <div style="flex: 1;">
+      <a [routerLink]="sectionLink(usage)" (click)="dialogRef.close()">{{ usage.path }} {{ usage.label }}</a>
+      <div style="color: #777; font-size: 12px;">{{ kindLabel(usage) }}</div>
+    </div>
+    <button class="btn btn-sm btn-outline-danger" type="button" (click)="confirmDetach(usage)" [disabled]="working">Detach</button>
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions style="justify-content: flex-end;">
+  <button [mat-dialog-close]="" class="btn btn-sm btn-secondary" style="margin-right: 5px;" [disabled]="working">Cancel</button>
+  <button *ngIf="usages.length" class="btn btn-sm btn-outline-danger" style="margin-right: 5px;" type="button" (click)="confirmDetach()" [disabled]="working || loading">
+    Detach all
+  </button>
+  <button class="btn btn-sm btn-danger" type="button" (click)="deleteItem()" [disabled]="working || loading || usages.length > 0">
+    Delete
+  </button>
+</mat-dialog-actions>

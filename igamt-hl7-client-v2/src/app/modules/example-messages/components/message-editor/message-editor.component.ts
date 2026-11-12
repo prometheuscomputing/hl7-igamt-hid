@@ -1,4 +1,5 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { FormControl } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatDialog } from '@angular/material';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -23,7 +24,7 @@ import { TreeComponent, TreeNode } from 'angular-tree-component';
 import { CodemirrorComponent } from '@ctrl/ngx-codemirror';
 import * as CodeMirror from 'codemirror';
 import { Type } from '../../../shared/constants/type.enum';
-import { IExampleMessageLocation, IExampleMessageLocationContext, IExampleMessageSnippet, IExampleMessageValidationEntry, IExampleMessageValidationResult, MessageElement, withUpdatedMessageName } from '../../domain/example-messages.model';
+import { exampleNameError, exampleNameValidator, IExampleMessageLocation, IExampleMessageLocationContext, IExampleMessageSnippet, IExampleMessageValidationEntry, IExampleMessageValidationResult, MessageElement, siblingMessageNames, withUpdatedMessageName } from '../../domain/example-messages.model';
 import { CreateDialogComponent } from '../create-dialog/create-dialog.component';
 import { LocateContextDialogComponent } from '../locate-context-dialog/locate-context-dialog.component';
 import { VALIDATION_REPORT_CSS, VALIDATION_REPORT_SCRIPT } from './validation-report.css';
@@ -40,8 +41,9 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   messageId: string;
   igId$: Observable<string>;
   froalaConfig$: Observable<any>;
-  // Example messages have no read-only mode; the metadata tab is always editable.
-  viewOnly$: Observable<boolean> = of(false);
+  viewOnly$: Observable<boolean>;
+  viewOnly = false;
+  nameControl = new FormControl('');
   parsed: any[];
   loading = false;
   options = {
@@ -97,7 +99,23 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
       map((igExampleMessages) => {
         return igExampleMessages.id
       })
-    )
+    );
+    this.viewOnly$ = store.select(selectIgExampleMessages).pipe(
+      map((igExampleMessages) => !!(igExampleMessages && igExampleMessages.viewOnly)),
+    );
+    this.viewOnly$.subscribe((viewOnly) => {
+      this.viewOnly = viewOnly;
+      this.messageEditorOptions = {
+        ...this.messageEditorOptions,
+        readOnly: viewOnly ? 'nocursor' : false,
+      };
+    });
+    this.nameControl.valueChanges.subscribe((name) => {
+      this.messageName = name;
+      if (this.nameControl.dirty) {
+        this.change();
+      }
+    });
     this.currentSynchronized$.pipe(
       map(async (current) => {
         const nextId = current && current.id;
@@ -109,6 +127,7 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
         this.messageId = nextId;
         this.messageName = (current && current.name) || '';
         this.messageDescription = (current && current.description) || '';
+        this.bindName(this.messageName);
         this.resolveSnippetPath();
         if (this.message) {
           await this.parseMessage();
@@ -134,7 +153,19 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     });
   }
 
-  messageEditorOptions = {
+  messageEditorOptions: {
+    mode: string;
+    lineNumbers: boolean;
+    foldGutter: boolean;
+    styleActiveLine: boolean;
+    autoCloseTags: boolean;
+    gutters: string[];
+    matchBrackets: boolean;
+    extraKeys: { 'Alt-F': string };
+    lineWrapping: boolean;
+    placeholder: string;
+    readOnly: boolean | 'nocursor';
+  } = {
     mode: 'hl7v2',
     lineNumbers: true,
     foldGutter: true,
@@ -145,6 +176,7 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     extraKeys: { 'Alt-F': 'findPersistent' },
     lineWrapping: false,
     placeholder: '',
+    readOnly: false,
   };
 
   async getMessageHash() {
@@ -155,6 +187,9 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   }
 
   async messageChange() {
+    if (this.viewOnly) {
+      return;
+    }
     await this.updateStaleMessageState();
     if (this.staleMessageTree) {
       this.clearAllSelections();
@@ -170,13 +205,20 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
         name: this.messageName,
         description: this.messageDescription,
       },
-      true,
+      this.nameControl.valid,
     );
   }
 
-  onMessageNameChange(name: string) {
-    this.messageName = name;
-    this.change();
+  nameError(): string {
+    return exampleNameError(this.nameControl);
+  }
+
+  private bindName(name: string) {
+    this.store.select(selectIgExampleMessages).pipe(take(1)).subscribe((ig) => {
+      this.nameControl.setValidators(exampleNameValidator(siblingMessageNames(ig, this.messageId)));
+      this.nameControl.setValue(name || '', { emitEvent: false });
+      this.nameControl.updateValueAndValidity({ emitEvent: false });
+    });
   }
 
   onMessageDescriptionChange(description: string) {
@@ -330,7 +372,7 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   }
 
   createSnippetFromSelection() {
-    if (this.selectedElements.length === 0) {
+    if (this.viewOnly || this.selectedElements.length === 0) {
       return;
     }
     const references = this.selectedElements

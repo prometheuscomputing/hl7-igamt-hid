@@ -37,10 +37,12 @@ export class FroalaService {
       pastePlain: true,
     };
   }
-  getConfig(): Observable<any> {
+  getConfig(includeExampleMessages: boolean = false): Observable<any> {
     return combineLatest(this.store.select(fromIgamtSelectors.selectWorkspaceActive), this.store.select(selectIgId), this.store.select(selectFroalaConfig)).pipe(
       map(([active, igId, conf]) => {
-        const exampleMessageConfig = this.exampleMessageEditorOptions(igId);
+        const exampleMessageConfig = includeExampleMessages
+          ? this.exampleMessageEditorOptions(igId)
+          : this.editorOptionsWithoutExampleMessages();
         return {
           ...this.config,
           ...exampleMessageConfig,
@@ -61,7 +63,7 @@ export class FroalaService {
               this.http.delete('api/storage/file?name=' + name + '&ig=' + igId + '&type=' + active.editor.resourceType + '&id=' + active.display.id).subscribe();
             },
             'froalaEditor.initialized': (e, editor) => {
-              if (igId && editor && editor.exampleMessage) {
+              if (includeExampleMessages && igId && editor && editor.exampleMessage) {
                 editor.exampleMessage.renderAll();
               }
             },
@@ -103,12 +105,32 @@ export class FroalaService {
     return options;
   }
 
+  private editorOptionsWithoutExampleMessages(): any {
+    const fe = (window as any).$ && ((window as any).$.FE || (window as any).$.FroalaEditor);
+    const defaults = fe && fe.DEFAULTS ? fe.DEFAULTS : {};
+    const options: any = {};
+    const assign = (key: string, buttons: any[]) => {
+      if (buttons.length) {
+        options[key] = buttons.filter((button) => button !== 'insertExampleMessage');
+      }
+    };
+    assign('toolbarButtons', froalaToolbarButtons(fe));
+    assign('toolbarButtonsMD', froalaToolbarButtons(fe, 'MD'));
+    assign('toolbarButtonsSM', froalaToolbarButtons(fe, 'SM'));
+    assign('toolbarButtonsXS', froalaToolbarButtons(fe, 'XS'));
+    if (defaults.pluginsEnabled) {
+      options.pluginsEnabled = defaults.pluginsEnabled.filter((plugin) => plugin !== 'exampleMessage');
+    }
+    return options;
+  }
+
   getDocumentationConfig(): Observable<any> {
     return combineLatest(this.store.select(fromDocumentation.selectWorkspaceActive), this.store.select(selectFroalaConfig)).pipe(
       take(1),
       map(([active, conf]) => {
         return {
           ...this.config,
+          ...this.editorOptionsWithoutExampleMessages(),
           key: conf.key,
           imageUploadURL: 'api/storage/upload/',
           imageManagerLoadURL: 'api/storage/file',

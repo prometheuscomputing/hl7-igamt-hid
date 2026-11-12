@@ -1,4 +1,4 @@
-import { Component, OnChanges, OnInit, SimpleChanges } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Input } from '@angular/core';
 import { Output } from '@angular/core';
 import { EventEmitter } from '@angular/core';
@@ -8,7 +8,7 @@ import { EventEmitter } from '@angular/core';
   templateUrl: './ig-general-display-configuration.component.html',
   styleUrls: ['./ig-general-display-configuration.component.css'],
 })
-export class IgGeneralDisplayConfigurationComponent implements OnInit, OnChanges {
+export class IgGeneralDisplayConfigurationComponent implements OnInit {
 
   @Input()
   config: any;
@@ -28,23 +28,6 @@ export class IgGeneralDisplayConfigurationComponent implements OnInit, OnChanges
   constructor() { }
 
   ngOnInit() {
-    this.ensureExampleMessages();
-  }
-
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes.config) {
-      this.ensureExampleMessages();
-    }
-  }
-
-  private ensureExampleMessages() {
-    if (this.config && !this.config.exampleMessages) {
-      this.config.exampleMessages = {
-        include: true,
-        mode: 'INLINE',
-        exportAllMessages: false,
-      };
-    }
   }
 
   triggerChange() {

@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { IExampleMessageDTO, IExampleMessageLocation, IExampleMessageValidationResult, IgExampleMessages } from '../domain/example-messages.model';
+import { IExampleMessageDTO, IExampleMessageLocation, IExampleMessageUsage, IExampleMessageValidationResult, IgExampleMessages } from '../domain/example-messages.model';
 import { IMessage } from '../../dam-framework/models/messages/message.class';
 
 export interface ICreateExampleMessageSnippetRequest {
@@ -102,6 +102,42 @@ export class ExampleMessagesService {
 
   public exportAll(igId: string): Observable<Blob> {
     return this.http.get(`api/example-messages/${igId}/export`, { responseType: 'blob' });
+  }
+
+  public exportMessageFile(igId: string, messageId: string, format: 'html' | 'txt' | 'validation'): Observable<Blob> {
+    return this.http.get(`api/example-messages/${igId}/message/${messageId}/export`, {
+      params: { format },
+      responseType: 'blob',
+    });
+  }
+
+  public exportSnippetFile(igId: string, messageId: string, snippetId: string, format: 'html' | 'txt'): Observable<Blob> {
+    return this.http.get(`api/example-messages/${igId}/message/${messageId}/snippet/${snippetId}/export`, {
+      params: { format },
+      responseType: 'blob',
+    });
+  }
+
+  public usages(igId: string, messageId: string, snippetId?: string): Observable<IExampleMessageUsage[]> {
+    const url = snippetId
+      ? `api/example-messages/${igId}/message/${messageId}/snippet/${snippetId}/usages`
+      : `api/example-messages/${igId}/message/${messageId}/usages`;
+    return this.http.get<IExampleMessageUsage[]>(url);
+  }
+
+  public detach(igId: string, messageId: string, snippetId: string, sectionId: string, kind: string): Observable<IMessage<IExampleMessageUsage[]>> {
+    const url = snippetId
+      ? `api/example-messages/${igId}/message/${messageId}/snippet/${snippetId}/detach`
+      : `api/example-messages/${igId}/message/${messageId}/detach`;
+    return this.http.post<IMessage<IExampleMessageUsage[]>>(url, { sectionId, kind });
+  }
+
+  public deleteMessage(igId: string, messageId: string): Observable<IMessage<IgExampleMessages>> {
+    return this.http.delete<IMessage<IgExampleMessages>>(`api/example-messages/${igId}/message/${messageId}`);
+  }
+
+  public deleteSnippet(igId: string, messageId: string, snippetId: string): Observable<IMessage<IgExampleMessages>> {
+    return this.http.delete<IMessage<IgExampleMessages>>(`api/example-messages/${igId}/message/${messageId}/snippet/${snippetId}`);
   }
 
 }

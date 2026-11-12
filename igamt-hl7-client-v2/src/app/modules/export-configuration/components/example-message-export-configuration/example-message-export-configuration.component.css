@@ -1,0 +1,48 @@
+.exmsg-config {
+  display: flex;
+  flex-direction: column;
+}
+
+.exmsg-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.exmsg-row .card {
+  flex: 1 1 260px;
+  margin: 0 10px 10px 0;
+}
+
+.exmsg-grow {
+  flex: 2 1 320px;
+}
+
+.exmsg-row .custom-card-title {
+  background: #f4f6f8;
+  border-bottom: 1px solid #e4e7eb;
+  font-weight: 700;
+}
+
+.exmsg-body {
+  padding: 12px 1.25rem 14px;
+}
+
+.exmsg-field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.exmsg-hint {
+  margin-top: 8px;
+  color: #666;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+:host ::ng-deep .ui-chkbox-label,
+:host ::ng-deep .ui-radiobutton-label {
+  font-weight: 700;
+  color: #222;
+}

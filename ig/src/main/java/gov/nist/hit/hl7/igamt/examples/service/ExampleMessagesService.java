@@ -1,5 +1,9 @@
 package gov.nist.hit.hl7.igamt.examples.service;
 
+import gov.nist.hit.hl7.igamt.common.base.domain.DomainInfo;
+import gov.nist.hit.hl7.igamt.common.base.domain.Scope;
+import gov.nist.hit.hl7.igamt.common.base.domain.SharePermission;
+import gov.nist.hit.hl7.igamt.common.base.domain.Status;
 import gov.nist.hit.hl7.igamt.common.base.domain.Type;
 import gov.nist.hit.hl7.igamt.common.base.domain.display.DisplayElement;
 import gov.nist.hit.hl7.igamt.common.base.exception.GenericException;
@@ -23,6 +27,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,6 +44,8 @@ public class ExampleMessagesService {
     private CompositeProfileStructureRepository compositeProfileStructureRepository;
     @Autowired
     private DisplayInfoService displayInfoService;
+    @Autowired
+    private ExampleMessageReferenceService exampleMessageReferenceService;
 
     public IgExampleMessages getOrCreateIgExampleMessage(String igId) {
         IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
@@ -62,6 +69,7 @@ public class ExampleMessagesService {
     }
 
     public ExampleMessage saveMessage(String igId, String messageId, SaveMessageDTO saveMessageDTO) throws ResourceNotFoundException, GenericException {
+        assertWritable(igId);
         IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
         if(igExampleMessages == null) {
             throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
@@ -94,6 +102,7 @@ public class ExampleMessagesService {
         IgExampleMessagesDTO igExampleMessagesDTO = new IgExampleMessagesDTO();
         igExampleMessagesDTO.setId(igExampleMessages.getId());
         igExampleMessagesDTO.setTitle(ig.getMetadata().getTitle());
+        igExampleMessagesDTO.setViewOnly(isViewOnly(ig));
         List<DisplayElement> profiles = new ArrayList<>();
         profiles.addAll(this.displayInfoService.convertConformanceProfileRegistry(ig.getConformanceProfileRegistry()));
         profiles.addAll(this.displayInfoService.convertCompositeProfileRegistry(ig.getCompositeProfileRegistry()));
@@ -127,6 +136,7 @@ public class ExampleMessagesService {
     }
 
     public IgExampleMessagesDTO createExampleMessage(String id, CreateMessageDTO createMessageDTO) throws ResourceNotFoundException, GenericException {
+        assertWritable(id);
         ProfileInfo profile = this.getProfileInfo(createMessageDTO.getProfileId());
         if(profile == null) {
             throw new ResourceNotFoundException(createMessageDTO.getProfileId(), Type.PROFILE);
@@ -150,6 +160,7 @@ public class ExampleMessagesService {
     }
 
     public IgExampleMessagesDTO copyExampleMessage(String igId, String messageId, CopyExampleItemDTO copyExampleItemDTO) throws ResourceNotFoundException, GenericException {
+        assertWritable(igId);
         IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
         if (igExampleMessages == null) {
             throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
@@ -178,6 +189,7 @@ public class ExampleMessagesService {
     }
 
     public IgExampleMessagesDTO createSnippet(String igId, String messageId, CreateSnippetDTO createSnippetDTO) throws ResourceNotFoundException, GenericException {
+        assertWritable(igId);
         IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
         if (igExampleMessages == null) {
             throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
@@ -202,6 +214,7 @@ public class ExampleMessagesService {
     }
 
     public IgExampleMessagesDTO copySnippet(String igId, String messageId, String snippetId, CopyExampleItemDTO copyExampleItemDTO) throws ResourceNotFoundException, GenericException {
+        assertWritable(igId);
         IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
         if (igExampleMessages == null) {
             throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
@@ -224,6 +237,7 @@ public class ExampleMessagesService {
     }
 
     public MessageSnippet saveSnippet(String igId, String messageId, String snippetId, SaveSnippetDTO saveSnippetDTO) throws ResourceNotFoundException, GenericException {
+        assertWritable(igId);
         IgExampleMessages igExampleMessages = this.exampleMessagesRepository.findById(igId).orElse(null);
         if (igExampleMessages == null) {
             throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
@@ -255,6 +269,102 @@ public class ExampleMessagesService {
         copy.setNarrativeHTML(source.getNarrativeHTML());
         copy.setMessageReferences(new HashSet<>(source.getMessageReferences()));
         return copy;
+    }
+
+    public List<ExampleMessageUsage> findUsages(String igId, String messageId, String snippetId) throws ResourceNotFoundException {
+        Ig ig = requireIg(igId);
+        requireMessage(igId, messageId);
+        return exampleMessageReferenceService.findUsages(ig, messageId, snippetId);
+    }
+
+    public List<ExampleMessageUsage> detach(String igId, String messageId, String snippetId, String sectionId, String kind) throws ResourceNotFoundException, GenericException {
+        assertWritable(igId);
+        Ig ig = requireIg(igId);
+        requireMessage(igId, messageId);
+        exampleMessageReferenceService.detach(ig, messageId, snippetId, sectionId, kind);
+        igRepository.save(ig);
+        return exampleMessageReferenceService.findUsages(ig, messageId, snippetId);
+    }
+
+    public IgExampleMessagesDTO deleteExampleMessage(String igId, String messageId) throws ResourceNotFoundException, GenericException {
+        assertWritable(igId);
+        Ig ig = requireIg(igId);
+        IgExampleMessages igExampleMessages = requireMessages(igId);
+        List<ExampleMessageUsage> usages = exampleMessageReferenceService.findUsages(ig, messageId, null);
+        if (!usages.isEmpty()) {
+            throw new GenericException("This example message is still used in the guide. Detach those references before deleting it.");
+        }
+        boolean removed = false;
+        Iterator<ExampleMessage> iterator = igExampleMessages.getExampleMessages().iterator();
+        while (iterator.hasNext()) {
+            if (messageId.equals(iterator.next().getId())) {
+                iterator.remove();
+                removed = true;
+            }
+        }
+        if (!removed) {
+            throw new ResourceNotFoundException(messageId, Type.EXAMPLEMESSAGE);
+        }
+        exampleMessagesRepository.save(igExampleMessages);
+        return toDTO(igExampleMessages);
+    }
+
+    public IgExampleMessagesDTO deleteSnippet(String igId, String messageId, String snippetId) throws ResourceNotFoundException, GenericException {
+        assertWritable(igId);
+        Ig ig = requireIg(igId);
+        IgExampleMessages igExampleMessages = requireMessages(igId);
+        ExampleMessage exampleMessage = igExampleMessages.getExampleMessages().stream()
+                .filter((m) -> messageId.equals(m.getId()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(messageId, Type.EXAMPLEMESSAGE));
+        List<ExampleMessageUsage> usages = exampleMessageReferenceService.findUsages(ig, messageId, snippetId);
+        if (!usages.isEmpty()) {
+            throw new GenericException("This snippet is still used in the guide. Detach those references before deleting it.");
+        }
+        boolean removed = exampleMessage.getSnippets().removeIf((snippet) -> snippetId.equals(snippet.getId()));
+        if (!removed) {
+            throw new ResourceNotFoundException(snippetId, null);
+        }
+        exampleMessagesRepository.save(igExampleMessages);
+        return toDTO(igExampleMessages);
+    }
+
+    private Ig requireIg(String igId) throws ResourceNotFoundException {
+        Ig ig = igRepository.findById(igId).orElse(null);
+        if (ig == null) {
+            throw new ResourceNotFoundException(igId, Type.IGDOCUMENT);
+        }
+        return ig;
+    }
+
+    private IgExampleMessages requireMessages(String igId) throws ResourceNotFoundException {
+        IgExampleMessages igExampleMessages = exampleMessagesRepository.findById(igId).orElse(null);
+        if (igExampleMessages == null) {
+            throw new ResourceNotFoundException(igId, Type.EXAMPLEMESSAGES);
+        }
+        return igExampleMessages;
+    }
+
+    private ExampleMessage requireMessage(String igId, String messageId) throws ResourceNotFoundException {
+        return requireMessages(igId).getExampleMessages().stream()
+                .filter((message) -> messageId.equals(message.getId()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(messageId, Type.EXAMPLEMESSAGE));
+    }
+
+    private void assertWritable(String igId) throws GenericException, ResourceNotFoundException {
+        if (isViewOnly(requireIg(igId))) {
+            throw new GenericException("This implementation guide is read only.");
+        }
+    }
+
+    static boolean isViewOnly(Ig ig) {
+        DomainInfo info = ig.getDomainInfo();
+        boolean notUser = info == null || info.getScope() != Scope.USER;
+        Status status = ig.getStatus();
+        boolean locked = status == Status.PUBLISHED || status == Status.LOCKED;
+        boolean readShare = ig.getSharePermission() == SharePermission.READ;
+        return notUser || locked || readShare;
     }
 
     private void assertUniqueMessageName(IgExampleMessages igExampleMessages, String profileId, String name, String excludeId) throws GenericException {

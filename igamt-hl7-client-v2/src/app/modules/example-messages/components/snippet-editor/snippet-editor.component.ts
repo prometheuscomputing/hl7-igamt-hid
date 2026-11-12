@@ -1,4 +1,5 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
+import { FormControl } from '@angular/forms';
 import { Actions } from '@ngrx/effects';
 import { Action, Store } from '@ngrx/store';
 import { EMPTY, Observable, of } from 'rxjs';
@@ -8,7 +9,7 @@ import { selectIgExampleMessages } from 'src/app/root-store/example-messages/exa
 import { IDisplayElement } from '../../../shared/models/display-element.interface';
 import { EditorID } from '../../../shared/models/editor.enum';
 import { Type } from '../../../shared/constants/type.enum';
-import { withUpdatedSnippetName } from '../../domain/example-messages.model';
+import { exampleNameError, exampleNameValidator, siblingSnippetNames, withUpdatedSnippetName } from '../../domain/example-messages.model';
 import { DamAbstractEditorComponent } from 'src/app/modules/dam-framework/services/dam-editor.component';
 import { FroalaService } from 'src/app/modules/shared/services/froala.service';
 import { MessageService } from 'src/app/modules/dam-framework/services/message.service';
@@ -37,6 +38,9 @@ export class SnippetEditorComponent extends DamAbstractEditorComponent implement
   selectionMarkers: CodeMirror.TextMarker[] = [];
   activeTab: number = 0;
   froalaConfig$: Observable<any>;
+  viewOnly$: Observable<boolean>;
+  viewOnly = false;
+  nameControl = new FormControl('');
   snippetNotFound = false;
   snippetWarnings: string[] = [];
 
@@ -66,6 +70,16 @@ export class SnippetEditorComponent extends DamAbstractEditorComponent implement
       title: 'Snippet',
     }, actions$, store);
     this.froalaConfig$ = this.froalaService.getConfig();
+    this.viewOnly$ = store.select(selectIgExampleMessages).pipe(
+      map((ig) => !!(ig && ig.viewOnly)),
+    );
+    this.viewOnly$.subscribe((viewOnly) => this.viewOnly = viewOnly);
+    this.nameControl.valueChanges.subscribe((name) => {
+      this.snippetName = name;
+      if (this.nameControl.dirty) {
+        this.pushSnippetChange({ snippetName: name });
+      }
+    });
   }
 
   ngOnInit() {
@@ -81,6 +95,7 @@ export class SnippetEditorComponent extends DamAbstractEditorComponent implement
           this.snippetId = data.snippetId || null;
           this.snippetName = data.snippetName || '';
           this.snippetDescription = (data as any).snippetDescription || '';
+          this.bindName(this.snippetName);
           this.messageName = data.messageName || '';
           this.parts = data.parts || [];
           this.snippetNotFound = !!(data as any).snippetNotFound;
@@ -170,30 +185,36 @@ export class SnippetEditorComponent extends DamAbstractEditorComponent implement
     } as IDisplayElement;
   }
 
-  onNameChange(name: string) {
-    this.snippetName = name;
+  nameError(): string {
+    return exampleNameError(this.nameControl);
+  }
+
+  private bindName(name: string) {
+    this.store.select(selectIgExampleMessages).pipe(take(1)).subscribe((ig) => {
+      this.nameControl.setValidators(exampleNameValidator(siblingSnippetNames(ig, this.messageId, this.snippetId)));
+      this.nameControl.setValue(name || '', { emitEvent: false });
+      this.nameControl.updateValueAndValidity({ emitEvent: false });
+    });
+  }
+
+  private pushSnippetChange(patch: any) {
+    if (this.viewOnly) {
+      return;
+    }
     this.current$.pipe(
       take(1),
       map((current) => {
         this.editorChange({
           ...current.data,
-          snippetName: name,
-        }, true);
+          ...patch,
+        }, this.nameControl.valid);
       }),
     ).subscribe();
   }
 
   onDescriptionChange(description: string) {
     this.snippetDescription = description;
-    this.current$.pipe(
-      take(1),
-      map((current) => {
-        this.editorChange({
-          ...current.data,
-          snippetDescription: description,
-        }, true);
-      }),
-    ).subscribe();
+    this.pushSnippetChange({ snippetDescription: description });
   }
 
   onEditorSave(action: fromDam.EditorSave): Observable<Action> {

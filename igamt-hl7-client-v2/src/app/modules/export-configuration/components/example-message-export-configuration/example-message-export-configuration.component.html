@@ -1,0 +1,81 @@
+<ng-container *ngIf="config?.exampleMessages">
+  <div class="exmsg-config">
+    <div class="exmsg-row">
+      <div class="card card-configuration">
+        <h5 class="card-title title-text custom-card-title">Include</h5>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item">
+            <p-checkbox [disabled]="viewOnly" label="Include example messages" binary="true" [(ngModel)]="config.exampleMessages.include" (onChange)="triggerChange()"></p-checkbox>
+          </li>
+        </ul>
+      </div>
+      <div class="card card-configuration exmsg-grow">
+        <h5 class="card-title title-text custom-card-title">Export folder</h5>
+        <div class="exmsg-body">
+          <label class="exmsg-field-label">Folder name</label>
+          <input class="form-control" type="text" [disabled]="viewOnly" [(ngModel)]="config.exampleMessages.folderName" (ngModelChange)="triggerChange()" />
+          <div class="exmsg-hint">
+            Export all from Example Messages writes this same folder, using the default configuration. Replace that folder in the guide export and the links still open.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ng-container *ngIf="config.exampleMessages.include">
+      <div class="exmsg-row">
+        <div class="card card-configuration">
+          <h5 class="card-title title-text custom-card-title">Content</h5>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <p-checkbox [disabled]="viewOnly" binary="true" label="Include the full text in the export" [(ngModel)]="fullText" (onChange)="applyChoices('text')"></p-checkbox>
+            </li>
+            <li class="list-group-item">
+              <p-checkbox [disabled]="viewOnly" binary="true" label="Export a snapshot of the examples" [(ngModel)]="snapshot" (onChange)="applyChoices('snapshot')"></p-checkbox>
+            </li>
+          </ul>
+        </div>
+        <div class="card card-configuration">
+          <h5 class="card-title title-text custom-card-title">Links</h5>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <p-checkbox [disabled]="viewOnly" binary="true" label="Relative link to the snapshot" [(ngModel)]="relativeLink" (onChange)="applyChoices('relative')"></p-checkbox>
+            </li>
+            <li class="list-group-item">
+              <p-checkbox [disabled]="viewOnly" binary="true" label="IGAMT URL" [(ngModel)]="igamtLink" (onChange)="applyChoices('igamt')"></p-checkbox>
+            </li>
+          </ul>
+        </div>
+        <div class="card card-configuration">
+          <h5 class="card-title title-text custom-card-title">Snippet</h5>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <p-radioButton [disabled]="viewOnly" name="exampleSnippetMode" value="LINE" label="Export only the line" [(ngModel)]="config.exampleMessages.snippetMode" (ngModelChange)="triggerChange()"></p-radioButton>
+            </li>
+            <li class="list-group-item">
+              <p-radioButton [disabled]="viewOnly" name="exampleSnippetMode" value="HIGHLIGHT" label="Export the highlighted content in the full message" [(ngModel)]="config.exampleMessages.snippetMode" (ngModelChange)="triggerChange()"></p-radioButton>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="exmsg-row">
+        <div class="card card-configuration">
+          <h5 class="card-title title-text custom-card-title">Description</h5>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <p-checkbox [disabled]="viewOnly" label="Include the description from the metadata tab" binary="true" [(ngModel)]="config.exampleMessages.includeDescription" (onChange)="triggerChange()"></p-checkbox>
+            </li>
+          </ul>
+        </div>
+        <div class="card card-configuration exmsg-grow">
+          <h5 class="card-title title-text custom-card-title">Additional files</h5>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <p-checkbox [disabled]="viewOnly" label="Also export every example message and snippet as files, even when the document does not reference them" binary="true" [(ngModel)]="config.exampleMessages.exportAllMessages" (onChange)="triggerChange()"></p-checkbox>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+</ng-container>
