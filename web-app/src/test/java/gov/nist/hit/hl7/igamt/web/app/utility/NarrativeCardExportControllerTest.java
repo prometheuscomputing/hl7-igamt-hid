@@ -52,7 +52,7 @@ public class NarrativeCardExportControllerTest {
     selected.setIgGeneralConfiguration(general);
     when(configurations.getExportConfigurationWithType("config +", ExportType.IGDOCUMENT)).thenReturn(selected);
     when(configurations.getConfigurationToApply(ExportType.IGDOCUMENT, "reader")).thenReturn(selected);
-    when(publication.preview(ig, examples)).thenAnswer(invocation -> preview());
+    when(publication.preview(ig, examples, selected.getPublicWebConfiguration())).thenAnswer(invocation -> preview());
     ReflectionTestUtils.setField(controller, "igService", igService);
     ReflectionTestUtils.setField(controller, "narrativeCardExportService", publication);
     ReflectionTestUtils.setField(controller, "configurations", configurations);
@@ -68,11 +68,11 @@ public class NarrativeCardExportControllerTest {
         html.select("a").first().attr("href"));
     assertEquals("https://outside.example/page", html.select("a").get(1).attr("href"));
     byte[] content = "<html>Configured snapshot</html>".getBytes(StandardCharsets.UTF_8);
-    when(publication.snapshot(ig, examples, "Examples/sample.html")).thenReturn(content);
+    when(publication.snapshot(ig, examples, selected.getPublicWebConfiguration(), "Examples/sample.html")).thenReturn(content);
     MockHttpServletResponse response = new MockHttpServletResponse();
     controller.snapshot(ig.getId(), "Examples/sample.html", "config +", authentication, response);
     assertArrayEquals(content, response.getContentAsByteArray());
-    verify(publication).snapshot(ig, examples, "Examples/sample.html");
+    verify(publication).snapshot(ig, examples, selected.getPublicWebConfiguration(), "Examples/sample.html");
     assertTrue(response.getHeader("Content-Security-Policy").contains("default-src 'none'"));
   }
 

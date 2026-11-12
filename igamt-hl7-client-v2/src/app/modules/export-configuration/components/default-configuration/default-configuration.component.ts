@@ -3,7 +3,7 @@ import { MatDialog } from '@angular/material';
 import { ActivatedRoute } from '@angular/router';
 import { Store } from '@ngrx/store';
 import * as _ from 'lodash';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 import { UserMessage } from 'src/app/modules/dam-framework/models/messages/message.class';
 import * as fromDAM from 'src/app/modules/dam-framework/store/index';
@@ -30,6 +30,7 @@ export class DefaultConfigurationComponent implements OnInit {
   configList: IExportConfigurationItemList[] = [];
   configName: string;
   hasChanges: boolean;
+  publicWebValid = true;
   filter: string;
   type: ExportTypes;
 
@@ -59,6 +60,7 @@ export class DefaultConfigurationComponent implements OnInit {
 
   reset() {
     this.currentConfiguration = _.cloneDeep(this.backupConfiguration);
+    this.publicWebValid = true;
     this.hasChanges = false;
   }
 
@@ -126,6 +128,9 @@ export class DefaultConfigurationComponent implements OnInit {
   }
 
   save(): Observable<boolean> {
+    if (!this.publicWebValid) {
+      return of(false);
+    }
     const success: Subject<boolean> = new Subject<boolean>();
     this.store.dispatch(new fromDAM.TurnOnLoader({ blockUI: true }));
     this.exportConfigurationService.saveExportConfiguration(this.currentConfiguration).subscribe(
@@ -157,6 +162,7 @@ export class DefaultConfigurationComponent implements OnInit {
       this.exportConfigurationService.getExportConfigurationById(id).subscribe(
         (x) => {
           this.currentConfiguration = x;
+          this.publicWebValid = true;
           this.backupConfiguration = _.cloneDeep(this.currentConfiguration);
           this.hasChanges = false;
         },
@@ -188,6 +194,7 @@ export class DefaultConfigurationComponent implements OnInit {
     this.exportConfigurationService.createExportConfiguration(type).subscribe(
       (x) => {
         this.currentConfiguration = x;
+        this.publicWebValid = true;
         this.open(this.currentConfiguration.id);
         this.store.dispatch(this.messageService.userMessageToAction(new UserMessage(MessageType.SUCCESS, 'Configuration Created Successfully')));
         this.loadExportConfigurationList(type);

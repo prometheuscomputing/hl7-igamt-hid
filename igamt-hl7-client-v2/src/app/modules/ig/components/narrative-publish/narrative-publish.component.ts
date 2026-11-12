@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
+import { contrastOnWhite, publicWebDefaults } from '../../../export-configuration/models/public-web-export-configuration';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Actions } from '@ngrx/effects';
@@ -35,6 +36,10 @@ export class NarrativePublishComponent extends AbstractEditorComponent implement
   copyFlash = false;
   loading = true;
   error = '';
+  tocQuery = '';
+  private visibleCardIds: { [id: string]: boolean } = {};
+  branding = publicWebDefaults();
+  brandStyles: { [key: string]: string } = {};
   private focusTimer: any;
   private sub = new Subscription();
 
@@ -73,8 +78,17 @@ export class NarrativePublishComponent extends AbstractEditorComponent implement
       ).subscribe((model: INarrativePublishModel) => {
         this.loading = false;
         this.model = model;
+        this.branding = { ...publicWebDefaults(), ...(model.branding || {}) };
+        this.brandStyles = {
+          '--np-primary': this.branding.primaryColor,
+          '--np-primary-ink': contrastOnWhite(this.branding.primaryColor) >= 4.5 ? this.branding.primaryColor : '#021a4c',
+          '--np-accent': this.branding.accentColor,
+          '--np-link': this.branding.linkColor,
+          '--np-accent-ink': this.contrastText(this.branding.accentColor),
+        };
         this.cardMap = this.mapper.byId(model);
         this.tocRoots = model.cards.filter((c) => !c.parentId);
+        this.filterToc();
         model.cards.forEach((c) => {
           if (this.expanded[c.id] === undefined) { this.expanded[c.id] = true; }
         });
@@ -142,6 +156,40 @@ export class NarrativePublishComponent extends AbstractEditorComponent implement
       cur = cur.parentId ? this.cardMap[cur.parentId] : null;
     }
     return chain;
+  }
+
+  private contrastText(color: string): string {
+    const hex = /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#F3C60D';
+    const channels = [1, 3, 5].map((i) => {
+      const value = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+    });
+    const luminance = .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+    return luminance > .179 ? '#000000' : '#ffffff';
+  }
+
+  filterToc() {
+    this.visibleCardIds = {};
+    const query = (this.tocQuery || '').trim().toLowerCase();
+    if (!query) { return; }
+    this.model.cards.forEach((card) => {
+      if ((card.number + ' ' + card.title).toLowerCase().indexOf(query) < 0) { return; }
+      let item: INarrativeCard = card;
+      const seen = new Set<string>();
+      while (item && !seen.has(item.id)) {
+        seen.add(item.id);
+        this.visibleCardIds[item.id] = true;
+        item = item.parentId ? this.cardMap[item.parentId] : null;
+      }
+    });
+  }
+
+  isTocVisible(id: string): boolean {
+    return !(this.tocQuery || '').trim() || !!this.visibleCardIds[id];
+  }
+
+  get hasTocResults(): boolean {
+    return !(this.tocQuery || '').trim() || Object.keys(this.visibleCardIds).length > 0;
   }
 
   toggle(id: string, event: Event) {

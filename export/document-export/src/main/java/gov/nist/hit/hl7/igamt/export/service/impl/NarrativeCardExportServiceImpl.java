@@ -11,6 +11,8 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import gov.nist.hit.hl7.igamt.common.base.domain.NarrativeRequirement;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration;
+import gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration;
+import gov.nist.hit.hl7.igamt.ig.domain.datamodel.ExampleMessageDataModel;
 import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageExportDataService;
 import gov.nist.hit.hl7.igamt.ig.domain.datamodel.IgDataModel;
 import gov.nist.hit.hl7.igamt.ig.service.IgService;
@@ -98,6 +100,13 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
 
   @Override
   public ExportedFile exportNarrativeCardsHtml(Ig ig, ExampleMessageExportConfiguration configuration) throws Exception {
+    return exportNarrativeCardsHtml(ig, configuration, citationOnlyBranding());
+  }
+
+  @Override
+  public ExportedFile exportNarrativeCardsHtml(Ig ig, ExampleMessageExportConfiguration configuration,
+      PublicWebExportConfiguration branding) throws Exception {
+    configuration = publicationExamples(configuration, branding);
     IgDataModel model = igService.generateDataModel(ig);
     exampleData.populate(model, configuration);
     String title = "Implementation Guide";
@@ -156,7 +165,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     String guideJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(payload);
 
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    PublicationArchive zip = new PublicationArchive(baos, model, configuration);
+    PublicationArchive zip = new PublicationArchive(baos, model, configuration, branding, title);
     String root = "igamt-public-ig/";
 
     put(zip, root + "README.txt", buildReadme(title, igId, cards.size(), profiles.size(), segments.size(),
@@ -169,6 +178,16 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
       put(zip, root + "assets/css/publication.css", readResource("/publication.css") + new String(styles.toByteArray(), StandardCharsets.UTF_8));
     }
     put(zip, root + "assets/js/publication.js", readResource("/publication.js"));
+    put(zip, root + "assets/css/brand.css", brandCss(branding));
+    put(zip, root + "data/branding.json", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(branding));
+    if (!branding.getLogoDataUrl().isEmpty()) {
+      String data = branding.getLogoDataUrl();
+      String extension = data.substring(11, data.indexOf(';')).replace("jpeg", "jpg");
+      zip.logoPath = "assets/images/organization-logo." + extension;
+      zip.putNextEntry(new ZipEntry(root + zip.logoPath));
+      zip.write(java.util.Base64.getDecoder().decode(data.substring(data.indexOf(',') + 1)));
+      zip.closeEntry();
+    }
     put(zip, root + "index.html",
         buildIndex(title, cards, profiles, segments, datatypes, valuesets, cpSlug, segSlug, dtSlug, vsSlug, igId));
 
@@ -216,11 +235,16 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     exampleFiles.putAll(exampleData.collectStaticPages(model, configuration));
     // HIGHLIGHT governs visual context; raw snippet downloads carry extracted lines.
     // Use the shared collector's LINE mode for text only, leaving classic behavior intact.
-    ExampleMessageExportConfiguration textConfiguration = objectMapper.convertValue(configuration, ExampleMessageExportConfiguration.class);
+    ExampleMessageExportConfiguration textConfiguration = copyExamples(configuration);
     textConfiguration.setSnippetMode(gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageSnippetExportMode.LINE);
     exampleFiles.putAll(exampleData.collectFiles(model, textConfiguration));
+    boolean hasExamples = branding.isIncludeExampleLibrary() && configuration.isInclude() && exampleFiles.keySet().stream().anyMatch(p -> p.endsWith(".html"));
+    if (hasExamples) {
+      put(zip, root + "examples/index.html", shell("Example messages — " + esc(title), "examples", null,
+          exampleLibrary(model, exampleFiles), "../", cards, profiles, segments, datatypes, valuesets,
+          cpSlug, segSlug, dtSlug, vsSlug));
+    }
     for (Map.Entry<String, byte[]> file : exampleFiles.entrySet()) {
-      zip.putNextEntry(new ZipEntry(root + file.getKey()));
       byte[] fileBytes = file.getValue();
       if (file.getKey().endsWith(".html")) {
         Document snapshot = Jsoup.parse(new String(fileBytes, StandardCharsets.UTF_8));
@@ -228,16 +252,40 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
         for (org.jsoup.nodes.Element description : snapshot.select(".fr-exmsg-description")) {
           description.html(safeFragment(description.html()));
         }
-        fileBytes = snapshot.outerHtml().getBytes(StandardCharsets.UTF_8);
+        String prefix = rootPrefix(file.getKey());
+        String rawPath = file.getKey().substring(0, file.getKey().length() - 5) + ".txt";
+        String rawName = rawPath.substring(rawPath.lastIndexOf('/') + 1);
+        snapshot.select("body > p").remove();
+        snapshot.select("pre").addClass("fr-exmsg-body");
+        String body = "<div class=\"page example-page\"><nav class=\"crumbs\" aria-label=\"Breadcrumb\"><a href=\""
+            + prefix + "index.html\">Home</a>" + (hasExamples ? "<span class=\"sep\">/</span><a href=\"" + prefix
+            + "examples/index.html\">Example messages</a>" : "") + "</nav>" + typeBadge("EXAMPLE")
+            + snapshot.body().html() + "<div class=\"example-downloads\"><a class=\"button-link\" download href=\""
+            + esc(ExampleMessageExportConfiguration.relativeHref(rawName)) + "\">Download ER7 (.txt)</a></div></div>";
+        put(zip, root + file.getKey(), shell(esc(snapshot.title()) + " — " + esc(title), "examples", null,
+            body, prefix, cards, profiles, segments, datatypes, valuesets, cpSlug, segSlug, dtSlug, vsSlug));
+        continue;
       }
+      zip.putNextEntry(new ZipEntry(root + file.getKey()));
       zip.write(fileBytes);
       zip.closeEntry();
     }
     // A snippet-only citation may not collect its parent snapshot. Keep its name,
     // but do not publish a link to a file absent from this archive.
+    List<Map<String, String>> searchIndex = new ArrayList<>();
     for (Map.Entry<String, String> page : zip.pages.entrySet()) {
       Document html = Jsoup.parse(page.getValue());
       html.outputSettings().prettyPrint(false);
+      String path = page.getKey().substring(root.length());
+      String prefix = rootPrefix(path);
+      if (hasExamples) {
+        html.select(".toc-home").after("<div class=\"toc-home toc-examples\"><a href=\"" + prefix
+            + "examples/index.html\"" + (path.startsWith("examples/") || exampleFiles.containsKey(path) ? " aria-current=\"page\"" : "")
+            + ">" + typeBadge("EXAMPLE") + " Example messages</a></div>");
+        if (path.equals("index.html")) html.select(".stats").after("<section class=\"section-card example-callout\"><h2>Example messages</h2>"
+            + "<p>Explore the guide’s messages and snippets, inspect the ER7 content, and download examples for reference.</p>"
+            + "<a class=\"button-link\" href=\"examples/index.html\">Browse example messages →</a></section>");
+      }
       for (org.jsoup.nodes.Element link : html.select(".fr-exmsg-info a[href]")) {
         String href = link.attr("href");
         if (href.startsWith("../")) {
@@ -245,10 +293,22 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
           if (!exampleFiles.containsKey(target)) link.unwrap();
         }
       }
+      org.jsoup.nodes.Element main = html.select("main").first();
+      org.jsoup.nodes.Element h1 = html.select("h1").first();
+      Map<String, String> entry = new java.util.LinkedHashMap<>();
+      entry.put("title", h1 == null ? html.title() : h1.text());
+      entry.put("url", ExampleMessageExportConfiguration.relativeHref(path));
+      entry.put("type", pageType(path));
+      org.jsoup.nodes.Element searchable = main == null ? null : main.clone();
+      if (searchable != null) searchable.select(".table-toolbar,.crumbs,.publication-footer,.nav,.meta,button,input").remove();
+      entry.put("text", searchable == null ? "" : searchable.text());
+      searchIndex.add(entry);
       zip.putNextEntry(new ZipEntry(page.getKey()));
       zip.write(html.outerHtml().getBytes(StandardCharsets.UTF_8));
       zip.closeEntry();
     }
+    put(zip, root + "assets/search-index.js", "window.PUBLICATION_SEARCH_INDEX="
+        + objectMapper.writeValueAsString(searchIndex).replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029") + ";\n");
     zip.close();
     final byte[] bytes = baos.toByteArray();
     return new ExportedFile(new ByteArrayInputStream(bytes), title + "-public-ig", igId, ExportFormat.HTML) {
@@ -334,10 +394,16 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     final Map<String, String> pages = new java.util.LinkedHashMap<>();
     final IgDataModel model;
     final ExampleMessageExportConfiguration configuration;
-    PublicationArchive(ByteArrayOutputStream output, IgDataModel model, ExampleMessageExportConfiguration configuration) {
+    final PublicWebExportConfiguration branding;
+    final String title;
+    String logoPath;
+    PublicationArchive(ByteArrayOutputStream output, IgDataModel model, ExampleMessageExportConfiguration configuration,
+        PublicWebExportConfiguration branding, String title) {
       super(output);
       this.model = model;
       this.configuration = configuration;
+      this.branding = branding;
+      this.title = title;
     }
   }
 
@@ -346,7 +412,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
       Document page = Jsoup.parse(content);
       page.outputSettings().prettyPrint(false);
       for (org.jsoup.nodes.Element script : page.select("script")) {
-        if (!script.attr("src").equals("../assets/js/publication.js") && !script.attr("src").equals("assets/js/publication.js")) script.remove();
+        if (!script.attr("src").matches("(\\.\\./)*(assets/js/publication\\.js|assets/search-index\\.js)")) script.remove();
       }
       page.select("iframe,object,embed,form,base,svg,math,link:not([rel=stylesheet]),meta[http-equiv],input,textarea,select").remove();
       for (org.jsoup.nodes.Element element : page.getAllElements()) {
@@ -362,6 +428,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
         widget.before(publicationMarkup(exampleSerialization.rewriteNarrative(widget.outerHtml(), zip.model, zip.configuration)));
         widget.remove();
       }
+      for (org.jsoup.nodes.Element authored : page.select(".def-text")) authored.html(safeFragment(authored.html()));
       for (org.jsoup.nodes.Element heading : page.select("table th:not([scope])")) {
         heading.attr("scope", heading.parents().select("table.fr-exmsg-info").size() > 0 ? "row" : "col");
       }
@@ -371,6 +438,27 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
       for (org.jsoup.nodes.Element disabled : page.select("a.disabled")) {
         disabled.tagName("span").removeAttr("href").attr("aria-disabled", "true");
       }
+      String prefix = rootPrefix(name.substring("igamt-public-ig/".length()));
+      page.body().attr("data-root-prefix", prefix);
+      String organization = zip.branding.getOrganizationName().trim();
+      if (organization.isEmpty()) organization = "IGAMT";
+      page.select(".app-brand").html("<a class=\"brand-home\" href=\"" + prefix + "index.html\">"
+          + (zip.logoPath == null ? "<span class=\"app-brand-mark\" aria-hidden=\"true\">IG</span>"
+              : "<img class=\"organization-logo\" src=\"" + prefix + zip.logoPath + "\" alt=\""
+                  + esc(zip.branding.getLogoAlt().isEmpty() ? organization : zip.branding.getLogoAlt()) + "\"/>")
+          + "<span>" + esc(organization) + "</span></a>");
+      page.select(".app-guide-title").first().text(zip.title);
+      page.select(".app-badge").first().text("Implementation guide");
+      page.head().append("<link rel=\"stylesheet\" href=\"" + prefix + "assets/css/brand.css\"/>");
+      page.select(".page").append("<footer class=\"publication-footer\">"
+          + esc(zip.branding.getFooterText().isEmpty() ? "Published with IGAMT" : zip.branding.getFooterText()) + "</footer>");
+      org.jsoup.nodes.Element identity = page.select(".identity-row .scope-badge").first();
+      if (identity != null && !page.select(".meta").isEmpty()) page.select(".meta").first().appendChild(identity);
+      page.select(".identity-row").remove();
+      for (org.jsoup.nodes.Element chip : page.select(".meta .chip")) {
+        if (chip.text().isEmpty() || chip.text().matches("USER|HL7STANDARD|USERCUSTOM|PHINVADS|SDTF")) chip.remove();
+      }
+      enhanceTables(page);
       zip.pages.put(name, page.outerHtml());
       return;
     }
@@ -382,6 +470,13 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
   /** Both preview and ZIP use the same live references, configuration and renderer. */
   @Override
   public Map<String, Object> preview(Ig ig, ExampleMessageExportConfiguration configuration) throws Exception {
+    return preview(ig, configuration, citationOnlyBranding());
+  }
+
+  @Override
+  public Map<String, Object> preview(Ig ig, ExampleMessageExportConfiguration configuration,
+      PublicWebExportConfiguration branding) throws Exception {
+    configuration = publicationExamples(configuration, branding);
     IgDataModel model = igService.generateDataModel(ig);
     exampleData.populate(model, configuration);
     List<Map<String, Object>> cards = new ArrayList<>();
@@ -389,6 +484,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     for (TextSection section : sorted(ig.getContent())) {
       walk(section, null, String.valueOf(section.getPosition()), cards, order, model, configuration);
     }
+    if (branding.isIncludeExampleLibrary() && configuration.isInclude()) appendPreviewExamples(cards, order, model, configuration);
     // Preview snapshot links use authorized, same-origin downloads, rather than paths
     // that only exist inside the ZIP. Their content still comes from the configured renderer.
     Map<String, byte[]> availablePages = exampleData.collectStaticPages(model, configuration);
@@ -417,6 +513,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     result.put("title", ig.getMetadata() == null ? "Implementation Guide" : ig.getMetadata().getTitle());
     result.put("cards", cards);
     result.put("order", order);
+    result.put("branding", branding);
     return result;
   }
 
@@ -427,6 +524,13 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
 
   @Override
   public byte[] snapshot(Ig ig, ExampleMessageExportConfiguration configuration, String path) throws Exception {
+    return snapshot(ig, configuration, citationOnlyBranding(), path);
+  }
+
+  @Override
+  public byte[] snapshot(Ig ig, ExampleMessageExportConfiguration configuration, PublicWebExportConfiguration branding,
+      String path) throws Exception {
+    configuration = publicationExamples(configuration, branding);
     IgDataModel model = igService.generateDataModel(ig);
     exampleData.populate(model, configuration);
     List<Map<String, Object>> cards = new ArrayList<>();
@@ -439,6 +543,12 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     if (page == null) throw new IllegalArgumentException("Snapshot is not included in this publication");
     Document snapshot = Jsoup.parse(new String(page, StandardCharsets.UTF_8));
     for (org.jsoup.nodes.Element description : snapshot.select(".fr-exmsg-description")) description.html(safeFragment(description.html()));
+    snapshot.select("style").remove();
+    snapshot.head().appendElement("style").text(readResource("/publication.css") + readResource("/publication-accessibility.css") + brandCss(branding));
+    snapshot.body().addClass("standalone-example");
+    snapshot.select("pre").addClass("example-er7");
+    snapshot.select("html").attr("lang", "en");
+    snapshot.head().append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>");
     return snapshot.outerHtml().getBytes(StandardCharsets.UTF_8);
   }
 
@@ -569,16 +679,24 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
 
   private String labelOf(Segment s) {
     if (s == null) return "";
-    try { return s.getLabel() != null ? s.getLabel() : s.getName(); } catch (Exception e) {
-      return s.getExt() != null && !s.getExt().isEmpty() ? s.getName() + "_" + s.getExt() : s.getName();
-    }
+    String name = nullSafe(s.getName());
+    if (s.getFixedExtension() != null && !s.getFixedExtension().isEmpty()) name += "#" + s.getFixedExtension();
+    return digitalIdentity(name, s.getExt());
   }
 
   private String labelOf(Datatype d) {
-    if (d == null) return "";
-    try { return d.getLabel() != null ? d.getLabel() : d.getName(); } catch (Exception e) {
-      return d.getExt() != null && !d.getExt().isEmpty() ? d.getName() + "_" + d.getExt() : d.getName();
-    }
+    return d == null ? "" : digitalIdentity(d.getName(), d.getExt());
+  }
+
+  private String fullName(String name, String description) {
+    String detail = nullSafe(description).trim();
+    return nullSafe(name) + (detail.isEmpty() || detail.equals(name) ? "" : " - " + detail);
+  }
+
+  private String tocName(String name, String description) {
+    return "<span class=\"toc-name\"><span class=\"dig-id\">" + esc(name) + "</span>"
+        + (description == null || description.trim().isEmpty() || description.equals(name) ? ""
+            : "<span class=\"toc-description\"> - " + esc(description) + "</span>") + "</span>";
   }
 
   private String usageBadge(Object usage) {
@@ -598,7 +716,8 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     String label = kind == null ? "Item" : kind;
     if ("SEGMENTREF".equals(k) || "SEGMENT".equals(k)) { cls = "badge-seg"; label = "Segment"; }
     else if ("GROUP".equals(k)) { cls = "badge-grp"; label = "Group"; }
-    else if ("PROFILE".equals(k) || "MESSAGE".equals(k)) { cls = "badge-profile"; label = "Profile"; }
+    else if ("PROFILE".equals(k) || "MESSAGE".equals(k)) { cls = "badge-profile"; label = "Message"; }
+    else if ("EXAMPLE".equals(k)) { cls = "badge-example"; label = "Example"; }
     else if ("DATATYPE".equals(k)) { cls = "badge-dt"; label = "Datatype"; }
     else if ("COMPONENT".equals(k)) { cls = "badge-comp"; label = "Component"; }
     else if ("FIELD".equals(k)) { cls = "badge-field"; label = "Field"; }
@@ -711,9 +830,8 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     String firstSection = cards.isEmpty() ? "#" : ("sections/" + cards.get(0).get("slug") + ".html");
     String firstProfile = profiles.isEmpty() ? "#" : ("profiles/" + cpSlug.get(profiles.get(0).getId()) + ".html");
     String body = "<div class=\"page\"><p class=\"crumbs\">Public Implementation Guide</p><h1>" + esc(title)
-        + "</h1><div class=\"meta\"><span class=\"chip cyan\">IGAMT export</span><span class=\"chip\">id "
-        + esc(igId) + "</span></div>"
-        + "<p class=\"lede\">Web-first publication: narratives, message structures, segments, datatypes, and value sets from live IGAMT data.</p>"
+        + "</h1>"
+        + "<p class=\"lede\">Explore the requirements, message structures, and terminology in this implementation guide.</p>"
         + "<div class=\"stats\">"
         + "<div class=\"stat\"><div class=\"n\">" + cards.size() + "</div><div class=\"l\">Narratives</div></div>"
         + "<div class=\"stat\"><div class=\"n\">" + profiles.size() + "</div><div class=\"l\">Profiles</div></div>"
@@ -721,12 +839,12 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
         + "<div class=\"stat\"><div class=\"n\">" + datatypes.size() + "</div><div class=\"l\">Datatypes</div></div>"
         + "<div class=\"stat\"><div class=\"n\">" + valuesets.size() + "</div><div class=\"l\">Value sets</div></div>"
         + "</div><div class=\"section-card\"><h2>Start here</h2><div class=\"grid-links\">"
-        + "<a href=\"" + esc(firstSection) + "\"><span class=\"k\">Narratives</span><span class=\"s\">Ig.content sections</span></a>"
+        + "<a href=\"" + esc(firstSection) + "\"><span class=\"k\">Narratives</span><span class=\"s\">Read the guide, section by section</span></a>"
         + "<a href=\"" + esc(firstProfile) + "\"><span class=\"k\">Message structures</span><span class=\"s\">Conformance profiles</span></a>"
         + "</div></div><div class=\"section-card\"><h2>Message profiles</h2><div class=\"grid-links\">"
         + profileLinks + "</div></div>"
-        + "<p class=\"note\">Classic Word/HTML document export is unchanged.</p></div>";
-    return shell(title + " — Public IG", null, null, body, "", cards, profiles, segments, datatypes, valuesets,
+        + "</div>";
+    return shell(esc(title) + " — Public IG", null, null, body, "", cards, profiles, segments, datatypes, valuesets,
         cpSlug, segSlug, dtSlug, vsSlug);
   }
 
@@ -806,49 +924,45 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     return n;
   }
 
-  private String renderStructTree(Set<SegmentRefOrGroup> nodes, int depth, Map<String, Segment> segById,
-      Map<String, String> segSlug) {
+  private String renderStructTree(Set<SegmentRefOrGroup> nodes, int depth, String parentPath,
+      Map<String, Segment> segById, Map<String, String> segSlug) {
     if (nodes == null || nodes.isEmpty()) return "";
-    List<SegmentRefOrGroup> list = new ArrayList<SegmentRefOrGroup>(nodes);
-    Collections.sort(list, new Comparator<SegmentRefOrGroup>() {
-      public int compare(SegmentRefOrGroup a, SegmentRefOrGroup b) {
-        return Integer.compare(a.getPosition(), b.getPosition());
-      }
-    });
-    StringBuilder items = new StringBuilder();
-    for (SegmentRefOrGroup n : list) {
-      String ntype = n.getType() != null ? n.getType().name() : "";
-      String rid = null;
-      if (n instanceof SegmentRef) {
-        rid = refId(((SegmentRef) n).getRef());
-      }
-      String nameHtml;
-      if ("SEGMENTREF".equals(ntype) && rid != null) {
-        nameHtml = segLink(rid, segById, segSlug, "../");
-      } else if ("GROUP".equals(ntype)) {
-        nameHtml = "<strong>" + esc(n.getName() != null ? n.getName() : "Group") + "</strong>";
-      } else {
-        nameHtml = esc(n.getName());
-      }
-      String meta = typeBadge(ntype) + "<span class=\"struct-name\">"
-          + nameHtml + "</span><span>" + usageBadge(n.getUsage()) + "</span><span class=\"mono\">"
-          + esc(n.getMin()) + "</span><span class=\"mono\">" + esc(n.getMax()) + "</span>";
-      boolean hasKids = n instanceof Group && ((Group) n).getChildren() != null
-          && !((Group) n).getChildren().isEmpty();
-      if ("GROUP".equals(ntype) || hasKids) {
-        String openAttr = depth < 1 ? " open" : "";
-        String inner = hasKids
-            ? renderStructTree(((Group) n).getChildren(), depth + 1, segById, segSlug)
-            : "";
-        items.append("<li><details class=\"struct-branch group-row\"").append(openAttr).append(">")
-            .append("<summary class=\"struct-row\"><span class=\"twisty\">▼</span>").append(meta)
-            .append("</summary><ul class=\"struct-tree\">").append(inner).append("</ul></details></li>");
-      } else {
-        items.append("<li class=\"struct-leaf\"><div class=\"struct-row\"><span class=\"twisty-spacer\"></span>")
-            .append(meta).append("</div></li>");
-      }
+    List<SegmentRefOrGroup> list = new ArrayList<>(nodes);
+    list.sort(Comparator.comparingInt(SegmentRefOrGroup::getPosition));
+    StringBuilder rows = new StringBuilder();
+    for (SegmentRefOrGroup node : list) {
+      String path = parentPath.isEmpty() ? String.valueOf(node.getPosition()) : parentPath + "." + node.getPosition();
+      boolean group = node instanceof Group;
+      boolean children = group && ((Group) node).getChildren() != null && !((Group) node).getChildren().isEmpty();
+      String label = nullSafe(node.getName());
+      String description = "";
+      if (node instanceof SegmentRef) {
+        String id = refId(((SegmentRef) node).getRef());
+        Segment segment = segById.get(id);
+        label = segLink(id, segById, segSlug, "../");
+        if (segment != null) description = nullSafe(segment.getDescription());
+      } else label = "<strong>" + esc(label) + "</strong>";
+      rows.append("<tr data-node-id=\"").append(esc(path)).append("\" data-parent-id=\"")
+          .append(esc(parentPath)).append("\" data-depth=\"").append(depth).append("\" class=\"")
+          .append(group ? "group-row" : "segment-row").append("\"><th scope=\"row\" class=\"tree-label\"><div class=\"tree-cell\">")
+          .append(children ? treeToggle(node.getName()) : "<span class=\"tree-spacer\"></span>")
+          .append("<span>").append(label).append("</span></div></th><td>")
+          .append(typeBadge(group ? "GROUP" : "SEGMENT")).append("</td><td class=\"wrap\">")
+          .append(esc(description)).append("</td><td>").append(usageBadge(node.getUsage()))
+          .append("</td><td class=\"mono\">").append(esc(node.getMin())).append("..").append(esc(node.getMax()))
+          .append("</td></tr>");
+      if (children) rows.append(renderStructTree(((Group) node).getChildren(), depth + 1, path, segById, segSlug));
     }
-    return items.toString();
+    return rows.toString();
+  }
+
+  private String collapsedTreeToggle(String label) {
+    return treeToggle(label).replace("aria-expanded=\"true\"", "aria-expanded=\"false\"").replace("aria-label=\"Collapse ", "aria-label=\"Expand ");
+  }
+
+  private String treeToggle(String label) {
+    return "<button type=\"button\" class=\"tree-toggle\" aria-expanded=\"true\" aria-label=\"Collapse "
+        + esc(label) + "\"><span aria-hidden=\"true\">▾</span></button>";
   }
 
   private String buildProfilePage(String guideTitle, ConformanceProfile cp, ConformanceProfile prev,
@@ -856,14 +970,17 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
       List<Segment> segments, List<Datatype> datatypes, List<Valueset> valuesets, Map<String, String> cpSlug,
       Map<String, String> segSlug, Map<String, String> dtSlug, Map<String, String> vsSlug,
       Map<String, Segment> segById, String igId) {
-    String treeBody = renderStructTree(cp.getChildren(), 0, segById, segSlug);
+    String treeBody = renderStructTree(cp.getChildren(), 0, "", segById, segSlug);
     int nodeCount = countCpNodes(cp.getChildren());
     String table = treeBody.isEmpty() ? "<p class=\"empty\">No structure children.</p>"
-        : "<div class=\"struct-head\"><span></span><span>Type</span><span>Segment / Group</span><span>Usage</span><span>Min</span><span>Max</span></div>"
-            + "<ul class=\"struct-tree\" id=\"msg-struct-tree\">" + treeBody + "</ul>";
-    String expandBtns = "<span class=\"tree-tools\">"
-        + "<button type=\"button\" id=\"struct-expand-all\">Expand all</button>"
-        + "<button type=\"button\" id=\"struct-collapse-all\">Collapse all</button></span>";
+        : "<table class=\"struct tree-table\" id=\"message-structure\"><caption>Message structure</caption><thead><tr>"
+            + "<th>Segment / group</th><th>Type</th><th>Description</th><th>Usage</th><th>Cardinality</th>"
+            + "</tr></thead><tbody>" + treeBody + "</tbody></table>";
+    Map<String, Valueset> vsById = new HashMap<>();
+    for (Valueset value : valuesets) vsById.put(value.getId(), value);
+    String extra = sectionCard("Value set bindings", renderVsBindingTable(cp.getBinding(), cp.getName(), vsSlug, vsById, "../"))
+        + sectionCard("Conditional predicates", renderPredicateTable(cp.getBinding(), cp.getName()))
+        + sectionCard("Conformance statements", renderCsTable(cp.getBinding())) + renderPrePost(cp);
     String prevA = prev == null ? "<a class=\"disabled\" href=\"#\">← Previous</a>"
         : "<a href=\"" + esc(cpSlug.get(prev.getId())) + ".html\">← " + esc(prev.getMessageType()) + "^"
             + esc(prev.getEvent()) + "</a>";
@@ -871,8 +988,8 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
         : "<a href=\"" + esc(cpSlug.get(next.getId())) + ".html\">" + esc(next.getMessageType()) + "^"
             + esc(next.getEvent()) + " →</a>";
     String body = "<div class=\"page\"><div class=\"crumbs\"><a href=\"../index.html\">Home</a><span class=\"sep\">/</span><span>Message profiles</span></div>"
-        + "<h1>" + esc(cp.getName()) + "</h1>" + "<div class=\"identity-row\">" + scopeBadge(cp.getDomainInfo(), cp.getResourceOrigin()) + "<span class=\"dig-id\">" + esc(cp.getName()) + "</span></div>" + "<div class=\"meta\">" + typeBadge("PROFILE") + "<span class=\"chip cyan\">" + esc(cp.getMessageType()) + "^" + esc(cp.getEvent()) + "</span><span class=\"chip\">" + esc(scopeName(cp.getDomainInfo())) + "</span><span class=\"chip\">HL7 " + esc(scopeVersion(cp.getDomainInfo())) + "</span><span class=\"chip\">" + nodeCount + " structure nodes</span></div><div class=\"section-card\"><h2>" + typeBadge("PROFILE") + " Message structure " + expandBtns
-        + "</h2>" + table + "</div><footer class=\"nav\">" + prevA + nextA + "</footer></div>";
+        + "<h1>" + esc(fullName(cp.getName(), cp.getDescription())) + "</h1>" + "<div class=\"identity-row\">" + scopeBadge(cp.getDomainInfo(), cp.getResourceOrigin()) + "<span class=\"dig-id\">" + esc(cp.getName()) + "</span></div>" + "<div class=\"meta\">" + typeBadge("PROFILE") + "<span class=\"chip cyan\">" + esc(cp.getMessageType()) + "^" + esc(cp.getEvent()) + "</span><span class=\"chip\">HL7 " + esc(scopeVersion(cp.getDomainInfo())) + "</span><span class=\"chip\">" + nodeCount + " structure nodes</span></div><div class=\"section-card\"><h2>" + typeBadge("PROFILE") + " Message structure "
+        + "</h2>" + table + "</div>" + extra + "<footer class=\"nav\">" + prevA + nextA + "</footer></div>";
     return shell(esc(cp.getMessageType()) + "^" + esc(cp.getEvent()) + " — " + esc(guideTitle), "profile",
         cp.getId(), body, "../", cards, profiles, segments, datatypes, valuesets, cpSlug, segSlug, dtSlug, vsSlug);
   }
@@ -911,7 +1028,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     for (ValuesetBinding vb : binds) {
       if (vb.getValueSets() == null) continue;
       for (String vid : vb.getValueSets()) {
-        sb.append(vsLink(vid, vsSlug, vsById, prefix));
+        sb.append("<span class=\"binding-item\">").append(vsLink(vid, vsSlug, vsById, prefix));
         sb.append(strengthBadge(vb.getStrength()));
         if (vb.getValuesetLocations() != null && !vb.getValuesetLocations().isEmpty()) {
           sb.append(" <span style=\"color:var(--muted);font-size:10px\">@");
@@ -923,7 +1040,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
           }
           sb.append("</span>");
         }
-        sb.append(" ");
+        sb.append("</span> ");
       }
     }
     String out = sb.toString().trim();
@@ -964,9 +1081,9 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     if (nodes == null) return null;
     for (StructureElementBinding n : nodes) {
       if (elementId != null && elementId.equals(n.getElementId())) return n;
+    }
+    for (StructureElementBinding n : nodes) {
       if (n.getLocationInfo() != null && n.getLocationInfo().getPosition() == position) return n;
-      StructureElementBinding found = findBindingChild(n.getChildren(), elementId, position);
-      if (found != null) return found;
     }
     return null;
   }
@@ -1016,8 +1133,14 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
           }
         }
       }
-      renderVsBindingRows(n.getChildren(), rootLabel, rows, vsSlug, vsById, prefix);
+      renderVsBindingRows(n.getChildren(), loc, rows, vsSlug, vsById, prefix);
     }
+  }
+
+  private String bindingLocation(String root, StructureElementBinding binding) {
+    if (binding.getLocationInfo() == null) return root;
+    String type = String.valueOf(binding.getLocationInfo().getType());
+    return root + ("COMPONENT".equals(type) || "SUBCOMPONENT".equals(type) ? "." : "-") + binding.getLocationInfo().getPosition();
   }
 
   private String renderPredicateTable(ResourceBinding binding, String rootLabel) {
@@ -1033,8 +1156,8 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     if (nodes == null) return;
     for (StructureElementBinding n : nodes) {
       Predicate pred = n.getPredicate();
+      String loc = bindingLocation(rootLabel, n);
       if (pred != null) {
-        String loc = rootLabel;
         String name = "";
         if (n.getLocationInfo() != null) {
           name = n.getLocationInfo().getName() != null ? n.getLocationInfo().getName() : "";
@@ -1053,7 +1176,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
             .append(usageBadge(pred.getFalseUsage())).append("</td><td class=\"wrap\">")
             .append(esc(desc)).append("</td></tr>");
       }
-      renderPredicateRows(n.getChildren(), rootLabel, rows);
+      renderPredicateRows(n.getChildren(), loc, rows);
     }
   }
 
@@ -1086,6 +1209,70 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     return sb.toString();
   }
 
+  private StructureElementBinding mergeBinding(StructureElementBinding inherited, StructureElementBinding contextual) {
+    if (inherited == null) return contextual;
+    if (contextual == null) return inherited;
+    StructureElementBinding merged = new StructureElementBinding();
+    merged.setElementId(contextual.getElementId() == null ? inherited.getElementId() : contextual.getElementId());
+    merged.setLocationInfo(contextual.getLocationInfo() == null ? inherited.getLocationInfo() : contextual.getLocationInfo());
+    merged.setPredicate(contextual.getPredicate() == null ? inherited.getPredicate() : contextual.getPredicate());
+    merged.setValuesetBindings(contextual.getValuesetBindings() == null || contextual.getValuesetBindings().isEmpty()
+        ? inherited.getValuesetBindings() : contextual.getValuesetBindings());
+    Set<StructureElementBinding> remaining = new HashSet<>(inherited.getChildren());
+    for (StructureElementBinding override : contextual.getChildren()) {
+      int position = override.getLocationInfo() == null ? -1 : override.getLocationInfo().getPosition();
+      StructureElementBinding fallback = findBindingChild(remaining, override.getElementId(), position);
+      merged.addChild(mergeBinding(fallback, override));
+      remaining.remove(fallback);
+    }
+    for (StructureElementBinding child : remaining) merged.addChild(child);
+    return merged;
+  }
+
+  private boolean hasComponents(Datatype datatype) {
+    return datatype instanceof ComplexDatatype && ((ComplexDatatype) datatype).getComponents() != null
+        && !((ComplexDatatype) datatype).getComponents().isEmpty();
+  }
+
+  /** Resolve the definition hierarchy without confusing sibling binding positions or following datatype cycles. */
+  private String componentRows(Datatype datatype, String location, String parentNode, int depth,
+      Set<String> visited, StructureElementBinding contextual, Map<String, Datatype> dtById,
+      Map<String, String> dtSlug, Map<String, String> vsSlug, Map<String, Valueset> vsById) {
+    if (!hasComponents(datatype) || visited.contains(datatype.getId()) || depth > 8) return "";
+    Set<String> ancestry = new HashSet<>(visited);
+    ancestry.add(datatype.getId());
+    List<Component> components = new ArrayList<>(((ComplexDatatype) datatype).getComponents());
+    components.sort(Comparator.comparingInt(Component::getPosition));
+    StringBuilder rows = new StringBuilder();
+    for (Component component : components) {
+      String node = parentNode.isEmpty() ? "c-" + component.getPosition() : parentNode + "." + component.getPosition();
+      String path = location + "." + component.getPosition();
+      Datatype nested = dtById.get(refId(component.getRef()));
+      boolean children = hasComponents(nested) && !ancestry.contains(nested.getId()) && depth < 8;
+      StructureElementBinding local = findBindingChild(datatype.getBinding(), component.getId(), component.getPosition());
+      StructureElementBinding override = contextual == null ? null : findBindingChild(contextual.getChildren(), component.getId(), component.getPosition());
+      Set<ValuesetBinding> valueBindings = override != null && override.getValuesetBindings() != null && !override.getValuesetBindings().isEmpty()
+          ? override.getValuesetBindings() : local == null ? null : local.getValuesetBindings();
+      Predicate predicate = override != null && override.getPredicate() != null ? override.getPredicate() : local == null ? null : local.getPredicate();
+      String usage = usageBadge(component.getUsage());
+      if (predicate != null) usage += "<span class=\"conditional-usage\" title=\"True / false usage\">"
+          + usageBadge(predicate.getTrueUsage()) + " / " + usageBadge(predicate.getFalseUsage()) + "</span>";
+      rows.append("<tr data-node-id=\"").append(esc(node)).append("\" data-parent-id=\"").append(esc(parentNode))
+          .append("\" data-depth=\"").append(depth).append("\"><th scope=\"row\" class=\"tree-label\"><div class=\"tree-cell\">")
+          .append(children ? collapsedTreeToggle(path + " " + component.getName()) : "<span class=\"tree-spacer\"></span>")
+          .append("<span class=\"mono\">").append(esc(path)).append("</span></div></th><td>")
+          .append(esc(component.getName())).append("</td><td>").append(dtLink(refId(component.getRef()), dtById, dtSlug, "../"))
+          .append("</td><td>").append(usage).append("</td><td class=\"mono\">—</td><td class=\"mono\">")
+          .append(esc(lengthDisplay(component.getMinLength(), component.getMaxLength()))).append("</td><td class=\"mono\">")
+          .append(esc(confLengthDisplay(component.getLengthType() == null ? null : component.getLengthType().name(), component.getConfLength())))
+          .append("</td><td>").append(formatVsBindings(valueBindings, vsSlug, vsById, "../"))
+          .append("</td><td class=\"wrap\">").append(formatComments(component.getComments())).append("</td></tr>");
+      if (children) rows.append(componentRows(nested, path, node, depth + 1, ancestry,
+          mergeBinding(local, override), dtById, dtSlug, vsSlug, vsById));
+    }
+    return rows.toString();
+  }
+
   private String buildSegmentPage(String guideTitle, Segment seg, Segment prev, Segment next,
       List<Map<String, Object>> cards, List<ConformanceProfile> profiles, List<Segment> segments,
       List<Datatype> datatypes, List<Valueset> valuesets, Map<String, String> cpSlug,
@@ -1113,17 +1300,23 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
       String length = lengthDisplay(f.getMinLength(), f.getMaxLength());
       String conf = confLengthDisplay(f.getLengthType() != null ? f.getLengthType().name() : null, f.getConfLength());
       String comments = formatComments(f.getComments());
-      trs.append("<tr><td class=\"mono\">").append(esc(seg.getName())).append("-").append(esc(f.getPosition()))
-          .append("</td><td>").append(esc(f.getName())).append("</td><td>")
+      Datatype nested = dtById.get(refId(f.getRef()));
+      String node = "f-" + f.getPosition();
+      String location = seg.getName() + "-" + f.getPosition();
+      boolean children = hasComponents(nested);
+      trs.append("<tr data-node-id=\"").append(node).append("\" data-parent-id=\"\" data-depth=\"0\"><th scope=\"row\" class=\"tree-label\"><div class=\"tree-cell\">")
+          .append(children ? collapsedTreeToggle(location + " " + f.getName()) : "<span class=\"tree-spacer\"></span>")
+          .append("<span class=\"mono\">").append(esc(location)).append("</span></div></th><td>").append(esc(f.getName())).append("</td><td>")
           .append(dtLink(refId(f.getRef()), dtById, dtSlug, "../")).append("</td><td>")
           .append(usageCell).append("</td><td class=\"mono\">").append(card)
           .append("</td><td class=\"mono\">").append(esc(length))
           .append("</td><td class=\"mono\">").append(esc(conf))
           .append("</td><td>").append(vsCell)
           .append("</td><td class=\"wrap\">").append(comments).append("</td></tr>");
+      if (children) trs.append(componentRows(nested, location, node, 1, new HashSet<>(), seb, dtById, dtSlug, vsSlug, vsById));
     }
     String table = trs.length() == 0 ? "<p class=\"empty\">No fields.</p>"
-        : "<table class=\"struct\"><thead><tr><th>Seq</th><th>Name</th><th>Data type</th><th>Usage</th><th>Cardinality</th><th>Length</th><th>ConfLength</th><th>Value Set</th><th>Comments</th></tr></thead><tbody>"
+        : "<table class=\"struct tree-table\"><thead><tr><th>Location</th><th>Name</th><th>Data type</th><th>Usage</th><th>Cardinality</th><th>Length</th><th>Conformance length</th><th>Value Set</th><th>Comments</th></tr></thead><tbody>"
             + trs + "</tbody></table>";
     String extra = sectionCard("Value Set Bindings", renderVsBindingTable(binding, seg.getName(), vsSlug, vsById, "../"))
         + sectionCard("Conditional Predicates", renderPredicateTable(binding, seg.getName()))
@@ -1134,7 +1327,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     String nextA = next == null ? "<a class=\"disabled\" href=\"#\">Next →</a>"
         : "<a href=\"" + esc(segSlug.get(next.getId())) + ".html\">" + esc(labelOf(next)) + " →</a>";
     String body = "<div class=\"page\"><div class=\"crumbs\"><a href=\"../index.html\">Home</a><span class=\"sep\">/</span><span>Segments</span></div>"
-        + "<h1><span class=\"mono\">" + esc(labelOf(seg)) + "</span></h1>" + "<div class=\"identity-row\">" + scopeBadge(seg.getDomainInfo(), seg.getResourceOrigin()) + "<span class=\"dig-id mono\">" + esc(labelOf(seg)) + "</span></div>" + "<div class=\"meta\">" + typeBadge("SEGMENT") + "<span class=\"chip\">" + esc(scopeName(seg.getDomainInfo())) + "</span>" + "<span class=\"chip\">HL7 " + esc(scopeVersion(seg.getDomainInfo())) + "</span>" + "<span class=\"chip\">"
+        + "<h1>" + esc(fullName(labelOf(seg), seg.getDescription())) + "</h1>" + "<div class=\"identity-row\">" + scopeBadge(seg.getDomainInfo(), seg.getResourceOrigin()) + "<span class=\"dig-id mono\">" + esc(labelOf(seg)) + "</span></div>" + "<div class=\"meta\">" + typeBadge("SEGMENT") + "<span class=\"chip\">" + esc(scopeName(seg.getDomainInfo())) + "</span>" + "<span class=\"chip\">HL7 " + esc(scopeVersion(seg.getDomainInfo())) + "</span>" + "<span class=\"chip\">"
         + fields.size() + " fields</span></div><div class=\"section-card\"><h2>" + typeBadge("FIELD") + " Fields</h2>" + table
         + "</div>" + extra + "<footer class=\"nav\">" + prevA + nextA + "</footer></div>";
     return shell(esc(labelOf(seg)) + " — " + esc(guideTitle), "segment", seg.getId(), body, "../", cards, profiles,
@@ -1156,30 +1349,11 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     Map<String, Valueset> vsById = new HashMap<String, Valueset>();
     for (Valueset v : valuesets) vsById.put(v.getId(), v);
     ResourceBinding binding = dt.getBinding();
-    StringBuilder trs = new StringBuilder();
-    for (Component c : comps) {
-      StructureElementBinding seb = findBindingChild(binding, c.getId(), c.getPosition());
-      String vsCell = formatVsBindings(seb != null ? seb.getValuesetBindings() : null, vsSlug, vsById, "../");
-      String usageCell = usageBadge(c.getUsage());
-      if (seb != null && seb.getPredicate() != null) {
-        usageCell = usageCell + "<div style=\"margin-top:4px;font-size:10px;color:var(--muted)\">C: "
-            + usageBadge(seb.getPredicate().getTrueUsage()) + "/"
-            + usageBadge(seb.getPredicate().getFalseUsage()) + "</div>";
-      }
-      String length = lengthDisplay(c.getMinLength(), c.getMaxLength());
-      String conf = confLengthDisplay(c.getLengthType() != null ? c.getLengthType().name() : null, c.getConfLength());
-      String comments = formatComments(c.getComments());
-      trs.append("<tr><td class=\"mono\">").append(esc(dt.getName())).append(".").append(esc(c.getPosition()))
-          .append("</td><td>").append(esc(c.getName())).append("</td><td>")
-          .append(dtLink(refId(c.getRef()), dtById, dtSlug, "../")).append("</td><td>")
-          .append(usageCell).append("</td><td class=\"mono\">—</td><td class=\"mono\">")
-          .append(esc(length)).append("</td><td class=\"mono\">").append(esc(conf))
-          .append("</td><td>").append(vsCell)
-          .append("</td><td class=\"wrap\">").append(comments).append("</td></tr>");
-    }
+    StringBuilder trs = new StringBuilder(componentRows(dt, dt.getName(), "", 0,
+        new HashSet<>(), null, dtById, dtSlug, vsSlug, vsById));
     String table = trs.length() == 0
         ? "<p class=\"empty\">Primitive datatype (no components) or components not present in this flavor.</p>"
-        : "<table class=\"struct\"><thead><tr><th>Seq</th><th>Name</th><th>Data type</th><th>Usage</th><th>Cardinality</th><th>Length</th><th>ConfLength</th><th>Value Set</th><th>Comments</th></tr></thead><tbody>"
+        : "<table class=\"struct tree-table\"><thead><tr><th>Location</th><th>Name</th><th>Data type</th><th>Usage</th><th>Cardinality</th><th>Length</th><th>Conformance length</th><th>Value Set</th><th>Comments</th></tr></thead><tbody>"
             + trs + "</tbody></table>";
     String extra = sectionCard("Value Set Bindings", renderVsBindingTable(binding, dt.getName(), vsSlug, vsById, "../"))
         + sectionCard("Conditional Predicates", renderPredicateTable(binding, dt.getName()))
@@ -1190,7 +1364,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     String nextA = next == null ? "<a class=\"disabled\" href=\"#\">Next →</a>"
         : "<a href=\"" + esc(dtSlug.get(next.getId())) + ".html\">" + esc(labelOf(next)) + " →</a>";
     String body = "<div class=\"page\"><div class=\"crumbs\"><a href=\"../index.html\">Home</a><span class=\"sep\">/</span><span>Datatypes</span></div>"
-        + "<h1><span class=\"mono\">" + esc(labelOf(dt)) + "</span></h1>" + "<div class=\"identity-row\">" + scopeBadge(dt.getDomainInfo(), dt.getResourceOrigin()) + "<span class=\"dig-id mono\">" + esc(labelOf(dt)) + "</span></div>" + "<div class=\"meta\">" + typeBadge("DATATYPE") + "<span class=\"chip\">" + esc(scopeName(dt.getDomainInfo())) + "</span>" + "<span class=\"chip\">HL7 " + esc(scopeVersion(dt.getDomainInfo())) + "</span>" + "<span class=\"chip\">"
+        + "<h1>" + esc(fullName(labelOf(dt), dt.getDescription())) + "</h1>" + "<div class=\"identity-row\">" + scopeBadge(dt.getDomainInfo(), dt.getResourceOrigin()) + "<span class=\"dig-id mono\">" + esc(labelOf(dt)) + "</span></div>" + "<div class=\"meta\">" + typeBadge("DATATYPE") + "<span class=\"chip\">" + esc(scopeName(dt.getDomainInfo())) + "</span>" + "<span class=\"chip\">HL7 " + esc(scopeVersion(dt.getDomainInfo())) + "</span>" + "<span class=\"chip\">"
         + comps.size() + " components</span></div><div class=\"section-card\"><h2>" + typeBadge("COMPONENT") + " Components</h2>" + table
         + "</div>" + extra + "<footer class=\"nav\">" + prevA + nextA + "</footer></div>";
     return shell(esc(labelOf(dt)) + " — " + esc(guideTitle), "datatype", dt.getId(), body, "../", cards, profiles,
@@ -1227,7 +1401,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
         : "<a href=\"" + esc(vsSlug.get(next.getId())) + ".html\">" + esc(next.getBindingIdentifier())
             + " →</a>";
     String body = "<div class=\"page\"><div class=\"crumbs\"><a href=\"../index.html\">Home</a><span class=\"sep\">/</span><span>Value sets</span></div>"
-        + "<h1>" + esc(vs.getName()) + "</h1>" + "<div class=\"identity-row\">" + scopeBadge(vs.getDomainInfo(), vs.getResourceOrigin()) + "<span class=\"dig-id mono\">" + esc(bid) + "</span></div>" + "<div class=\"meta\">" + typeBadge("VALUESET") + "<span class=\"chip cyan\">" + esc(bid) + "</span><span class=\"chip\">" + esc(scopeName(vs.getDomainInfo())) + "</span><span class=\"chip\">HL7 " + esc(scopeVersion(vs.getDomainInfo())) + "</span><span class=\"chip\">" + codes.size() + " codes</span></div><div class=\"section-card\"><h2>Codes</h2>"
+        + "<h1>" + esc(fullName(bid, vs.getName())) + "</h1>" + "<div class=\"identity-row\">" + scopeBadge(vs.getDomainInfo(), vs.getResourceOrigin()) + "<span class=\"dig-id mono\">" + esc(bid) + "</span></div>" + "<div class=\"meta\">" + typeBadge("VALUESET") + "<span class=\"chip cyan\">" + esc(bid) + "</span><span class=\"chip\">HL7 " + esc(scopeVersion(vs.getDomainInfo())) + "</span><span class=\"chip\">" + codes.size() + " codes</span></div><div class=\"section-card\"><h2>Codes</h2>"
         + table + "</div><footer class=\"nav\">" + prevA + nextA + "</footer></div>";
     return shell(esc(bid) + " — " + esc(guideTitle), "valueset", vs.getId(), body, "../", cards, profiles, segments,
         datatypes, valuesets, cpSlug, segSlug, dtSlug, vsSlug);
@@ -1240,7 +1414,8 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
     String tocTools = "<span class=\"toc-tools\">"
         + "<button type=\"button\" id=\"toc-expand-all\">Expand</button>"
         + "<button type=\"button\" id=\"toc-collapse-all\">Collapse</button></span>";
-    String script = "<script src=\"" + assetPrefix + "assets/js/publication.js\" defer></script>";
+    String script = "<script src=\"" + assetPrefix + "assets/search-index.js\" defer></script>"
+        + "<script src=\"" + assetPrefix + "assets/js/publication.js\" defer></script>";
     return "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"UTF-8\"/>"
         + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>"
         + "<title>" + pageTitle + "</title>"
@@ -1331,14 +1506,11 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
         .append(profiles.size()).append(")</span></summary><ul class=\"toc-list\">");
     for (ConformanceProfile cp : profiles) {
       boolean active = "profile".equals(activeKind) && activeId != null && activeId.equals(cp.getId());
-      String shortName = cp.getName() != null && cp.getName().length() > 40 ? cp.getName().substring(0, 40)
-          : cp.getName();
       sb.append("<li class=\"toc-item").append(active ? " active" : "")
           .append("\"><div class=\"toc-row\"><span class=\"toc-leaf-spacer\"></span><a class=\"toc-link\" href=\"")
           .append(p).append("profiles/").append(esc(cpSlug.get(cp.getId())))
           .append(".html\">").append(scopeBadge(cp.getDomainInfo(), cp.getResourceOrigin()))
-          .append("<span class=\"num\">").append(esc(cp.getMessageType())).append("^")
-          .append(esc(cp.getEvent())).append("</span> ").append(esc(shortName)).append("</a></div></li>");
+          .append(tocName(cp.getName(), cp.getDescription())).append("</a></div></li>");
     }
     sb.append("</ul></details>");
 
@@ -1351,7 +1523,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
           .append("\"><div class=\"toc-row\"><span class=\"toc-leaf-spacer\"></span><a class=\"toc-link\" href=\"")
           .append(p).append("segments/").append(esc(segSlug.get(s.getId())))
           .append(".html\">").append(scopeBadge(s.getDomainInfo(), s.getResourceOrigin()))
-          .append("<span class=\"dig-id mono\">").append(esc(labelOf(s))).append("</span></a></div></li>");
+          .append(tocName(labelOf(s), s.getDescription())).append("</a></div></li>");
     }
     sb.append("</ul></details>");
 
@@ -1364,7 +1536,7 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
           .append("\"><div class=\"toc-row\"><span class=\"toc-leaf-spacer\"></span><a class=\"toc-link\" href=\"")
           .append(p).append("datatypes/").append(esc(dtSlug.get(d.getId())))
           .append(".html\">").append(scopeBadge(d.getDomainInfo(), d.getResourceOrigin()))
-          .append("<span class=\"dig-id mono\">").append(esc(labelOf(d))).append("</span></a></div></li>");
+          .append(tocName(labelOf(d), d.getDescription())).append("</a></div></li>");
     }
     sb.append("</ul></details>");
 
@@ -1377,11 +1549,196 @@ public class NarrativeCardExportServiceImpl implements NarrativeCardExportServic
           .append("\"><div class=\"toc-row\"><span class=\"toc-leaf-spacer\"></span><a class=\"toc-link\" href=\"")
           .append(p).append("valuesets/").append(esc(vsSlug.get(v.getId())))
           .append(".html\">").append(scopeBadge(v.getDomainInfo(), v.getResourceOrigin()))
-          .append("<span class=\"dig-id mono\">").append(esc(v.getBindingIdentifier()))
-          .append("</span></a></div></li>");
+          .append(tocName(v.getBindingIdentifier(), v.getName())).append("</a></div></li>");
     }
     sb.append("</ul></details>");
     return sb.toString();
+  }
+
+  /** Two-argument callers keep their existing citation-only export contract. */
+  private PublicWebExportConfiguration citationOnlyBranding() {
+    PublicWebExportConfiguration branding = new PublicWebExportConfiguration();
+    branding.setIncludeExampleLibrary(false);
+    return branding;
+  }
+
+  private ExampleMessageExportConfiguration copyExamples(ExampleMessageExportConfiguration source) {
+    ExampleMessageExportConfiguration copy = new ExampleMessageExportConfiguration();
+    if (source == null) return copy;
+    copy.setInclude(source.isInclude()); copy.setMode(source.getMode()); copy.setSnippetMode(source.getSnippetMode());
+    copy.setLinkTarget(source.getLinkTarget()); copy.setExportAllMessages(source.isExportAllMessages());
+    copy.setFolderName(source.getFolderName()); copy.setIncludeDescription(source.isIncludeDescription());
+    return copy;
+  }
+
+  private ExampleMessageExportConfiguration publicationExamples(ExampleMessageExportConfiguration source,
+      PublicWebExportConfiguration branding) {
+    ExampleMessageExportConfiguration result = copyExamples(source);
+    if (branding.isIncludeExampleLibrary() && result.isInclude()) result.setExportAllMessages(true);
+    return result;
+  }
+
+  private String rootPrefix(String path) {
+    StringBuilder prefix = new StringBuilder();
+    for (int i = 0; i < path.length(); i++) if (path.charAt(i) == '/') prefix.append("../");
+    return prefix.toString();
+  }
+
+  private String pageType(String path) {
+    if (path.startsWith("sections/")) return "Narrative";
+    if (path.startsWith("profiles/")) return "Message";
+    if (path.startsWith("segments/")) return "Segment";
+    if (path.startsWith("datatypes/")) return "Datatype";
+    if (path.startsWith("valuesets/")) return "Value set";
+    return path.equals("index.html") ? "Overview" : "Example";
+  }
+
+  private double luminance(String hex) {
+    double[] rgb = new double[3];
+    for (int i = 0; i < 3; i++) {
+      double c = Integer.parseInt(hex.substring(i * 2 + 1, i * 2 + 3), 16) / 255.0;
+      rgb[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    }
+    return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
+  }
+
+  private String contrastingInk(String hex) {
+    return luminance(hex) > .179 ? "#000000" : "#ffffff";
+  }
+
+  private String brandCss(PublicWebExportConfiguration branding) {
+    String link = branding.getLinkColor();
+    // The branding API may be used without the editor's contrast validation.
+    if (1.05 / (luminance(link) + .05) < 4.5) link = "#075780";
+    return "/* Publication branding. Edit these tokens to customize this exported site. */\n:root{"
+        + "--brand-primary:" + branding.getPrimaryColor() + ";"
+        + "--brand-text:" + (1.05 / (luminance(branding.getPrimaryColor()) + .05) >= 4.5 ? branding.getPrimaryColor() : "#021a4c") + ";"
+        + "--brand-accent:" + branding.getAccentColor() + ";"
+        + "--brand-link:" + link + ";"
+        + "--brand-primary-ink:" + contrastingInk(branding.getPrimaryColor()) + ";"
+        + "--brand-accent-ink:" + contrastingInk(branding.getAccentColor()) + ";}\n";
+  }
+
+  /** Adds consistent, labelled controls to every generated technical table. */
+  private void enhanceTables(Document page) {
+    int index = 0;
+    for (org.jsoup.nodes.Element table : page.select("table.struct")) {
+      index++;
+      String id = table.id().isEmpty() ? "publication-table-" + index : table.id();
+      table.attr("id", id);
+      String label = "Table " + index;
+      org.jsoup.nodes.Element section = table.parent();
+      while (section != null && !section.hasClass("section-card") && !section.hasClass("page")) section = section.parent();
+      if (section != null && !section.select("h2").isEmpty()) {
+        org.jsoup.nodes.Element heading = section.select("h2").first().clone();
+        heading.select(".type-badge,.tree-tools").remove();
+        label = heading.text();
+      }
+      if (table.select("caption").isEmpty()) table.prependElement("caption").addClass("sr-only").text(label);
+      String selector = "#" + id;
+      String toolbar = "<div class=\"table-toolbar\"><label class=\"sr-only\" for=\"filter-" + id + "\">Search " + esc(label)
+          + "</label><input id=\"filter-" + id + "\" type=\"search\" placeholder=\"Search " + esc(label.toLowerCase(java.util.Locale.ROOT)) + "…\" data-table-filter=\""
+          + selector + "\"/>"
+          + (table.hasClass("tree-table") ? "<button type=\"button\" data-table-expand=\"" + selector
+              + "\">Expand all</button><button type=\"button\" data-table-collapse=\"" + selector + "\">Collapse all</button>" : "")
+          + "<button type=\"button\" data-table-density=\"" + selector + "\" aria-pressed=\"false\">Compact rows</button></div>";
+      table.before(toolbar);
+      table.wrap("<div class=\"table-scroll\" role=\"region\" tabindex=\"0\" aria-label=\"" + esc(label) + "\"></div>");
+    }
+  }
+
+  private List<ExampleMessageDataModel> sortedExamples(IgDataModel model) {
+    List<ExampleMessageDataModel> result = model.getExampleMessages() == null ? new ArrayList<>()
+        : new ArrayList<>(model.getExampleMessages().values());
+    result.sort(Comparator.comparing((ExampleMessageDataModel e) -> nullSafe(e.getProfileLabel()), String.CASE_INSENSITIVE_ORDER)
+        .thenComparing(e -> nullSafe(e.getModel().getName()), String.CASE_INSENSITIVE_ORDER));
+    return result;
+  }
+
+  private List<gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet> validSnippets(ExampleMessageDataModel example) {
+    List<gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet> result = new ArrayList<>();
+    if (example.getModel().getSnippets() != null) for (gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet snippet : example.getModel().getSnippets()) {
+      if (snippet != null && snippet.getId() != null && !snippet.getId().isEmpty()) result.add(snippet);
+    }
+    return result;
+  }
+
+  private String exampleLibrary(IgDataModel model, Map<String, byte[]> files) {
+    StringBuilder rows = new StringBuilder();
+    for (ExampleMessageDataModel example : sortedExamples(model)) {
+      String page = ExampleMessageExportConfiguration.pagePath(example.getFilePath());
+      String parentId = "example-" + slugify(example.getModel().getId());
+      boolean parentPresent = files.containsKey(page);
+      List<gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet> snippets = validSnippets(example);
+      boolean hasSnippets = snippets != null && snippets.stream().anyMatch(s -> files.containsKey(
+          ExampleMessageExportConfiguration.pagePath(example.getSnippetFilePath(s.getId()))));
+      if (!parentPresent && !hasSnippets) continue;
+      rows.append("<tr data-node-id=\"").append(esc(parentId)).append("\" data-parent-id=\"\" data-depth=\"0\"><th scope=\"row\" class=\"tree-label\"><div class=\"tree-cell\">")
+          .append(hasSnippets ? treeToggle(example.getModel().getName()) : "<span class=\"tree-spacer\"></span>")
+          .append(parentPresent ? "<a href=\"../" + esc(ExampleMessageExportConfiguration.relativeHref(page)) + "\">" : "<span>")
+          .append(esc(example.getLabel(null))).append(parentPresent ? "</a>" : "</span>")
+          .append("</div></th><td>").append(typeBadge("EXAMPLE")).append("</td><td>")
+          .append(esc(example.getProfileLabel())).append("</td><td>")
+          .append(parentPresent ? downloadLink(example.getFilePath()) : "—").append("</td></tr>");
+      if (snippets == null) continue;
+      for (gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet snippet : snippets) {
+        String file = example.getSnippetFilePath(snippet.getId());
+        String snippetPage = ExampleMessageExportConfiguration.pagePath(file);
+        if (!files.containsKey(snippetPage)) continue;
+        rows.append("<tr data-node-id=\"").append(esc(parentId + "-" + slugify(snippet.getId())))
+            .append("\" data-parent-id=\"").append(esc(parentId)).append("\" data-depth=\"1\"><th scope=\"row\" class=\"tree-label\"><div class=\"tree-cell\"><span class=\"tree-spacer\"></span><a href=\"../")
+            .append(esc(ExampleMessageExportConfiguration.relativeHref(snippetPage))).append("\">")
+            .append(esc(snippet.getName())).append("</a></div></th><td><span class=\"type-badge badge-example\">Snippet</span></td><td>")
+            .append(esc(example.getProfileLabel())).append("</td><td>").append(downloadLink(file)).append("</td></tr>");
+      }
+    }
+    return "<div class=\"page\"><nav class=\"crumbs\" aria-label=\"Breadcrumb\"><a href=\"../index.html\">Home</a><span class=\"sep\">/</span>Examples</nav>"
+        + "<h1>Example messages</h1><p class=\"lede\">Messages and snippets from this guide. Open an example to inspect its content, or download the ER7 text.</p>"
+        + "<section class=\"section-card\"><h2>Messages and snippets</h2><table class=\"struct tree-table example-table\" id=\"example-library\"><thead><tr>"
+        + "<th>Example name</th><th>Type</th><th>Message profile</th><th>Download</th></tr></thead><tbody>"
+        + rows + "</tbody></table></section></div>";
+  }
+
+  private String downloadLink(String path) {
+    return "<a download href=\"../" + esc(ExampleMessageExportConfiguration.relativeHref(path)) + "\">ER7 (.txt)</a>";
+  }
+
+  private Map<String, Object> previewExampleCard(String id, String parent, String number, String title,
+      String html, List<String> childIds) {
+    Map<String, Object> card = new HashMap<>();
+    card.put("id", id); card.put("parentId", parent); card.put("number", number); card.put("title", title);
+    card.put("slug", slugify(id)); card.put("narrativeHtml", publicationMarkup(html));
+    card.put("requirements", Collections.emptyList()); card.put("childIds", childIds); card.put("type", "EXAMPLE");
+    return card;
+  }
+
+  private void appendPreviewExamples(List<Map<String, Object>> cards, List<String> order, IgDataModel model,
+      ExampleMessageExportConfiguration configuration) throws Exception {
+    List<ExampleMessageDataModel> examples = sortedExamples(model);
+    if (examples.isEmpty()) return;
+    String library = "publication-example-library";
+    List<String> ids = new ArrayList<>();
+    cards.add(previewExampleCard(library, null, "Examples", "Example messages",
+        "<p>Browse all managed example messages and snippets included in this publication.</p>", ids));
+    order.add(library);
+    ExampleMessageExportConfiguration libraryConfig = copyExamples(configuration);
+    libraryConfig.setMode(gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportMode.BOTH);
+    int count = 0;
+    for (ExampleMessageDataModel example : examples) {
+      String id = "example-" + example.getModel().getId();
+      String number = "E" + ++count;
+      ids.add(id); order.add(id);
+      List<String> snippetIds = new ArrayList<>();
+      cards.add(previewExampleCard(id, library, number, example.getLabel(null), renderExample(
+          exampleSerialization.serializeReference(model, example.getModel().getId(), null, libraryConfig)), snippetIds));
+      int snippetCount = 0;
+      for (gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet snippet : validSnippets(example)) {
+        String sid = id + "-snippet-" + snippet.getId();
+        snippetIds.add(sid); order.add(sid);
+        cards.add(previewExampleCard(sid, id, number + "." + ++snippetCount, example.getLabel(snippet.getId()), renderExample(
+            exampleSerialization.serializeReference(model, example.getModel().getId(), snippet.getId(), libraryConfig)), new ArrayList<>()));
+      }
+    }
   }
 
   private static String readResource(String name) throws java.io.IOException {

@@ -323,6 +323,145 @@ public class NarrativeCardExportServiceTest {
     assertTrue(snapshot.text().contains("Safe readable text"));
   }
 
+  @Test
+  @SuppressWarnings("unchecked")
+  public void publicLibraryIncludesUncitedExamplesAndPreviewWithoutMutatingSavedModes() throws Exception {
+    ExampleMessageExportConfiguration config = new ExampleMessageExportConfiguration();
+    PublicWebExportConfiguration branding = new PublicWebExportConfiguration();
+    Map<String, String> files = export(config, branding);
+    assertTrue(files.containsKey(ROOT + "examples/index.html"));
+    assertTrue(files.containsKey(ROOT + "ExampleMessages/Profile/Uncited example.html"));
+    assertTrue(files.containsKey(ROOT + "ExampleMessages/Profile/Uncited example.txt"));
+    Document library = Jsoup.parse(files.get(ROOT + "examples/index.html"));
+    assertEquals(3, library.select("table tbody tr").size());
+    assertEquals(2, library.select("tr[data-depth=0]").size());
+    assertEquals(1, library.select("tr[data-depth=1]").size());
+    assertFalse(library.select("input[data-table-filter]").isEmpty());
+    assertEquals(ExampleMessageExportMode.INLINE, config.getMode());
+    assertFalse(config.isExportAllMessages());
+    List<Map<String, Object>> cards = (List<Map<String, Object>>) exporter.preview(ig, config, branding).get("cards");
+    assertTrue(cards.stream().anyMatch(c -> "Uncited example".equals(c.get("title"))));
+    assertTrue(cards.stream().anyMatch(c -> "publication-example-library".equals(c.get("id"))));
+    assertTrue(new String(exporter.snapshot(ig, config, branding, "ExampleMessages/Profile/Uncited example.html"), StandardCharsets.UTF_8).contains("MSH|UNCITED"));
+    config.setInclude(false);
+    Map<String, String> excluded = export(config, branding);
+    assertFalse(excluded.containsKey(ROOT + "examples/index.html"));
+    assertFalse(excluded.keySet().stream().anyMatch(p -> p.contains("ExampleMessages/")));
+  }
+
+  @Test
+  public void customBrandingIsPackagedOfflineEscapedAndSearchIncludesContent() throws Exception {
+    PublicWebExportConfiguration branding = new PublicWebExportConfiguration();
+    branding.setOrganizationName("Example <Health> & Partners");
+    branding.setPrimaryColor("#16324f");
+    branding.setAccentColor("#f4bf31");
+    branding.setLogoAlt("Example Health logo");
+    branding.setLogoDataUrl("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aDVkAAAAASUVORK5CYII=");
+    branding.setFooterText("Published by Example Health");
+    Map<String, String> files = export(new ExampleMessageExportConfiguration(), branding);
+    assertTrue(files.containsKey(ROOT + "assets/images/organization-logo.png"));
+    String css = files.get(ROOT + "assets/css/brand.css");
+    assertTrue(css.contains("--brand-primary:#16324f"));
+    assertTrue(css.contains("--brand-accent:#f4bf31"));
+    Document page = Jsoup.parse(files.get(ROOT + "sections/parent-1.html"));
+    assertTrue(page.select(".app-brand").text().contains("Example <Health> & Partners"));
+    assertEquals("../assets/images/organization-logo.png", page.select(".organization-logo").attr("src"));
+    assertEquals("Example Health logo", page.select(".organization-logo").attr("alt"));
+    assertEquals("Published by Example Health", page.select(".publication-footer").text());
+    assertEquals(2, page.select("script[src]").size());
+    String search = files.get(ROOT + "assets/search-index.js");
+    List<?> entries = new ObjectMapper().readValue(search.substring(search.indexOf('=') + 1, search.lastIndexOf(';')), List.class);
+    assertEquals(files.keySet().stream().filter(p -> p.endsWith(".html")).count(), entries.size());
+    assertTrue(search.contains("Before example."));
+    assertTrue(search.contains("MSH|UNCITED"));
+    assertFalse(search.contains("<Health>"));
+  }
+
+  @Test
+  public void technicalNamesAreCompleteAndNestedTablesKeepTheirHierarchy() throws Exception {
+    gov.nist.hit.hl7.igamt.segment.domain.Segment segment = new gov.nist.hit.hl7.igamt.segment.domain.Segment();
+    segment.setId("seg-pid"); segment.setName("PID"); segment.setExt("Local"); segment.setFixedExtension("FIX");
+    segment.setDescription("Patient identification with a complete description");
+    gov.nist.hit.hl7.igamt.datatype.domain.ComplexDatatype datatype = new gov.nist.hit.hl7.igamt.datatype.domain.ComplexDatatype();
+    datatype.setId("dt-cx"); datatype.setName("CX"); datatype.setExt("Local"); datatype.setDescription("Extended composite identifier");
+    gov.nist.hit.hl7.igamt.datatype.domain.Component component = new gov.nist.hit.hl7.igamt.datatype.domain.Component();
+    component.setId("component-1"); component.setPosition(1); component.setName("Identifier value"); component.setUsage(Usage.R);
+    component.setRef(new Ref("dt-cx")); // A malformed cycle must not recurse forever.
+    datatype.setComponents(new HashSet<>(Arrays.asList(component)));
+    gov.nist.hit.hl7.igamt.segment.domain.Field field = new gov.nist.hit.hl7.igamt.segment.domain.Field();
+    field.setId("field-3"); field.setPosition(3); field.setName("Patient identifier list"); field.setRef(new Ref("dt-cx")); field.setUsage(Usage.R);
+    segment.setChildren(new HashSet<>(Arrays.asList(field)));
+    gov.nist.hit.hl7.igamt.conformanceprofile.domain.ConformanceProfile profile = new gov.nist.hit.hl7.igamt.conformanceprofile.domain.ConformanceProfile();
+    profile.setId("profile-vxu"); profile.setName("VXU profile with a name longer than forty characters preserved completely");
+    profile.setDescription("Complete profile description"); profile.setMessageType("VXU"); profile.setEvent("V04");
+    gov.nist.hit.hl7.igamt.conformanceprofile.domain.Group group = new gov.nist.hit.hl7.igamt.conformanceprofile.domain.Group();
+    group.setId("group-1"); group.setName("PATIENT"); group.setPosition(1); group.setUsage(Usage.R);
+    gov.nist.hit.hl7.igamt.conformanceprofile.domain.SegmentRef reference = new gov.nist.hit.hl7.igamt.conformanceprofile.domain.SegmentRef();
+    reference.setId("reference-1"); reference.setPosition(1); reference.setName("PID"); reference.setRef(new Ref(segment.getId())); reference.setUsage(Usage.R);
+    group.setChildren(new HashSet<>(Arrays.asList(reference))); profile.setChildren(new HashSet<>(Arrays.asList(group)));
+    ig.getSegmentRegistry().getChildren().add(new Link(segment.getId()));
+    ig.getDatatypeRegistry().getChildren().add(new Link(datatype.getId()));
+    ig.getConformanceProfileRegistry().getChildren().add(new Link(profile.getId()));
+    when(((SegmentService) ReflectionTestUtils.getField(exporter, "segmentService")).findById(segment.getId())).thenReturn(segment);
+    when(((DatatypeService) ReflectionTestUtils.getField(exporter, "datatypeService")).findById(datatype.getId())).thenReturn(datatype);
+    when(((ConformanceProfileService) ReflectionTestUtils.getField(exporter, "conformanceProfileService")).findById(profile.getId())).thenReturn(profile);
+    Map<String, String> files = export(new ExampleMessageExportConfiguration(), new PublicWebExportConfiguration());
+    Document home = Jsoup.parse(files.get(ROOT + "index.html"));
+    String toc = home.select(".toc-scroll").text();
+    assertTrue(toc.contains("PID#FIX_Local - Patient identification with a complete description"));
+    assertTrue(toc.contains("CX_Local - Extended composite identifier"));
+    assertTrue(toc.contains(profile.getName() + " - Complete profile description"));
+    Document structure = Jsoup.parse(files.get(ROOT + "profiles/profile-vxu.html"));
+    assertEquals(2, structure.select("table.tree-table tbody tr").size());
+    assertEquals("1", structure.select("tr[data-depth=1]").attr("data-parent-id"));
+    assertEquals(1, structure.select(".tree-toggle").size());
+    Document fields = Jsoup.parse(files.get(ROOT + "segments/seg-pid.html"));
+    assertEquals(2, fields.select("table.tree-table tbody tr").size());
+    assertEquals("f-3", fields.select("tr[data-depth=1]").attr("data-parent-id"));
+    assertTrue(fields.select("tr[data-depth=1]").text().contains("PID-3.1"));
+    assertEquals(2, fields.select("tbody th[scope=row]").size());
+    assertFalse(fields.select("[data-table-expand]").isEmpty());
+  }
+
+  @Test
+  public void disablingLibraryKeepsCitedSnapshotsWithoutLibraryLinks() throws Exception {
+    ExampleMessageExportConfiguration config = config(ExampleMessageExportMode.BOTH, ExampleMessageLinkTarget.RELATIVE);
+    config.setSnippetMode(ExampleMessageSnippetExportMode.HIGHLIGHT);
+    PublicWebExportConfiguration branding = new PublicWebExportConfiguration();
+    branding.setIncludeExampleLibrary(false);
+    Map<String, String> files = export(config, branding);
+    assertFalse(files.containsKey(ROOT + "examples/index.html"));
+    assertFalse(files.containsKey(ROOT + "ExampleMessages/Profile/Uncited example.html"));
+    assertTrue(files.containsKey(ROOT + "ExampleMessages/Profile/VXU example - PID only.html"));
+    for (Map.Entry<String, String> page : files.entrySet()) {
+      if (page.getKey().endsWith(".html")) assertTrue(Jsoup.parse(page.getValue()).select("a[href$=examples/index.html]").isEmpty());
+    }
+    assertFalse(config.isExportAllMessages());
+    assertEquals(ExampleMessageSnippetExportMode.HIGHLIGHT, config.getSnippetMode());
+  }
+
+  @Test
+  public void contextualBindingsPreferExactIdsAndRetainInheritedChildren() {
+    gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding positional = new gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding();
+    gov.nist.hit.hl7.igamt.common.binding.domain.LocationInfo location = new gov.nist.hit.hl7.igamt.common.binding.domain.LocationInfo();
+    location.setPosition(1);
+    positional.setElementId("stale-id"); positional.setLocationInfo(location);
+    gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding exact = new gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding();
+    exact.setElementId("component-id"); exact.setLocationInfo(location);
+    Set<gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding> siblings = new LinkedHashSet<>(Arrays.asList(positional, exact));
+    assertSame(exact, ReflectionTestUtils.invokeMethod(exporter, "findBindingChild", siblings, "component-id", 1));
+    gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding inherited = new gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding();
+    inherited.addChild(exact);
+    gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding override = new gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding();
+    gov.nist.hit.hl7.igamt.constraints.domain.AssertionPredicate predicate = new gov.nist.hit.hl7.igamt.constraints.domain.AssertionPredicate();
+    override.setPredicate(predicate);
+    gov.nist.hit.hl7.igamt.common.binding.domain.StructureElementBinding merged = ReflectionTestUtils.invokeMethod(exporter, "mergeBinding", inherited, override);
+    assertSame(predicate, merged.getPredicate());
+    assertTrue(merged.getChildren().contains(exact));
+    assertNull(inherited.getPredicate());
+    assertTrue(override.getChildren().isEmpty());
+  }
+
   private static void assertNoActiveMarkup(Document html) {
     assertTrue(html.select("svg,math,iframe,object,embed,form").isEmpty());
     for (org.jsoup.nodes.Element element : html.getAllElements()) {
@@ -347,8 +486,14 @@ public class NarrativeCardExportServiceTest {
   }
 
   private Map<String, String> export(ExampleMessageExportConfiguration config) throws Exception {
+    PublicWebExportConfiguration branding = new PublicWebExportConfiguration();
+    branding.setIncludeExampleLibrary(false);
+    return export(config, branding);
+  }
+
+  private Map<String, String> export(ExampleMessageExportConfiguration config, PublicWebExportConfiguration branding) throws Exception {
     Map<String, String> files = new LinkedHashMap<>();
-    try (ZipInputStream zip = new ZipInputStream(exporter.exportNarrativeCardsHtml(ig, config).getContent())) {
+    try (ZipInputStream zip = new ZipInputStream(exporter.exportNarrativeCardsHtml(ig, config, branding).getContent())) {
       ZipEntry entry;
       byte[] buffer = new byte[8192];
       while ((entry = zip.getNextEntry()) != null) {

@@ -24,8 +24,8 @@
   </div>
 
   <!-- <div class="save-btn">
-    <button (click)="reset()" class="btn btn-sm btn-danger" style="margin-right:5px;" [disabled]="!hasChanges || currentConfiguration.original"> <i class="fa fa-trash"></i> Reset</button>
-    <button (click)="save()" class="btn btn-sm btn-success" style="margin-right:5px;" [disabled]="!hasChanges || currentConfiguration.original">  <i class="fa fa-save"></i> Save</button>
+    <button (click)="reset()" class="btn btn-sm btn-danger" style="margin-right:5px;" [disabled]="!hasChanges || currentConfiguration.original || !publicWebValid"> <i class="fa fa-trash"></i> Reset</button>
+    <button (click)="save()" class="btn btn-sm btn-success" style="margin-right:5px;" [disabled]="!hasChanges || currentConfiguration.original || !publicWebValid">  <i class="fa fa-save"></i> Save</button>
   </div> -->
   <div class="content">
     <div class="config-list">
@@ -57,8 +57,8 @@
     <div class="config-content" >
       <div class="edit" >
         <div class="save-btn">
-          <button (click)="reset()" class="btn btn-sm btn-danger" style="margin-right:5px;" [disabled]="!hasChanges || currentConfiguration.original"> <i class="fa fa-trash"></i> Reset</button>
-          <button (click)="save()" class="btn btn-sm btn-success" style="margin-right:5px;" [disabled]="!hasChanges || currentConfiguration.original">  <i class="fa fa-save"></i> Save</button>
+          <button (click)="reset()" class="btn btn-sm btn-danger" style="margin-right:5px;" [disabled]="!hasChanges || currentConfiguration.original || !publicWebValid"> <i class="fa fa-trash"></i> Reset</button>
+          <button (click)="save()" class="btn btn-sm btn-success" style="margin-right:5px;" [disabled]="!hasChanges || currentConfiguration.original || !publicWebValid">  <i class="fa fa-save"></i> Save</button>
         </div>
         <div *ngIf="currentConfiguration">
           <label class="form-label-lg"> Configuration name  </label>
@@ -69,6 +69,9 @@
                 </p-tabPanel>
             <p-tabPanel header="Conformance Profile">
               <app-conformance-profile-export-configuration [viewOnly]="currentConfiguration.original" [config]="currentConfiguration.conformamceProfileExportConfiguration" [displayColumns]="true" (detectChange)="change($event)" ></app-conformance-profile-export-configuration>
+            </p-tabPanel>
+            <p-tabPanel header="Public web IG">
+              <app-public-web-export-configuration [viewOnly]="currentConfiguration.original" [config]="currentConfiguration" (detectChange)="change($event)" (validityChange)="publicWebValid = $event"></app-public-web-export-configuration>
             </p-tabPanel>
             <p-tabPanel header="Example Messages">
               <app-example-message-export-configuration [viewOnly]="currentConfiguration.original" [config]="currentConfiguration.igGeneralConfiguration" (detectChange)="change($event)"></app-example-message-export-configuration>

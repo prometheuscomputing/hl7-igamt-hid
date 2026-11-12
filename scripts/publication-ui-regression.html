@@ -1,0 +1,121 @@
+<!doctype html>
+<!-- Run from the repo root: python3 -m http.server 8782 --bind 127.0.0.1
+     Then open http://127.0.0.1:8782/scripts/publication-ui-regression.html.
+     No npm install, build, app server, database or external network is needed. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Public web IG browser regression checks</title>
+  <link rel="stylesheet" href="../export/document-export/src/main/resources/publication.css">
+  <link rel="stylesheet" href="../export/document-export/src/main/resources/publication-accessibility.css">
+  <script>
+    window.PUBLICATION_SEARCH_INDEX = [
+      {title:'Patient identifiers',url:'sections/patient.html',type:'Narrative',text:'The IIS SHALL accept a primary patient identifier.'},
+      {title:'PID — Patient identification',url:'segments/pid.html',type:'Segment',text:'The identifier list and patient name.'},
+      {title:'Unsafe patient result',url:'javascript:alert(1)',type:'Narrative',text:'Patient identifiers'},
+      {title:'External patient result',url:'https://outside.invalid/secret',type:'Narrative',text:'Patient identifiers'}
+    ];
+  </script>
+  <script src="../export/document-export/src/main/resources/publication.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to content</a>
+<header class="app-header"><div class="app-brand"><span class="app-brand-mark">IG</span>IGAMT Public</div><div class="app-guide-title">Browser regression fixture</div></header>
+<div class="app-body">
+<aside class="toc-panel"><div class="toc-header">Contents<span class="toc-tools"><button id="toc-expand-all">Expand</button><button id="toc-collapse-all">Collapse</button></span></div>
+<nav class="toc-scroll" aria-label="Guide contents"><details class="toc-group" open><summary>Narrative</summary><ul class="toc-list">
+<li class="toc-item"><details class="toc-branch" open><summary class="toc-row"><a class="toc-link" href="#parent">Patient identifiers</a></summary><ul class="toc-children"><li class="toc-item"><div class="toc-row"><a class="toc-link" href="#authority">Assigning authority</a></div></li></ul></details></li>
+<li class="toc-item"><div class="toc-row"><a class="toc-link" href="#transport">Transport</a></div></li></ul></details></nav></aside>
+<main class="main-panel" id="main-content" tabindex="-1"><div class="page">
+<h1>Browser regression checks</h1><p class="lede">These checks exercise the actual portable publication JavaScript against a small semantic fixture.</p>
+<section class="section-card"><h2>Results</h2><p id="test-summary" role="status">Running…</p><ol id="test-report"></ol></section>
+<section class="section-card table-panel"><h2>Message structure fixture</h2><div class="table-toolbar"><label for="fixture-filter" class="sr-only">Find table rows</label><input id="fixture-filter" type="search" data-table-filter="#fixture-table"><button data-table-expand="#fixture-table">Expand all</button><button data-table-collapse="#fixture-table">Collapse all</button><button data-table-density="#fixture-table">Compact rows</button></div>
+<div class="table-scroll"><table class="struct tree-table" id="fixture-table"><thead><tr><th scope="col">Element</th><th scope="col">Description</th></tr></thead><tbody>
+<tr data-node-id="root" data-parent-id="" data-depth="0"><th scope="row" class="tree-label"><div class="tree-cell"><button class="tree-toggle" aria-expanded="true" aria-label="Collapse Patient"><span aria-hidden="true">▾</span></button><span>Patient</span></div></th><td>Group</td></tr>
+<tr data-node-id="pid" data-parent-id="root" data-depth="1"><th scope="row" class="tree-label"><div class="tree-cell"><button class="tree-toggle" aria-expanded="true" aria-label="Collapse PID"><span aria-hidden="true">▾</span></button><span>PID</span></div></th><td>Patient identification</td></tr>
+<tr id="identifier-target" data-node-id="identifier" data-parent-id="pid" data-depth="2"><th scope="row" class="tree-label">PID-3</th><td>Identifier list</td></tr>
+<tr data-node-id="sibling" data-parent-id="root" data-depth="1"><th scope="row" class="tree-label">NK1</th><td>Next of kin</td></tr>
+<tr data-node-id="other" data-parent-id="" data-depth="0"><th scope="row" class="tree-label">MSH</th><td>Message header</td></tr>
+</tbody></table></div></section>
+<div class="fr-exmsg"><div class="fr-exmsg-body"><div class="fr-exmsg-line">MSH|TEST</div><div class="fr-exmsg-line">PID|1</div></div></div>
+</div></main></div>
+<script>
+(function () {
+  'use strict';
+  window.addEventListener('load', function () {
+    var report = document.getElementById('test-report');
+    var total = 0, failures = 0;
+    function check(name, condition) {
+      total++;
+      if (!condition) failures++;
+      var item = document.createElement('li');
+      item.textContent = (condition ? 'PASS — ' : 'FAIL — ') + name;
+      item.style.color = condition ? '#236a35' : '#a32626';
+      report.appendChild(item);
+    }
+    function input(node, text) { node.value = text; node.dispatchEvent(new Event('input', {bubbles:true})); }
+    function visibleRows() { return Array.prototype.filter.call(document.querySelectorAll('#fixture-table tbody tr'), function (row) { return !row.hidden; }); }
+    function pause(fn) { window.setTimeout(fn, 180); }
+    var tableFilter = document.getElementById('fixture-filter');
+    var rootToggle = document.querySelector('[data-node-id="root"] .tree-toggle');
+    var pidToggle = document.querySelector('[data-node-id="pid"] .tree-toggle');
+    check('All table rows visible initially', visibleRows().length === 5);
+    document.querySelector('[data-table-collapse]').click();
+    check('Collapse all keeps both root rows', visibleRows().length === 2);
+    check('Disclosure exposes collapsed state and clear label', rootToggle.getAttribute('aria-expanded') === 'false' && rootToggle.getAttribute('aria-label') === 'Expand Patient');
+    input(tableFilter, 'identifier');
+    check('Search shows a matching leaf and both ancestors', visibleRows().length === 3 && !document.getElementById('identifier-target').hidden);
+    input(tableFilter, '');
+    check('Clearing search restores collapsed state', visibleRows().length === 2);
+    rootToggle.click();
+    check('Expanding parent preserves collapsed child branch', visibleRows().length === 4 && document.getElementById('identifier-target').hidden);
+    pidToggle.click();
+    check('Expanding nested branch reveals its child', visibleRows().length === 5);
+    input(tableFilter, 'does-not-exist');
+    check('No-match table filter announces empty result', visibleRows().length === 0 && document.querySelector('.table-status').textContent === 'No matching rows');
+    document.querySelector('[data-table-expand]').click();
+    check('Expand all clears search and restores rows', visibleRows().length === 5 && tableFilter.value === '');
+    var density = document.querySelector('[data-table-density]');
+    var before = density.getAttribute('aria-pressed'); density.click();
+    check('Compact view toggles table and pressed state', density.getAttribute('aria-pressed') !== before && document.getElementById('fixture-table').classList.contains('is-dense') === (density.getAttribute('aria-pressed') === 'true'));
+    density.click();
+    var tocFilter = document.getElementById('toc-filter');
+    input(tocFilter, 'authority');
+    check('Contents filter retains ancestors and matching child', document.querySelectorAll('.toc-item:not([hidden])').length === 2);
+    input(tocFilter, '');
+    check('Contents filter clears without deleting navigation', document.querySelectorAll('.toc-item:not([hidden])').length === 3);
+    check('Copy ER7 control is present', document.querySelector('.example-tools button').textContent === 'Copy ER7');
+    check('Permanent-link control is present', !!document.querySelector('.permalink-tools button'));
+    var search = document.getElementById('publication-search');
+    input(search, 'patient');
+    pause(function () {
+      var results = document.querySelectorAll('.search-result a');
+      check('Global search returns only two safe local matches', results.length === 2);
+      check('Global search ranks title matches first', results.length && results[0].textContent.indexOf('Patient identifiers') === 0);
+      check('Search links resolve relative to the publication root', results.length && results[0].getAttribute('href').indexOf('sections/patient.html') !== -1);
+      search.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowDown', bubbles:true}));
+      check('Arrow Down moves focus into search results', results.length && document.activeElement === results[0]);
+      results[0].dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+      check('Escape returns focus and dismisses results', document.activeElement === search && document.querySelector('.search-results').hidden);
+      input(search, 'no-match');
+      pause(function () {
+        check('No-match global search provides a useful empty state', !document.querySelector('.search-results-empty').hidden && document.querySelectorAll('.search-result').length === 0);
+        search.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+        search.value = '';
+        document.querySelector('[data-table-collapse]').click();
+        window.location.hash = 'identifier-target';
+        pause(function () {
+          check('A deep link expands collapsed ancestors', !document.getElementById('identifier-target').hidden && rootToggle.getAttribute('aria-expanded') === 'true' && pidToggle.getAttribute('aria-expanded') === 'true');
+          check('A deep link focuses the intended target', document.activeElement === document.getElementById('identifier-target'));
+          document.getElementById('test-summary').textContent = total + ' checks, ' + failures + ' failures.';
+          document.title = failures ? 'FAIL — publication regression checks' : 'PASS — publication regression checks';
+          window.location.hash = '';
+          document.getElementById('test-summary').scrollIntoView();
+        });
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

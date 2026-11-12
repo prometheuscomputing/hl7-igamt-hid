@@ -66,6 +66,7 @@ public class ExportConfiguration {
   private IgGeneralConfiguration igGeneralConfiguration;
   private ProfileComponentExportConfiguration profileComponentExportConfiguration;
   private CompositeProfileExportConfiguration compositeProfileExportConfiguration;
+  private gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration publicWebConfiguration = new gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration();
 
 
 
@@ -1037,6 +1038,14 @@ public class ExportConfiguration {
 
   public void setExportFontConfiguration(ExportFontConfiguration exportFontConfiguration) {
     this.exportFontConfiguration = exportFontConfiguration;
+  }
+
+  public gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration getPublicWebConfiguration() {
+    return publicWebConfiguration == null ? new gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration() : publicWebConfiguration;
+  }
+
+  public void setPublicWebConfiguration(gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration value) {
+    publicWebConfiguration = value == null ? new gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration() : value;
   }
 
   public IgGeneralConfiguration getIgGeneralConfiguration() {

@@ -1,0 +1,60 @@
+<div class="pw-settings">
+  <header class="pw-intro">
+    <h2>Public web IG</h2>
+    <p>Make the downloaded guide your organization’s publication. These settings apply to Public web IG only; Word and classic HTML use their existing settings.</p>
+    <p *ngIf="viewOnly" class="pw-readonly" role="note">This built-in configuration is read-only. Create a configuration to customize your publication.</p>
+    <p>Save this configuration and select <strong>Use as default</strong> to use it for the publication preview and Public web IG export.</p>
+  </header>
+
+  <fieldset [disabled]="viewOnly">
+    <legend>Publication identity</legend>
+    <label for="pw-organization">Organization name</label>
+    <input id="pw-organization" type="text" [(ngModel)]="theme.organizationName" (ngModelChange)="changed()" maxlength="200" placeholder="Your organization" />
+    <label for="pw-logo">Organization logo</label>
+    <input id="pw-logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif" (change)="uploadLogo($event)" aria-describedby="pw-logo-help" />
+    <p id="pw-logo-help" class="pw-help">PNG, JPEG, WebP or GIF, up to 1 MiB. The image is included in the ZIP so it works offline.</p>
+    <p *ngIf="uploadError" role="alert" class="pw-error">{{ uploadError }}</p>
+    <div class="pw-logo-row" *ngIf="theme.logoDataUrl">
+      <img [src]="theme.logoDataUrl" [alt]="theme.logoAlt || 'Uploaded logo preview'" />
+      <button type="button" (click)="removeLogo()">Remove logo</button>
+    </div>
+    <label for="pw-logo-alt">Logo alternative text <span *ngIf="theme.logoDataUrl">(required)</span></label>
+    <input id="pw-logo-alt" type="text" [(ngModel)]="theme.logoAlt" (ngModelChange)="changed()" maxlength="300" [attr.aria-invalid]="theme.logoDataUrl && !theme.logoAlt.trim()" placeholder="Organization name or the meaning conveyed by the logo" />
+    <p *ngIf="theme.logoDataUrl && !theme.logoAlt.trim()" class="pw-error">Describe the logo before saving so readers using assistive technology can identify it.</p>
+    <label for="pw-footer">Footer text</label>
+    <textarea id="pw-footer" rows="2" [(ngModel)]="theme.footerText" (ngModelChange)="changed()" maxlength="1000" placeholder="Publication owner, version statement, or contact information"></textarea>
+  </fieldset>
+
+  <fieldset [disabled]="viewOnly">
+    <legend>Publication colors</legend>
+    <div class="pw-palettes" aria-label="Color palettes">
+      <button type="button" *ngFor="let choice of palette" (click)="applyPalette(choice)" [attr.aria-label]="'Use ' + choice.name + ' color palette'">
+        <span class="pw-swatch" [style.backgroundColor]="choice.primary" aria-hidden="true"></span>
+        <span class="pw-swatch" [style.backgroundColor]="choice.accent" aria-hidden="true"></span>{{ choice.name }}
+      </button>
+    </div>
+    <div class="pw-color-grid">
+      <label for="pw-primary">Primary color <input id="pw-primary" type="color" [(ngModel)]="theme.primaryColor" (ngModelChange)="changed()" /><span>{{ theme.primaryColor }}</span></label>
+      <label for="pw-accent">Accent color <input id="pw-accent" type="color" [(ngModel)]="theme.accentColor" (ngModelChange)="changed()" /><span>{{ theme.accentColor }}</span></label>
+      <label for="pw-link">Link color <input id="pw-link" type="color" [(ngModel)]="theme.linkColor" (ngModelChange)="changed()" /><span>{{ theme.linkColor }}</span></label>
+    </div>
+    <p class="pw-help">Links need at least 4.5:1 contrast on white. Current link contrast: {{ linkContrast | number:'1.1-1' }}:1.</p>
+    <p *ngIf="linkContrast < 4.5" class="pw-error" role="alert">Choose a darker link color before saving.</p>
+    <button type="button" (click)="resetColors()">Reset to IGAMT colors</button>
+  </fieldset>
+
+  <fieldset [disabled]="viewOnly">
+    <legend>Example messages</legend>
+    <label class="pw-check" *ngIf="examples"><input type="checkbox" [(ngModel)]="examples.include" (ngModelChange)="changed()" /> Include example messages in the publication</label>
+    <label class="pw-check"><input type="checkbox" [disabled]="viewOnly || !examples || !examples.include" [(ngModel)]="theme.includeExampleLibrary" (ngModelChange)="changed()" /> Include example message library</label>
+    <p class="pw-help">When example messages are enabled, the library includes every managed message and snippet in one place. References in narrative sections still follow the modes, links, descriptions and snippet settings in the <strong>Example Messages</strong> tab.</p>
+  </fieldset>
+
+  <section class="pw-brand-preview" aria-label="Publication color preview" [style.borderColor]="theme.primaryColor">
+    <div class="pw-preview-header" [style.backgroundColor]="theme.accentColor">
+      <img *ngIf="theme.logoDataUrl" [src]="theme.logoDataUrl" [alt]="theme.logoAlt || 'Logo preview'" />
+      <strong>{{ theme.organizationName || 'IGAMT Public' }}</strong>
+    </div>
+    <div class="pw-preview-body"><h3>Implementation Guide</h3><p>A publication with your identity, readable navigation, and managed examples.</p><span class="pw-sample-link" [style.color]="theme.linkColor">Example publication link</span></div>
+  </section>
+</div>

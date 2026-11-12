@@ -1,3 +1,4 @@
+import { PublicWebExportConfigurationComponent } from './components/public-web-export-configuration/public-web-export-configuration.component';
 import { CommonModule } from '@angular/common';
 import { NgModule } from '@angular/core';
 import {CardModule} from 'primeng/card';
@@ -35,6 +36,7 @@ import { ExportConfigurationService } from './services/export-configuration.serv
     FontExportConfigurationComponent,
     IgGeneralDisplayConfigurationComponent,
     ExampleMessageExportConfigurationComponent,
+    PublicWebExportConfigurationComponent,
     CompositeProfileExportConfigurationComponent,
   ],
   imports: [

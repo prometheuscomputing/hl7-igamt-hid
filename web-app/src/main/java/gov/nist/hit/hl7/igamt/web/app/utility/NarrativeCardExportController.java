@@ -47,7 +47,8 @@ public class NarrativeCardExportController {
       if (ig == null) {
         throw new ExportException("IG not found: " + igId);
       }
-      ExportedFile exportedFile = narrativeCardExportService.exportNarrativeCardsHtml(ig, configuration(config, authentication));
+      ExportConfiguration selected = configuration(config, authentication);
+      ExportedFile exportedFile = narrativeCardExportService.exportNarrativeCardsHtml(ig, exampleConfiguration(selected), selected.getPublicWebConfiguration());
       response.setContentType("application/zip");
       response.setHeader("Content-disposition", "attachment;filename=" + exportedFile.getFileName());
       FileCopyUtils.copy(exportedFile.getContent(), response.getOutputStream());
@@ -63,7 +64,8 @@ public class NarrativeCardExportController {
       @RequestParam(required = false) String config, Authentication authentication) throws Exception {
     Ig ig = igService.findById(igId);
     if (ig == null) throw new ExportException("IG not found: " + igId);
-    java.util.Map<String, Object> result = narrativeCardExportService.preview(ig, configuration(config, authentication));
+    ExportConfiguration selected = configuration(config, authentication);
+    java.util.Map<String, Object> result = narrativeCardExportService.preview(ig, exampleConfiguration(selected), selected.getPublicWebConfiguration());
     if (config != null && !config.trim().isEmpty()) {
       @SuppressWarnings("unchecked")
       java.util.List<java.util.Map<String, Object>> cards = (java.util.List<java.util.Map<String, Object>>) result.get("cards");
@@ -88,14 +90,15 @@ public class NarrativeCardExportController {
     Ig ig = igService.findById(igId);
     if (ig == null) { response.sendError(404); return; }
     try {
-      byte[] page = narrativeCardExportService.snapshot(ig, configuration(config, authentication), path);
+      ExportConfiguration selected = configuration(config, authentication);
+      byte[] page = narrativeCardExportService.snapshot(ig, exampleConfiguration(selected), selected.getPublicWebConfiguration(), path);
       response.setContentType("text/html;charset=UTF-8");
       response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data: http: https:; base-uri 'none'; form-action 'none'");
       response.getOutputStream().write(page);
     } catch (IllegalArgumentException missing) { response.sendError(404); }
   }
 
-  private ExampleMessageExportConfiguration configuration(String id, Authentication authentication) throws ExportException {
+  private ExportConfiguration configuration(String id, Authentication authentication) throws ExportException {
     String username = authentication.getPrincipal().toString();
     ExportConfiguration config = id == null || id.trim().isEmpty()
         ? configurations.getConfigurationToApply(ExportType.IGDOCUMENT, username)
@@ -104,6 +107,10 @@ public class NarrativeCardExportController {
     if (!config.isOriginal() && !username.equals(config.getUsername())) {
       throw new org.springframework.security.access.AccessDeniedException("Export configuration is not available to this user");
     }
+    return config;
+  }
+
+  private ExampleMessageExportConfiguration exampleConfiguration(ExportConfiguration config) {
     return config.getIgGeneralConfiguration() == null || config.getIgGeneralConfiguration().getExampleMessages() == null
         ? new ExampleMessageExportConfiguration() : config.getIgGeneralConfiguration().getExampleMessages();
   }

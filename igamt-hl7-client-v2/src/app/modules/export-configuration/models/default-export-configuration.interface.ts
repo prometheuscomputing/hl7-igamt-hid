@@ -1,7 +1,19 @@
 import {ExportTypes} from './export-types';
 import { IUsageConfiguration } from './usage-configuration.interface';
 
+export interface IPublicWebExportConfiguration {
+  organizationName: string;
+  logoDataUrl: string;
+  logoAlt: string;
+  primaryColor: string;
+  accentColor: string;
+  linkColor: string;
+  footerText: string;
+  includeExampleLibrary: boolean;
+}
+
 export interface IExportConfiguration {
+  publicWebConfiguration?: IPublicWebExportConfiguration;
   configName: string;
   coConstraintExportMode: any;
   id: string;

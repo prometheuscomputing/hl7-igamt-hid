@@ -1,10 +1,11 @@
-<div class="np-root" *ngIf="model">
+<div class="np-root" *ngIf="model" [ngStyle]="brandStyles">
   <a class="np-skip-link" [routerLink]="[]" queryParamsHandling="preserve" fragment="np-content">Skip to section content</a>
   <div class="np-banner">
-    <div>
-      <strong>Public web IG preview</strong>
-      <span class="np-muted"> — read the guide’s narrative and example sections</span>
+    <div class="np-brand">
+      <img *ngIf="branding.logoDataUrl" [src]="branding.logoDataUrl" [alt]="branding.logoAlt || branding.organizationName || 'Publication logo'" />
+      <div><strong>{{ branding.organizationName || 'IGAMT Public' }}</strong><span class="np-guide-name">{{ model.title }}</span></div>
     </div>
+    <a class="np-customize" routerLink="/export-configuration" [queryParams]="{type: 'IGDOCUMENT'}">Publication settings</a>
     <span class="np-badge">Preview</span>
   </div>
 
@@ -14,6 +15,7 @@
   <div class="np-frame" *ngIf="model.cards.length; else empty">
     <aside class="np-toc">
       <div class="np-toc-head" id="np-toc-heading">Contents</div>
+      <div class="np-toc-search"><label class="np-sr-only" for="np-search">Find a section or example by title</label><input id="np-search" type="search" [(ngModel)]="tocQuery" (ngModelChange)="filterToc()" placeholder="Find a section or example…" /><p *ngIf="!hasTocResults" role="status">No matching sections or examples.</p></div>
       <nav class="np-toc-scroll" aria-labelledby="np-toc-heading">
         <ng-container *ngFor="let root of tocRoots">
           <ng-container *ngTemplateOutlet="tocNode; context: { $implicit: root, depth: 0 }"></ng-container>
@@ -64,6 +66,7 @@
         </ul>
       </section>
 
+      <p class="np-publication-footer" *ngIf="branding.footerText">{{ branding.footerText }}</p>
       <footer class="np-nav">
         <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="!prevCard" (click)="goPrev()">
           ← Previous<span *ngIf="prevCard">: {{ prevCard.number }}</span>
@@ -87,17 +90,17 @@
 </ng-template>
 
 <ng-template #tocNode let-node let-depth="depth">
-  <div class="np-toc-item" [style.paddingLeft.px]="8 + depth * 12"
+  <div class="np-toc-item" [hidden]="!isTocVisible(node.id)" [style.paddingLeft.px]="8 + depth * 12"
        [class.active]="current && current.id === node.id">
     <button type="button" class="np-twist" *ngIf="node.childIds && node.childIds.length" (click)="toggle(node.id, $event)" [attr.aria-label]="(expanded[node.id] ? 'Collapse ' : 'Expand ') + node.number + ' ' + node.title" [attr.aria-expanded]="!!expanded[node.id]" [attr.aria-controls]="'np-children-' + node.id">
       <i class="fa" aria-hidden="true" [class.fa-caret-down]="expanded[node.id]" [class.fa-caret-right]="!expanded[node.id]"></i>
     </button>
     <span class="np-twist-spacer" aria-hidden="true" *ngIf="!node.childIds || !node.childIds.length"></span>
     <a [routerLink]="[]" [queryParams]="{section: node.id}" queryParamsHandling="merge" [attr.aria-current]="current && current.id === node.id ? 'page' : null">
-      <span class="np-num">{{ node.number }}</span> {{ node.title }}
+      <span class="np-num">{{ node.number }}</span> <span class="np-toc-title" [attr.title]="node.title">{{ node.title }}</span>
     </a>
   </div>
-  <div [attr.id]="'np-children-' + node.id" [hidden]="!expanded[node.id]" *ngIf="node.childIds && node.childIds.length">
+  <div [attr.id]="'np-children-' + node.id" [hidden]="!isTocVisible(node.id) || (!tocQuery.trim() && !expanded[node.id])" *ngIf="node.childIds && node.childIds.length">
     <ng-container *ngFor="let child of childrenOf(node.id)">
       <ng-container *ngTemplateOutlet="tocNode; context: { $implicit: child, depth: depth + 1 }"></ng-container>
     </ng-container>

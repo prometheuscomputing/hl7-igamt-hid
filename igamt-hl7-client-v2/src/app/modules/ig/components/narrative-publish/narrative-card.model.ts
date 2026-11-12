@@ -18,6 +18,7 @@ export interface INarrativeCard {
 }
 
 export interface INarrativePublishModel {
+  branding?: import('../../../export-configuration/models/default-export-configuration.interface').IPublicWebExportConfiguration;
   title: string;
   cards: INarrativeCard[];
   /** depth-first order of card ids for Prev/Next */

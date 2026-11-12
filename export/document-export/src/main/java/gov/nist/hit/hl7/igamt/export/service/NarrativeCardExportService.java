@@ -15,4 +15,10 @@ public interface NarrativeCardExportService {
   ExportedFile exportNarrativeCardsHtml(Ig ig, gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration configuration) throws Exception;
   java.util.Map<String, Object> preview(Ig ig, gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration configuration) throws Exception;
   byte[] snapshot(Ig ig, gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration configuration, String path) throws Exception;
+  ExportedFile exportNarrativeCardsHtml(Ig ig, gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration configuration,
+      gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration branding) throws Exception;
+  java.util.Map<String, Object> preview(Ig ig, gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration configuration,
+      gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration branding) throws Exception;
+  byte[] snapshot(Ig ig, gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration configuration,
+      gov.nist.hit.hl7.igamt.export.configuration.newModel.PublicWebExportConfiguration branding, String path) throws Exception;
 }
