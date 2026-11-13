@@ -29,6 +29,7 @@ import gov.nist.hit.hl7.igamt.common.base.domain.Type;
 import gov.nist.hit.hl7.igamt.examples.domain.ExampleMessage;
 import gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet;
 import gov.nist.hit.hl7.igamt.examples.dto.SnippetRenderResult;
+import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageExportDataService;
 import gov.nist.hit.hl7.igamt.examples.dto.SnippetRenderResult.SnippetPart;
 import gov.nist.hit.hl7.igamt.examples.dto.parser.Point;
 import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportConfiguration;
@@ -118,6 +119,10 @@ public class ExampleMessageExportPipelineTest {
   }
 
   private static IgDataModel model() {
+    return model(String.join("\r", LINES));
+  }
+
+  private static IgDataModel model(String text) {
     Ig ig = new Ig();
     ig.setId("ig-1");
     ig.setName(TITLE);
@@ -127,7 +132,7 @@ public class ExampleMessageExportPipelineTest {
     message.setName("Unsolicited update");
     message.setDescription("<p>A newborn's <b>first</b> hepatitis B dose.</p>");
     message.setProfileId("cp-1");
-    message.setMessage(String.join("\r", LINES));
+    message.setMessage(text);
 
     MessageSnippet snippet = new MessageSnippet();
     snippet.setId("snip-1");
@@ -422,6 +427,73 @@ public class ExampleMessageExportPipelineTest {
       assertThat(parts).containsExactly("fr-exmsg-info", "fr-exmsg-description", "fr-exmsg-warning", "fr-exmsg-body");
       assertThat(example.select(".fr-exmsg-warning").text()).contains("could not be found; the full message is shown");
       assertThat(example.select(".fr-exmsg-body > .fr-exmsg-line")).hasSize(LINES.length);
+    }
+    assertThat(shape(examples.get(1))).isEqualTo(shape(examples.get(0)));
+  }
+
+  @Test
+  public void wordKeepsTheSpacesOfAMessage() throws Exception {
+    ExampleMessageExportConfiguration configuration = configuration(ExampleMessageExportMode.INLINE, ExampleMessageSnippetExportMode.LINE);
+    ExampleMessageSerializationServiceImpl serializer = new ExampleMessageSerializationServiceImpl();
+    IgDataModel model = model(" OBX|A\tB   C|D E ");
+    nu.xom.Element document = new nu.xom.Element("Document");
+    nu.xom.Element fromSection = section("sec-1", 1, "Section", "MESSAGESECTION", "<p>Text.</p>");
+    fromSection.appendChild(serializer.serializeReference(model, "msg-1", null, configuration));
+    document.appendChild(fromSection);
+    document.appendChild(section("sec-2", 2, "Widget", "TEXT", serializer.rewriteNarrative(widget("msg-1", ""), model, configuration)));
+    String forWord = export(new nu.xom.Document(document).toXML(), "docx");
+    Elements lines = Jsoup.parse(forWord).select("p.IgExample");
+    assertThat(lines).hasSize(2);
+    for (Element line : lines) {
+      assertThat(line.textNodes().get(0).getWholeText()).isEqualTo("\u00a0OBX|A\u00a0\u00a0\u00a0\u00a0B \u00a0\u00a0C|D E\u00a0");
+    }
+
+    DocumentMetadata metadata = new DocumentMetadata();
+    metadata.setTitle(TITLE);
+    ExportedFile word = WordUtil.convertHtmlToWord(
+        new ExportedFile(IOUtils.toInputStream(forWord, StandardCharsets.UTF_8), TITLE, "id", ExportFormat.WORD), metadata, new Date(), "2.5.1");
+    File docx = File.createTempFile("example-message-spaces-test", ".docx");
+    try {
+      try (InputStream in = word.getContent()) {
+        FileUtils.copyInputStreamToFile(in, docx);
+      }
+      String body = XmlUtils.marshaltoString(WordprocessingMLPackage.load(docx).getMainDocumentPart().getJaxbElement(), true, false);
+      assertThat(body).contains(">\u00a0OBX|A\u00a0\u00a0\u00a0\u00a0B \u00a0\u00a0C|D E\u00a0</w:t>");
+    } finally {
+      FileUtils.deleteQuietly(docx);
+    }
+  }
+
+  @Test
+  public void everyFileAnExampleLinksToIsInTheDownload() throws Exception {
+    // a guide that cites only a snippet: its block links to the whole message too
+    ExampleMessageExportConfiguration configuration = configuration(ExampleMessageExportMode.SEPARATE_FILES, ExampleMessageSnippetExportMode.LINE);
+    ExampleMessageSerializationServiceImpl serializer = new ExampleMessageSerializationServiceImpl();
+    for (boolean fromSection : new boolean[] {true, false}) {
+      IgDataModel model = model();
+      nu.xom.Element document = new nu.xom.Element("Document");
+      if (fromSection) {
+        nu.xom.Element section = section("sec-1", 1, "Section", "MESSAGESECTION", "<p>Text.</p>");
+        section.appendChild(serializer.serializeReference(model, "msg-1", "snip-1", configuration));
+        document.appendChild(section);
+      } else {
+        document.appendChild(section("sec-1", 1, "Widget", "TEXT", serializer.rewriteNarrative(widget("msg-1", "snip-1"), model, configuration)));
+      }
+      String xml = new nu.xom.Document(document).toXML();
+      ExampleMessageExportDataService download = new ExampleMessageExportDataService();
+      java.util.Set<String> wordFiles = download.collectFiles(model, configuration).keySet();
+      java.util.Set<String> pageFiles = download.collectStaticPages(model, configuration).keySet();
+
+      Elements wordTargets = Jsoup.parse(export(xml, "docx")).select(".fr-exmsg a[href]:not([href^=http])");
+      Elements pageTargets = Jsoup.parse(export(xml, "html")).select(".fr-exmsg a[href]:not([href^=http])");
+      assertThat(wordTargets).hasSize(2);
+      assertThat(pageTargets).hasSize(2);
+      for (Element link : wordTargets) {
+        assertThat(wordFiles).as("files beside the Word document").contains(java.net.URLDecoder.decode(link.attr("href"), "UTF-8"));
+      }
+      for (Element link : pageTargets) {
+        assertThat(pageFiles).as("pages beside index.html").contains(java.net.URLDecoder.decode(link.attr("href"), "UTF-8"));
+      }
     }
   }
 

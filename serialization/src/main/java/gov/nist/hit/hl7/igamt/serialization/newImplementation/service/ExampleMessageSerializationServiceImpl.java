@@ -33,6 +33,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 	private static final String MODE_FILE = "SEPARATE_FILES";
 	private static final String MODE_MISSING = "MISSING";
 	private static final String MISSING_TEXT = "The referenced example message is no longer available.";
+	private static final String MISSING_SNIPPET_TEXT = "The attached snippet could not be found; the full message is shown.";
 
 	@Override
 	public Element serializeReference(IgDataModel igDataModel, String messageId, String snippetId,
@@ -73,7 +74,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 			}
 		}
 		if (snippetRequested && !snippetFound) {
-			element.appendChild(warning("The snippet attached to this section could not be found; the full message is shown."));
+			element.appendChild(warning(MISSING_SNIPPET_TEXT));
 		}
 		if (snippetFound && render.getWarnings() != null) {
 			for (String text : render.getWarnings()) {
@@ -95,6 +96,8 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 			element.addAttribute(new Attribute("mode", "NONE"));
 		}
 		if (configuration.isRelativeLink() && configuration.producesFiles()) {
+			// the block of a snippet links to its message too: that file has to be in the download
+			dataModel.markReferenced(null);
 			element.addAttribute(new Attribute("messagePage", pageHref(igDataModel, messageId, null)));
 			element.addAttribute(new Attribute("messageFile", fileHref(igDataModel, messageId, null)));
 			if (snippetFound) {
@@ -155,6 +158,10 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 			boolean snippetFound = snippet != null && render != null;
 			dataModel.markReferenced(snippetFound ? snippetId : null);
 			boolean snapshotLink = configuration.isRelativeLink() && configuration.producesFiles();
+			if (snapshotLink) {
+				// the block of a snippet links to its message too: that file has to be in the download
+				dataModel.markReferenced(null);
+			}
 			String messagePage = snapshotLink ? pageHref(igDataModel, messageId, null) : "";
 			String messageFile = snapshotLink ? fileHref(igDataModel, messageId, null) : "";
 			String snippetPage = snippetFound && snapshotLink
@@ -171,7 +178,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 			}
 			if (snippetId != null && !snippetId.isEmpty() && !snippetFound) {
 				widget.appendElement("div").addClass("fr-exmsg-warning")
-						.text("The attached snippet could not be found; the full message is shown.");
+						.text(MISSING_SNIPPET_TEXT);
 			} else if (snippetFound && render.getWarnings() != null) {
 				for (String text : render.getWarnings()) {
 					widget.appendElement("div").addClass("fr-exmsg-warning").text(text);

@@ -16,7 +16,9 @@ The export was rebuilt after this note was written (branch `export-overhaul`), a
 
 `ExportHtmlEnhancer` leaves `table.fr-exmsg-info` alone: it is not one of the data tables of the guide. On the page, rich text that holds an example gets the class `ig-has-example` so the message is as wide as one of a message section.
 
-Both writers of the block are checked against each other, and against the Word document, by `ExampleMessageExportPipelineTest` in `export/document-export`. A change to one writer that is not made in the other fails `aSectionAndAWidgetShowTheSameExampleTheSameWay`.
+Both writers of the block are checked against each other, and against the Word document, by `ExampleMessageExportPipelineTest` in `export/document-export`. It compares them for a snippet, a whole message, a missing message and a missing snippet, with the snapshot and highlight on. It does not cover every configuration or the warnings of a snippet render, so a change to one writer still has to be made in the other by hand.
+
+The block of a snippet links to its message as well, so a guide that cites only a snippet now gets the file of the whole message in its download too. In Word, the spaces of a message that a paragraph would drop are written as non-breaking spaces and a tab as four of them, so that the line looks as it does on the page; text copied out of the Word file carries those characters. The `.txt` files are exact.
 
 The snapshot pages and the `.txt` files are as described below; they were not changed.
 

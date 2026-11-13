@@ -69,6 +69,7 @@ public class ExportHtmlEnhancer {
 
   /** Table of the facts of an example message (message, snippet, link to IGAMT): not a data table. */
   private static final String EXAMPLE_FACTS = "fr-exmsg-info";
+  private static final String EXAMPLE_LINE = "fr-exmsg-line";
   private static final Pattern HEADING = Pattern.compile("h[1-6]");
   private static final Pattern SIMPLE_USAGE = Pattern.compile("R|RE|O|X|C|CE|B|W|IX|CAB|P|E|D");
   private static final Pattern CONDITIONAL_USAGE = Pattern.compile("C\\s*\\(\\s*([A-Z]{1,3})\\s*/\\s*([A-Z]{1,3})\\s*\\)");
@@ -441,6 +442,10 @@ public class ExportHtmlEnhancer {
         }
       }
       for (Element block : view.select("div")) {
+        if (block.hasClass(EXAMPLE_LINE)) {
+          // a line of spaces in an example message is a line of the message
+          continue;
+        }
         if (block.children().isEmpty() && block.text().trim().isEmpty() && block != view) {
           block.remove();
         }
@@ -750,10 +755,12 @@ public class ExportHtmlEnhancer {
    * rich text is as wide as one of a message section.
    */
   private void placeExamples() {
-    for (Element link : doc.select("a[data-text-href]")) {
-      if (target == Target.WORD) {
+    if (target == Target.WORD) {
+      for (Element link : doc.select("." + EXAMPLE_FACTS + " a[data-text-href]")) {
         link.attr("href", link.attr("data-text-href"));
       }
+    }
+    for (Element link : doc.select("a[data-text-href]")) {
       link.removeAttr("data-text-href");
     }
     if (target == Target.HTML) {
@@ -775,9 +782,18 @@ public class ExportHtmlEnhancer {
   private void examplesForWord() {
     for (Element line : doc.select(".fr-exmsg-body > .fr-exmsg-line")) {
       for (TextNode text : textNodesOf(line)) {
-        // a paragraph collapses white space, and the spaces of a message are part of it
-        String kept = text.getWholeText().replaceAll("[\\r\\n\\t]+", " ").replace("  ", " \u00a0").replace("\u00a0 ", "\u00a0\u00a0");
-        text.text(kept.startsWith(" ") && text.previousSibling() == null ? "\u00a0" + kept.substring(1) : kept);
+        // a paragraph collapses white space, and the spaces of a message are part of it: every space
+        // that would be dropped (one after another, first or last of the line) is written as one that
+        // stays, and a tab as four of them
+        String kept = text.getWholeText().replaceAll("[\\r\\n]+", " ").replace("\t", "\u00a0\u00a0\u00a0\u00a0").replace("  ", " \u00a0")
+            .replace("\u00a0 ", "\u00a0\u00a0");
+        if (kept.startsWith(" ") && text.previousSibling() == null) {
+          kept = "\u00a0" + kept.substring(1);
+        }
+        if (kept.endsWith(" ") && text.nextSibling() == null) {
+          kept = kept.substring(0, kept.length() - 1) + "\u00a0";
+        }
+        text.text(kept);
       }
       line.tagName("p").attr("class", "IgExample");
     }

@@ -720,7 +720,7 @@ tr.ig-field-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--i
  * facts (message, snippet, link to IGAMT), a description, notes, then the message one line per
  * segment. A line that wraps continues indented, so the start of every segment stays visible.
  */
-.fr-exmsg { display: block; margin: 20px 0; }
+.fr-exmsg, .fr-view > .fr-exmsg { display: block; margin: 20px 0; }
 .ig-narrative + .fr-exmsg { margin-top: 14px; }
 .fr-exmsg .fr-exmsg-info { width: auto; margin: 0 0 8px 0; border-collapse: collapse; font-size: 13.5px; line-height: 1.5; }
 .fr-exmsg .fr-exmsg-info th, .fr-exmsg .fr-exmsg-info td { padding: 0; border: 0; background: none; text-align: left; vertical-align: baseline; }
@@ -730,7 +730,7 @@ tr.ig-field-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--i
 .fr-exmsg .fr-exmsg-info a:hover { text-decoration: underline; text-underline-offset: 2px; }
 /* rich text is kept to a reading width; a message in it takes the width of the page, like one of a message section */
 .ig-has-example { max-width: none; }
-.ig-has-example > :not(.fr-exmsg):not(.ig-has-example) { max-width: 82ch; }
+.ig-has-example > :not(.fr-exmsg):not(.ig-has-example) { max-width: min(82ch, 100%); }
 .fr-exmsg .fr-exmsg-description { margin: 0 0 8px 0; max-width: 74ch; font-size: 14.5px; color: var(--ig-ink-2); }
 .fr-exmsg .fr-exmsg-description > :first-child { margin-top: 0; }
 .fr-exmsg .fr-exmsg-description > :last-child { margin-bottom: 0; }
