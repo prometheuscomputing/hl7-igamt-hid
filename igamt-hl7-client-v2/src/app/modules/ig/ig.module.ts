@@ -34,7 +34,6 @@ import { IgMessageSectionEditorComponent } from './components/ig-message-section
 import { IgTocFilterComponent } from './components/ig-toc-filter/ig-toc-filter.component';
 import { IgTocComponent } from './components/ig-toc/ig-toc.component';
 import { IgVerificationComponent } from './components/ig-verification/ig-verification.component';
-import { NarrativePublishComponent } from './components/narrative-publish/narrative-publish.component';
 import { ManageProfileStructureComponent } from './components/manage-profile-structure/manage-profile-structure.component';
 import { NarrativeSectionFormComponent } from './components/narrative-section-form/narrative-section-form.component';
 import { IgRoutingModule } from './ig-routing.module';
@@ -116,7 +115,6 @@ import { CodemirrorModule } from '@ctrl/ngx-codemirror';
     IgTocFilterComponent,
     ManageProfileStructureComponent,
     IgVerificationComponent,
-    NarrativePublishComponent,
     IgShareLinkDialogComponent,
     ValueSetsSummaryEditorComponent,
     BindingSummaryListComponent,

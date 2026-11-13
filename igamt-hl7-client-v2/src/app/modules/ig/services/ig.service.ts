@@ -416,11 +416,6 @@ export class IgService {
     this.submitForm(decision, this.EXPORT_URL + igId + '/' + format, configId, exportType);
   }
 
-  previewNarrativeCards(igId: string) {
-    return this.http.get<import('../components/narrative-publish/narrative-card.model').INarrativePublishModel>(
-      this.EXPORT_URL + igId + '/narrative-cards/preview');
-  }
-
   exportNarrativeCards(igId: string) {
     this.submitForm(null, this.EXPORT_URL + igId + '/narrative-cards', null, null);
   }

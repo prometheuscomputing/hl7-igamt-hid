@@ -232,12 +232,6 @@ export class IgEditToolbarComponent implements OnInit, OnDestroy {
     this.getIgId().pipe(take(1)).subscribe((id) => this.igService.exportNarrativeCards(id));
   }
 
-  openNarrativePublish() {
-    this.getIgId().pipe(take(1)).subscribe((igId) => {
-      this.router.navigate(['/ig', igId, 'narrative-publish']);
-    });
-  }
-
   getIgId(): Observable<string> {
     return this.store.select(fromIgDocumentEdit.selectIgId);
   }

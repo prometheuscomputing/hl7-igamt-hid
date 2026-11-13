@@ -11,7 +11,7 @@ import { WidgetDeactivateGuard } from '../dam-framework/guards/widget-deactivate
 import { WidgetSetupGuard } from '../dam-framework/guards/widget-setup.guard';
 import { Type } from '../shared/constants/type.enum';
 import { EditorID } from '../shared/models/editor.enum';
-import { OpenIgVerificationEditor, OpenNarrativePublishEditor } from './../../root-store/ig/ig-edit/ig-edit.actions';
+import { OpenIgVerificationEditor } from './../../root-store/ig/ig-edit/ig-edit.actions';
 import { ConformanceStatementsSummaryEditorComponent } from './components/conformance-statements-summary-editor/conformance-statements-summary-editor.component';
 import { CreateIGComponent } from './components/create-ig/create-ig.component';
 import { IG_EDIT_WIDGET_ID, IgEditContainerComponent } from './components/ig-edit-container/ig-edit-container.component';
@@ -20,7 +20,6 @@ import { IgMetadataEditorComponent } from './components/ig-metadata-editor/ig-me
 import { IgSectionEditorComponent } from './components/ig-section-editor/ig-section-editor.component';
 import { IgMessageSectionEditorComponent } from './components/ig-message-section-editor/ig-message-section-editor.component';
 import { IgVerificationComponent } from './components/ig-verification/ig-verification.component';
-import { NarrativePublishComponent } from './components/narrative-publish/narrative-publish.component';
 import { ValueSetsSummaryEditorComponent } from './components/value-set-summary-editor/value-sets-summary-editor.component';
 import { DocumentSessionIdGuard } from './services/document-session-id.guard';
 import { IgCreateContext } from './services/ig-create-context.guard';
@@ -164,25 +163,8 @@ const routes: Routes = [
       },
 
 
-      {
-        path: 'narrative-publish',
-        component: NarrativePublishComponent,
-        canActivate: [EditorActivateGuard],
-        data: {
-          editorMetadata: {
-            id: EditorID.NARRATIVE_PUBLISH,
-            title: 'Public web IG',
-            resourceType: Type.IGDOCUMENT,
-          },
-          onLeave: {
-            saveEditor: false,
-            saveTableOfContent: false,
-          },
-          action: OpenNarrativePublishEditor,
-          idKey: 'igId',
-        },
-        canDeactivate: [EditorDeactivateGuard],
-      },
+      // Keep previously bookmarked preview URLs on the guide's metadata page.
+      { path: 'narrative-publish', redirectTo: 'metadata', pathMatch: 'full' },
 
       {
         path: 'verification',

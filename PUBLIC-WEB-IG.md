@@ -22,9 +22,10 @@ on **8090**. It refuses an occupied port and never stops another app. Override
 when needed. No database restore is required. Do not use `mvn install` for this
 worktree: the parallel branch shares the Maven cache.
 
-Open the guide and choose **Public web IG** for its preview, or **Export → Public
-web IG (ZIP)** for the portable publication. It uses the user's existing default
-IG export configuration. The APIs also accept a saved `config` id belonging to
+Open the guide and choose **Export → Public web IG (ZIP)** for the portable
+publication. The in-app publication preview has been removed; previously saved
+preview URLs redirect to the guide metadata page. The export uses the user's
+existing default IG export configuration. The APIs also accept a saved `config` id belonging to
 the authenticated user, or the built-in original configuration.
 
 ## Implementation boundaries
@@ -107,7 +108,7 @@ from disk; a localhost web server is not required.
 
 Open **Export Configuration → Public web IG**. Create or select an editable
 configuration, enter the organization name/footer, upload a logo, and choose
-colors. Save and choose **Use as default** for the preview and ZIP export.
+colors. Save and choose **Use as default** for the ZIP export.
 The original configuration remains read-only. IGAMT navy `#021a4c` and yellow
 `#F3C60D` are the defaults; preset palettes and a reset control are available.
 Logos are packaged locally (PNG/JPEG/WebP/GIF, up to 1 MiB) with alternative text.
