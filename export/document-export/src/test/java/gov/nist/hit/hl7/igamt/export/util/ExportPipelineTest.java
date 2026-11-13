@@ -211,6 +211,57 @@ public class ExportPipelineTest {
     }
   }
 
+  /**
+   * Word stops on a question ("This document contains fields that may refer to other files. Do you
+   * want to update the fields in this document?") when the settings ask for an update of the fields
+   * or when a field is marked as out of date. The contents must be complete without either.
+   */
+  @Test
+  public void wordDocumentOpensWithNothingToAnswer() throws Exception {
+    DocumentMetadata metadata = new DocumentMetadata();
+    metadata.setTitle(TITLE);
+    InputStream wordHtml = IOUtils.toInputStream(export("docx"), StandardCharsets.UTF_8);
+    ExportedFile word = WordUtil.convertHtmlToWord(new ExportedFile(wordHtml, TITLE, "id", ExportFormat.WORD), metadata, new Date(), "2.5.1");
+    File docx = File.createTempFile("export-test", ".docx");
+    try {
+      try (InputStream in = word.getContent()) {
+        FileUtils.copyInputStreamToFile(in, docx);
+      }
+      WordprocessingMLPackage wordPackage = WordprocessingMLPackage.load(docx);
+      String settings = XmlUtils.marshaltoString(wordPackage.getMainDocumentPart().getDocumentSettingsPart().getJaxbElement(), true, false);
+      assertThat(settings).doesNotContain("updateFields");
+      // without this Word opens the document in "Compatibility Mode"
+      assertThat(settings).containsPattern("<w:compatSetting [^>]*w:name=\"compatibilityMode\"[^>]*w:val=\"15\"");
+      assertThat(settings.split("w:name=\"compatibilityMode\"", -1)).hasSize(2);
+
+      String body = XmlUtils.marshaltoString(wordPackage.getMainDocumentPart().getJaxbElement(), true, false);
+      assertThat(body).doesNotContain("w:dirty");
+
+      // the contents: one table, in the container Word gives its own, every entry a link to a heading
+      assertThat(body.split("<w:docPartGallery w:val=\"Table of Contents\"", -1)).hasSize(2);
+      int start = body.indexOf("<w:sdtContent>");
+      String contents = body.substring(start, body.indexOf("</w:sdtContent>", start));
+      assertThat(contents).contains("w:val=\"TOCHeading\"").contains("TOC \\o");
+      assertThat(contents.split("w:fldCharType=\"begin\"", -1)).hasSize(2);
+      assertThat(contents.split("w:fldCharType=\"end\"", -1)).hasSize(2);
+      Set<String> bookmarks = new HashSet<String>();
+      java.util.regex.Matcher names = java.util.regex.Pattern.compile("<w:bookmarkStart[^>]*w:name=\"([^\"]+)\"").matcher(body);
+      while (names.find()) {
+        bookmarks.add(names.group(1));
+      }
+      java.util.regex.Matcher entries = java.util.regex.Pattern.compile("<w:hyperlink [^>]*w:anchor=\"([^\"]+)\"").matcher(contents);
+      int entryCount = 0;
+      while (entries.find()) {
+        entryCount++;
+        assertThat(bookmarks).as("heading of the contents entry %s", entries.group(1)).contains(entries.group(1));
+      }
+      assertThat(entryCount).isGreaterThan(10);
+      assertThat(contents.split("<w:pStyle w:val=\"TOC\\d\"", -1).length - 1).isEqualTo(entryCount);
+    } finally {
+      FileUtils.deleteQuietly(docx);
+    }
+  }
+
   @Test
   public void stylesheetFailureStopsTheExport() {
     ExportConfiguration configuration = ExportConfiguration.getBasicExportConfiguration(false, ExportType.IGDOCUMENT);

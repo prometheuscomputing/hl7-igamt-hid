@@ -20,6 +20,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,6 +48,7 @@ import org.docx4j.relationships.Relationship;
 import org.docx4j.wml.BooleanDefaultTrue;
 import org.docx4j.wml.Br;
 import org.docx4j.wml.CTBookmark;
+import org.docx4j.wml.CTCompatSetting;
 import org.docx4j.wml.CTSettings;
 import org.docx4j.wml.CTShd;
 import org.docx4j.wml.CTTblLayoutType;
@@ -69,6 +71,7 @@ import org.docx4j.wml.R;
 import org.docx4j.wml.RPr;
 import org.docx4j.wml.STShd;
 import org.docx4j.wml.STTblLayoutType;
+import org.docx4j.wml.SdtBlock;
 import org.docx4j.wml.SectPr;
 import org.docx4j.wml.Styles;
 import org.docx4j.wml.Tbl;
@@ -102,6 +105,9 @@ public class WordUtil {
   /** Paragraph {@link ExportHtmlEnhancer} leaves where the table of contents goes. */
   public static final String TOC_MARKER = "IG-TABLE-OF-CONTENTS";
   private static final int TOC_DEPTH = 3;
+  private static final String COMPATIBILITY_MODE = "compatibilityMode";
+  /** Word 2013 and later: the layout rules every current version of Word uses. */
+  private static final String WORD_LAYOUT_VERSION = "15";
   private static final String TOC_INSTRUCTION = "TOC \\o \"1-" + TOC_DEPTH + "\" \\h \\z \\u ";
 
   private static final String REFERENCE_TABLE_STYLE = "IgTable";
@@ -167,7 +173,7 @@ public class WordUtil {
       completeShading(document);
       keepCaptionsWithTables(document);
       insertTableOfContents(wordMLPackage);
-      requestFieldUpdate(wordMLPackage);
+      openWithoutQuestions(wordMLPackage);
 
       File tmpFile = File.createTempFile("IgDocument" + UUID.randomUUID().toString(), ".docx");
       try {
@@ -244,10 +250,13 @@ public class WordUtil {
   // ---------------------------------------------------------------- table of contents
 
   /**
-   * Replaces the marker paragraph with a table of contents. It is a regular Word TOC field, so Word
-   * refreshes it (and adds the page numbers, which only Word can compute) when it opens the
-   * document. Its entries are also written here, so the contents can be read and followed in any
-   * other viewer.
+   * Replaces the marker paragraph with a table of contents. Its entries are written here, as links
+   * to the headings, so the contents are complete and can be followed as soon as the document
+   * opens, in Word and in any other viewer. They carry no page numbers: only Word can compute
+   * those, and asking it to do so on opening makes it stop on a question (see
+   * {@link #openWithoutQuestions}). The entries sit in a regular TOC field inside the content
+   * control Word uses for its own tables of contents, so a reader who wants page numbers gets them
+   * with "Update Table".
    */
   private static void insertTableOfContents(WordprocessingMLPackage wordMLPackage) throws JAXBException {
     List<Object> content = wordMLPackage.getMainDocumentPart().getContent();
@@ -305,18 +314,18 @@ public class WordUtil {
     if (entries.isEmpty()) {
       return;
     }
-    List<Object> toc = new ArrayList<Object>();
-    toc.add(XmlUtils.unmarshalString("<w:p " + WORD_NAMESPACE + "><w:pPr><w:pStyle w:val=\"TOCHeading\"/></w:pPr>"
-        + "<w:r><w:t>Contents</w:t></w:r></w:p>"));
+    StringBuilder toc = new StringBuilder("<w:sdt " + WORD_NAMESPACE + "><w:sdtPr><w:docPartObj>"
+        + "<w:docPartGallery w:val=\"Table of Contents\"/><w:docPartUnique/></w:docPartObj></w:sdtPr><w:sdtContent>");
+    toc.append("<w:p><w:pPr><w:pStyle w:val=\"TOCHeading\"/></w:pPr><w:r><w:t>Contents</w:t></w:r></w:p>");
     for (int i = 0; i < entries.size(); i++) {
       String fieldStart = i > 0 ? "" : "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> "
           + TOC_INSTRUCTION + "</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>";
-      toc.add(XmlUtils.unmarshalString("<w:p " + WORD_NAMESPACE + ">" + entries.get(i)[0] + fieldStart + entries.get(i)[1]
-          + "</w:p>"));
+      toc.append("<w:p>").append(entries.get(i)[0]).append(fieldStart).append(entries.get(i)[1]).append("</w:p>");
     }
-    toc.add(XmlUtils.unmarshalString("<w:p " + WORD_NAMESPACE + "><w:pPr><w:spacing w:after=\"0\"/></w:pPr>"
-        + "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>"));
-    content.addAll(index, toc);
+    toc.append("<w:p><w:pPr><w:spacing w:after=\"0\"/></w:pPr><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>");
+    toc.append("</w:sdtContent></w:sdt>");
+    // a content control is no root element of the schema, so its type has to be given
+    content.add(index, XmlUtils.unmarshalString(toc.toString(), Context.jc, SdtBlock.class));
   }
 
   /** 1 to 6 for a paragraph in a heading style, 0 otherwise. */
@@ -342,7 +351,14 @@ public class WordUtil {
     return null;
   }
 
-  private static void requestFieldUpdate(WordprocessingMLPackage wordMLPackage) throws Docx4JException {
+  /**
+   * Settings for a document that opens in Word as it is, with nothing to answer and no notice in
+   * the title bar. Nothing asks Word to update the fields: that request, like a field marked as
+   * out of date, makes Word open on "This document contains fields that may refer to other files.
+   * Do you want to update the fields in this document?". The document also declares the current
+   * layout rules; without that Word opens it in "Compatibility Mode", as a file of Word 2007.
+   */
+  private static void openWithoutQuestions(WordprocessingMLPackage wordMLPackage) throws Docx4JException {
     MainDocumentPart document = wordMLPackage.getMainDocumentPart();
     DocumentSettingsPart settingsPart = document.getDocumentSettingsPart();
     if (settingsPart == null) {
@@ -351,7 +367,21 @@ public class WordUtil {
       document.addTargetPart(settingsPart);
     }
     CTSettings settings = settingsPart.getJaxbElement();
-    settings.setUpdateFields(new BooleanDefaultTrue());
+    settings.setUpdateFields(null);
+    if (settings.getCompat() == null) {
+      settings.setCompat(Context.getWmlObjectFactory().createCTCompat());
+    }
+    List<CTCompatSetting> compatibility = settings.getCompat().getCompatSetting();
+    for (Iterator<CTCompatSetting> it = compatibility.iterator(); it.hasNext();) {
+      if (COMPATIBILITY_MODE.equals(it.next().getName())) {
+        it.remove();
+      }
+    }
+    CTCompatSetting mode = Context.getWmlObjectFactory().createCTCompatSetting();
+    mode.setName(COMPATIBILITY_MODE);
+    mode.setUri("http://schemas.microsoft.com/office/word");
+    mode.setVal(WORD_LAYOUT_VERSION);
+    compatibility.add(0, mode);
   }
 
   // ---------------------------------------------------------------- formatting
