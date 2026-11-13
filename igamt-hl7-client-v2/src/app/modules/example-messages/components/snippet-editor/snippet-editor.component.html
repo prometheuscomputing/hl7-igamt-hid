@@ -113,12 +113,15 @@
             Snippet Name
           </label>
           <input
+            *ngIf="!viewOnly"
             type="text"
             class="form-control"
-            [ngModel]="snippetName"
-            (ngModelChange)="onNameChange($event)"
+            [formControl]="nameControl"
+            [class.is-invalid]="nameError()"
             placeholder="Snippet name"
           />
+          <div *ngIf="!viewOnly && nameError()" style="color: #c62828; font-size: 12px; margin-top: 6px;">{{ nameError() }}</div>
+          <span *ngIf="viewOnly" style="font-size: 14px;">{{ snippetName }}</span>
         </div>
 
         <!-- Description / Narrative -->
@@ -126,11 +129,15 @@
           <label style="font-weight: 600; margin-bottom: 4px; display: block; color: #333;">
             Description
           </label>
-          <div style="min-height: 200px;"
+          <div *ngIf="!viewOnly" style="min-height: 200px;"
             [froalaEditor]="froalaConfig$ | async"
             [(ngModel)]="snippetDescription"
             (ngModelChange)="onDescriptionChange($event)"
           ></div>
+          <div *ngIf="viewOnly">
+            <div *ngIf="snippetDescription" [innerHTML]="snippetDescription" style="padding: 12px; background-color: #fafafa; border: 1px solid #eee; border-radius: 4px;"></div>
+            <span *ngIf="!snippetDescription" style="color: #888; font-size: 13px;">No description provided.</span>
+          </div>
         </div>
 
         <!-- Source info (read-only) -->

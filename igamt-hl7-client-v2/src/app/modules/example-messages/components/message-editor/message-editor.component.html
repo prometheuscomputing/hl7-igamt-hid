@@ -51,7 +51,7 @@
                                 <i class="fa fa-check-square-o"></i> {{ selectedElements.length }} selected
                             </span>
                             <div style="display: flex; gap: 4px;">
-                                <button class="btn btn-sm btn-outline-primary" (click)="createSnippetFromSelection()" [disabled]="staleMessageTree" style="font-size: 11px; padding: 1px 6px;">
+                                <button *ngIf="!viewOnly" class="btn btn-sm btn-outline-primary" (click)="createSnippetFromSelection()" [disabled]="staleMessageTree" style="font-size: 11px; padding: 1px 6px;">
                                     <i class="fa fa-scissors"></i> Create Snippet
                                 </button>
                                 <button class="btn btn-sm btn-outline-secondary" (click)="clearAllSelections()" style="font-size: 11px; padding: 1px 6px;">
@@ -86,7 +86,7 @@
                                             <span *ngIf="node.data.type !== 'GROUP'">- {{ node.data.name }}</span>
                                         </span>
                                         <context-menu #elementContextMenu>
-                                            <ng-template (execute)="createSnippet(node.data)" contextMenuItem [enabled]="!staleMessageTree">
+                                            <ng-template (execute)="createSnippet(node.data)" contextMenuItem [enabled]="!viewOnly && !staleMessageTree">
                                                 <i class="fa fa-scissors"></i> Create Snippet
                                             </ng-template>
                                             <ng-template (execute)="toggleSelect(node.data)" contextMenuItem [enabled]="!staleMessageTree">
@@ -266,10 +266,11 @@
                         *ngIf="!(viewOnly$ | async)"
                         type="text"
                         class="form-control"
-                        [ngModel]="messageName"
-                        (ngModelChange)="onMessageNameChange($event)"
+                        [formControl]="nameControl"
+                        [class.is-invalid]="nameError()"
                         placeholder="Message name"
                     />
+                    <div *ngIf="!(viewOnly$ | async) && nameError()" style="color: #c62828; font-size: 12px; margin-top: 6px;">{{ nameError() }}</div>
                     <span *ngIf="viewOnly$ | async" style="font-size: 14px;">{{ messageName }}</span>
                 </div>
 

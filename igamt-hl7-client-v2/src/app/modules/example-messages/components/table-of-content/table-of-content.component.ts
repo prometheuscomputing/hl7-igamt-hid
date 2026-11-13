@@ -16,8 +16,18 @@ export class TableOfContentComponent implements OnInit, OnChanges {
   nodes: TreeNode[];
   @Input()
   activeMessageId: string;
+  @Input()
+  viewOnly = false;
   @Output()
   onCreateExampleMessage: EventEmitter<{ profileId: string, name: string }>;
+  @Output()
+  onDeleteExampleMessage: EventEmitter<{ messageId: string, name: string }>;
+  @Output()
+  onDeleteSnippet: EventEmitter<{ messageId: string, snippetId: string, name: string }>;
+  @Output()
+  onExportExampleMessage: EventEmitter<{ messageId: string, name: string, format: 'html' | 'txt' | 'validation' }>;
+  @Output()
+  onExportSnippet: EventEmitter<{ messageId: string, snippetId: string, name: string, format: 'html' | 'txt' }>;
   @Output()
   onCopyExampleMessage: EventEmitter<{ messageId: string, name: string }>;
   @Output()
@@ -40,6 +50,46 @@ export class TableOfContentComponent implements OnInit, OnChanges {
     this.onCreateExampleMessage = new EventEmitter();
     this.onCopyExampleMessage = new EventEmitter();
     this.onCopySnippet = new EventEmitter();
+    this.onDeleteExampleMessage = new EventEmitter();
+    this.onDeleteSnippet = new EventEmitter();
+    this.onExportExampleMessage = new EventEmitter();
+    this.onExportSnippet = new EventEmitter();
+  }
+
+  deleteExampleMessage(node: TreeNode) {
+    const message = node.data;
+    this.onDeleteExampleMessage.emit({
+      messageId: message.id,
+      name: message.label || message.name,
+    });
+  }
+
+  deleteSnippet(node: TreeNode) {
+    const snippet = node.data;
+    this.onDeleteSnippet.emit({
+      messageId: snippet.messageId,
+      snippetId: snippet.id,
+      name: snippet.label || snippet.name,
+    });
+  }
+
+  exportExampleMessage(node: TreeNode, format: 'html' | 'txt' | 'validation') {
+    const message = node.data;
+    this.onExportExampleMessage.emit({
+      messageId: message.id,
+      name: message.label || message.name,
+      format,
+    });
+  }
+
+  exportSnippet(node: TreeNode, format: 'html' | 'txt') {
+    const snippet = node.data;
+    this.onExportSnippet.emit({
+      messageId: snippet.messageId,
+      snippetId: snippet.id,
+      name: snippet.label || snippet.name,
+      format,
+    });
   }
 
   expandAll() {

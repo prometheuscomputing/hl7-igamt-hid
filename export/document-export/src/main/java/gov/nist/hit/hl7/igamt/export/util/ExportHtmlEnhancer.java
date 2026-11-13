@@ -67,6 +67,8 @@ public class ExportHtmlEnhancer {
   private static final String UNSET_FONT = "times new roman";
   private static final String UNSET_FONT_SIZE = "12";
 
+  /** Table of the facts of an example message (message, snippet, link to IGAMT): not a data table. */
+  private static final String EXAMPLE_FACTS = "fr-exmsg-info";
   private static final Pattern HEADING = Pattern.compile("h[1-6]");
   private static final Pattern SIMPLE_USAGE = Pattern.compile("R|RE|O|X|C|CE|B|W|IX|CAB|P|E|D");
   private static final Pattern CONDITIONAL_USAGE = Pattern.compile("C\\s*\\(\\s*([A-Z]{1,3})\\s*/\\s*([A-Z]{1,3})\\s*\\)");
@@ -184,6 +186,7 @@ public class ExportHtmlEnhancer {
     collectOutline();
     decorateTables();
     addWhereUsed();
+    placeExamples();
     if (target == Target.HTML) {
       renderHeadings();
       wrapSections();
@@ -738,11 +741,59 @@ public class ExportHtmlEnhancer {
     }
   }
 
+  // ---------------------------------------------------------------- example messages
+
+  /**
+   * An example message names its message and snippet with a link to their snapshot page, and carries
+   * the address of the text file of each. The Word download holds the text files beside the document
+   * and not the pages, so there the links go to the text files. On the page, an example pasted in
+   * rich text is as wide as one of a message section.
+   */
+  private void placeExamples() {
+    for (Element link : doc.select("a[data-text-href]")) {
+      if (target == Target.WORD) {
+        link.attr("href", link.attr("data-text-href"));
+      }
+      link.removeAttr("data-text-href");
+    }
+    if (target == Target.HTML) {
+      // rich text is kept to a reading width, which is too narrow for a message: let its examples out
+      for (Element example : content.select(".fr-view .fr-exmsg, .ig-narrative .fr-exmsg")) {
+        for (Element parent = example.parent(); parent != null && parent != content; parent = parent.parent()) {
+          if (parent.hasClass("fr-view") || parent.hasClass("ig-narrative")) {
+            parent.addClass("ig-has-example");
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Word styles for an example message: its facts, then one paragraph per line of the message so
+   * that a line never runs into the next and a long one wraps under itself.
+   */
+  private void examplesForWord() {
+    for (Element line : doc.select(".fr-exmsg-body > .fr-exmsg-line")) {
+      for (TextNode text : textNodesOf(line)) {
+        // a paragraph collapses white space, and the spaces of a message are part of it
+        String kept = text.getWholeText().replaceAll("[\\r\\n\\t]+", " ").replace("  ", " \u00a0").replace("\u00a0 ", "\u00a0\u00a0");
+        text.text(kept.startsWith(" ") && text.previousSibling() == null ? "\u00a0" + kept.substring(1) : kept);
+      }
+      line.tagName("p").attr("class", "IgExample");
+    }
+    for (Element body : doc.select(".fr-exmsg-body")) {
+      body.unwrap();
+    }
+    for (Element warning : doc.select(".fr-exmsg > .fr-exmsg-warning")) {
+      warning.tagName("p").attr("class", "IgExampleNote");
+    }
+  }
+
   // ---------------------------------------------------------------- tables
 
   private void decorateTables() {
     for (Element table : content.select("table")) {
-      if (isInNarrative(table)) {
+      if (isInNarrative(table) || table.hasClass(EXAMPLE_FACTS)) {
         continue;
       }
       table.select("col, colgroup").remove();
@@ -1520,9 +1571,10 @@ public class ExportHtmlEnhancer {
       }
       code.tagName("p").attr("class", "IgCodeBlock");
     }
+    examplesForWord();
     for (Element table : doc.select("table")) {
       boolean reference = table.hasClass("ig-table") && !table.hasClass("ig-grid") && !headerCells(table).isEmpty();
-      table.attr("class", reference ? "IgTable" : "IgGridTable");
+      table.attr("class", table.hasClass(EXAMPLE_FACTS) ? "IgExampleFacts" : reference ? "IgTable" : "IgGridTable");
       table.removeAttr("style").removeAttr("width").removeAttr("border").removeAttr("cellpadding").removeAttr("cellspacing");
     }
     wordCover();

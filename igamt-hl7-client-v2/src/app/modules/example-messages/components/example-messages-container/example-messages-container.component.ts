@@ -26,6 +26,7 @@ export class ExampleMessagesContainerComponent extends DamWidgetComponent implem
   igId$: Observable<string>;
   activeWorkspace: Observable<IWorkspaceActive>;
   exporting = false;
+  viewOnly$: Observable<boolean>;
 
   constructor(
     store: Store<any>,
@@ -38,6 +39,9 @@ export class ExampleMessagesContainerComponent extends DamWidgetComponent implem
     );
     this.igId$ = this.store.select(selectIgExampleMessages).pipe(
       map((data) => data && data.id),
+    );
+    this.viewOnly$ = this.store.select(selectIgExampleMessages).pipe(
+      map((data) => !!(data && data.viewOnly)),
     );
     this.activeWorkspace = this.store.select(fromDam.selectWorkspaceActive);
   }

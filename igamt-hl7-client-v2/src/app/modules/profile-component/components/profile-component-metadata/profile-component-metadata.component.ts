@@ -51,7 +51,7 @@ export class ProfileComponentMetadataComponent extends AbstractEditorComponent i
       store,
     );
     this.profileComponentMetadata = this.currentSynchronized$;
-    this.froalaConfig$ = this.froalaService.getConfig();
+    this.froalaConfig$ = this.froalaService.getConfig(true);
     this.s_workspace = this.currentSynchronized$.pipe(
       tap((metadata: IProfileComponentMetadata) => {
         this.initFormGroup();

@@ -7,6 +7,7 @@ public class IgExampleMessagesDTO {
     private String id;
     private String title;
     private String createdId;
+    private boolean viewOnly;
     private List<ProfileExampleMessages> profileExampleMessages;
 
     public String getId() {
@@ -31,6 +32,14 @@ public class IgExampleMessagesDTO {
 
     public void setCreatedId(String createdId) {
         this.createdId = createdId;
+    }
+
+    public boolean isViewOnly() {
+        return viewOnly;
+    }
+
+    public void setViewOnly(boolean viewOnly) {
+        this.viewOnly = viewOnly;
     }
 
     public List<ProfileExampleMessages> getProfileExampleMessages() {

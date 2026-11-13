@@ -5,7 +5,10 @@
     <label>Name</label>
     <input class="form-control" type="text" [(ngModel)]="name" [class.is-invalid]="nameTaken" />
     <div *ngIf="nameTaken" style="color: #c62828; font-size: 12px; margin-top: 6px;">
-      A {{ data.kind || 'item' }} with this name already exists.
+      {{ (name || '').trim() }} is already used
+    </div>
+    <div *ngIf="nameEmpty" style="color: #c62828; font-size: 12px; margin-top: 6px;">
+      Name is required.
     </div>
   </div>
 </mat-dialog-content>

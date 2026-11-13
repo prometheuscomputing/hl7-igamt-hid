@@ -8,6 +8,8 @@ import { MessageService } from '../../../dam-framework/services/message.service'
 import { Type } from '../../../shared/constants/type.enum';
 import { IDisplayElement } from '../../../shared/models/display-element.interface';
 import { EditorID } from '../../../shared/models/editor.enum';
+import { saveAs } from 'file-saver';
+import { DeleteUsageDialogComponent } from '../delete-usage-dialog/delete-usage-dialog.component';
 import { TableOfContentComponent } from '../table-of-content/table-of-content.component';
 import { selectIgExampleMessages } from 'src/app/root-store/example-messages/example-messages.reducer';
 import { ExampleMessagesService } from '../../services/example-messages.service';
@@ -23,6 +25,7 @@ import * as fromDAM from 'src/app/modules/dam-framework/store/index';
 export class SideBarComponent {
 
   nodes: Observable<any[]>;
+  viewOnly$: Observable<boolean>;
   id$: Observable<string>;
   activeMessageId$: BehaviorSubject<string> = new BehaviorSubject<string>(null);
 
@@ -48,6 +51,9 @@ export class SideBarComponent {
     this.id$ = this.store.select(selectIgExampleMessages).pipe(
       take(1),
       map((igExampleMessages) => igExampleMessages.id)
+    );
+    this.viewOnly$ = this.store.select(selectIgExampleMessages).pipe(
+      map((igExampleMessages) => !!(igExampleMessages && igExampleMessages.viewOnly)),
     );
     this.nodes = combineLatest(
       this.store.select(selectIgExampleMessages),
@@ -133,6 +139,55 @@ export class SideBarComponent {
       (id) => this.exampleMessageService.copyExampleMessage(id, data.messageId, { name: data.name }),
       (createdId) => this.router.navigate(['message', createdId], { relativeTo: this.route }),
     );
+  }
+
+  deleteExampleMessage(data: { messageId: string, name: string }) {
+    this.openDelete({ ...data, kind: 'message' });
+  }
+
+  deleteSnippet(data: { messageId: string, snippetId: string, name: string }) {
+    this.openDelete({ ...data, kind: 'snippet' });
+  }
+
+  exportExampleMessage(data: { messageId: string, name: string, format: 'html' | 'txt' | 'validation' }) {
+    this.id$.pipe(take(1)).subscribe((igId) => {
+      this.exampleMessageService.exportMessageFile(igId, data.messageId, data.format).pipe(take(1)).subscribe((blob) => {
+        saveAs(blob, this.exportFilename(data.name, data.format, 'example'));
+      });
+    });
+  }
+
+  exportSnippet(data: { messageId: string, snippetId: string, name: string, format: 'html' | 'txt' }) {
+    this.id$.pipe(take(1)).subscribe((igId) => {
+      this.exampleMessageService.exportSnippetFile(igId, data.messageId, data.snippetId, data.format).pipe(take(1)).subscribe((blob) => {
+        saveAs(blob, this.exportFilename(data.name, data.format, 'snippet'));
+      });
+    });
+  }
+
+  private exportFilename(name: string, format: string, fallback: string): string {
+    const base = (name || fallback).replace(/[\\/:*?"<>|]/g, '-');
+    if (format === 'txt') {
+      return base + '.txt';
+    }
+    if (format === 'validation') {
+      return base + '-validation.html';
+    }
+    return base + '.html';
+  }
+
+  private openDelete(data: { messageId: string, snippetId?: string, name: string, kind: 'message' | 'snippet' }) {
+    this.id$.pipe(take(1)).subscribe((igId) => {
+      this.dialog.open(DeleteUsageDialogComponent, {
+        data: { ...data, igId },
+        width: '560px',
+      }).afterClosed().subscribe((result) => {
+        if (result && result.deleted && result.data) {
+          this.store.dispatch(new LoadPayloadData(result.data));
+          this.router.navigate(['/example-messages', igId]);
+        }
+      });
+    });
   }
 
   copySnippet(data: { messageId: string, snippetId: string, name: string }) {

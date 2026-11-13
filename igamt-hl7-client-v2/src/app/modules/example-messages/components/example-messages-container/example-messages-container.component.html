@@ -33,6 +33,7 @@
           <i class="fa fa-download"></i>
           {{ exporting ? 'Exporting…' : 'Export all' }}
         </button>
+        <span *ngIf="viewOnly$ | async" class="badge badge-secondary" style="margin-right: 8px;">Read only</span>
         <button *ngIf="igId$ | async as igId" [routerLink]="['/ig', igId]" class="btn btn-sm btn-primary">
           <i class="fa fa-chevron-left"></i>
           Open IG
@@ -47,7 +48,7 @@
         <ng-container *ngTemplateOutlet="activeComponent.header; context: { $implicit: active }"></ng-container>
       </ng-container>
     </div>
-    <div>
+    <div *ngIf="!(viewOnly$ | async)">
       <app-dam-reset-button></app-dam-reset-button>
       <app-dam-save-button></app-dam-save-button>
     </div>

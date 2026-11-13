@@ -4,8 +4,12 @@ package gov.nist.hit.hl7.igamt.export.configuration.newModel;
  * How example messages and snippets referenced by the document are carried in the export.
  */
 public enum ExampleMessageExportMode {
-	/** The message / snippet content is printed inside the HTML / Word document. */
+	/** The message text is printed inside the HTML / Word document. */
 	INLINE,
-	/** The content is written to files next to the document and the document links to them. */
-	SEPARATE_FILES
+	/** A snapshot of each example is written into the export folder. */
+	SEPARATE_FILES,
+	/** The document contains the full text and also the snapshot files. */
+	BOTH,
+	/** Example messages stay in the document as names only, with no text and no snapshot. */
+	NONE
 }

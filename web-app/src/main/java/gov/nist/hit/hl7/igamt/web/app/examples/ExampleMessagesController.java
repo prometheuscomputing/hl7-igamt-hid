@@ -1,5 +1,6 @@
 package gov.nist.hit.hl7.igamt.web.app.examples;
 
+import gov.nist.hit.hl7.igamt.common.base.exception.GenericException;
 import gov.nist.hit.hl7.igamt.common.base.model.ResponseMessage;
 import gov.nist.hit.hl7.igamt.examples.domain.ExampleMessage;
 import gov.nist.hit.hl7.igamt.examples.domain.IgExampleMessages;
@@ -13,13 +14,17 @@ import gov.nist.hit.hl7.igamt.examples.service.ExampleMessageValidationService;
 import gov.nist.hit.hl7.igamt.examples.service.ExampleMessagesService;
 import gov.nist.hit.hl7.igamt.examples.service.MessageParserService;
 import gov.nist.hit.hl7.igamt.examples.service.SnippetRenderService;
+import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportConfiguration;
+import gov.nist.hit.hl7.igamt.export.configuration.domain.ExportType;
 import gov.nist.hit.hl7.igamt.export.configuration.newModel.ExampleMessageExportConfiguration;
+import gov.nist.hit.hl7.igamt.export.configuration.service.ExportConfigurationService;
 import gov.nist.hit.hl7.igamt.ig.domain.Ig;
 import gov.nist.hit.hl7.igamt.ig.domain.datamodel.IgDataModel;
 import gov.nist.hit.hl7.igamt.ig.service.IgService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.FileCopyUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -48,6 +53,8 @@ public class ExampleMessagesController {
     ExampleMessageExportDataService exampleMessageExportDataService;
     @Autowired
     IgService igService;
+    @Autowired
+    ExportConfigurationService exportConfigurationService;
     @Autowired
     InMemoryDomainExtensionService inMemoryDomainExtensionService;
 
@@ -260,8 +267,8 @@ public class ExampleMessagesController {
     }
 
     /**
-     * Export every example message and snippet of the IG. Each message is an HTML page
-     * plus the message text as a .txt file.
+     * The same folder the guide links to. Dropping it into a guide export keeps the
+     * relative links working, including the link back to index.html.
      */
     @RequestMapping(value = "/api/example-messages/{id}/export", method = RequestMethod.GET)
     @PreAuthorize("AccessResource('IGDOCUMENT', #id, READ)")
@@ -278,9 +285,9 @@ public class ExampleMessagesController {
             }
             IgDataModel igDataModel = igService.generateDataModel(ig);
             dataExtensionTokens.addAll(igDataModel.getDataExtensionTokens());
-            ExampleMessageExportConfiguration configuration = ExampleMessageExportDataService.allFilesConfiguration();
+            ExampleMessageExportConfiguration configuration = ExampleMessageExportDataService.replacementFolder(guideExampleMessages());
             exampleMessageExportDataService.populate(igDataModel, configuration);
-            Map<String, byte[]> files = exampleMessageExportDataService.collectStaticPages(igDataModel, configuration, false);
+            Map<String, byte[]> files = exampleMessageExportDataService.collectStaticPages(igDataModel, configuration, true);
             files.putAll(exampleMessageExportDataService.collectFiles(igDataModel, configuration));
             byte[] zip = exampleMessageExportDataService.zipFiles(files);
             response.setContentType("application/zip");
@@ -289,6 +296,179 @@ public class ExampleMessagesController {
         } finally {
             dataExtensionTokens.forEach(token -> inMemoryDomainExtensionService.clear(token));
         }
+    }
+
+    /** Folder name and snippet presentation from the IG configuration that exports use by default. */
+    private ExampleMessageExportConfiguration guideExampleMessages() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getPrincipal() == null) {
+            return null;
+        }
+        ExportConfiguration exportConfiguration = exportConfigurationService.getConfigurationToApply(
+                ExportType.IGDOCUMENT, authentication.getPrincipal().toString());
+        if (exportConfiguration == null || exportConfiguration.getIgGeneralConfiguration() == null) {
+            return null;
+        }
+        return exportConfiguration.getIgGeneralConfiguration().getExampleMessages();
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/export", method = RequestMethod.GET)
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, READ)")
+    public void exportMessageFile(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @RequestParam(value = "format", defaultValue = "html") String format,
+            HttpServletResponse response
+    ) throws Exception {
+        ExampleMessage message = exampleMessagesService.getExampleMessage(id, messageId);
+        String validationHtml = null;
+        if ("validation".equalsIgnoreCase(format)) {
+            ExampleMessageValidationResult result = exampleMessageValidationService.validate(id, messageId, null);
+            validationHtml = result.getHtml();
+            if (validationHtml == null || validationHtml.trim().isEmpty()) {
+                String error = result.getError() != null ? result.getError() : "No validation report was produced.";
+                validationHtml = "<p>" + error.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</p>";
+            }
+        }
+        ExampleMessageExportDataService.Download download = exampleMessageExportDataService.exportMessageFile(message, format, validationHtml);
+        response.setContentType(download.contentType);
+        response.setHeader("Content-disposition", "attachment;filename=\"" + download.filename + "\"");
+        FileCopyUtils.copy(new ByteArrayInputStream(download.body), response.getOutputStream());
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/export", method = RequestMethod.POST)
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, READ)")
+    public void exportOne(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @RequestBody(required = false) ExampleMessageExportRequest request,
+            HttpServletResponse response
+    ) throws Exception {
+        ExampleMessage message = exampleMessagesService.getExampleMessage(id, messageId);
+        boolean snippets = request == null || request.isIncludeSnippets();
+        boolean validation = request != null && request.isIncludeValidation();
+        String onlySnippet = request != null ? request.getSnippetId() : null;
+        String validationHtml = null;
+        if (validation && (onlySnippet == null || onlySnippet.isEmpty())) {
+            ExampleMessageValidationResult result = exampleMessageValidationService.validate(id, messageId, null);
+            validationHtml = result.getHtml();
+            if (validationHtml == null || validationHtml.trim().isEmpty()) {
+                String error = result.getError() != null ? result.getError() : "No validation report was produced.";
+                validationHtml = "<p>" + error.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</p>";
+            }
+        }
+        byte[] zip = exampleMessageExportDataService.exportOne(id, message, snippets, validation, validationHtml, onlySnippet);
+        String filename = "Example-" + (message.getName() != null ? message.getName().replaceAll("[\\\\/:*?\"<>|]", "-") : messageId) + ".zip";
+        response.setContentType("application/zip");
+        response.setHeader("Content-disposition", "attachment;filename=\"" + filename + "\"");
+        FileCopyUtils.copy(new ByteArrayInputStream(zip), response.getOutputStream());
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/snippet/{snippetId}/export", method = RequestMethod.GET)
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, READ)")
+    public void exportSnippet(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @PathVariable("snippetId") String snippetId,
+            @RequestParam(value = "format", defaultValue = "html") String format,
+            HttpServletResponse response
+    ) throws Exception {
+        ExampleMessage message = exampleMessagesService.getExampleMessage(id, messageId);
+        ExampleMessageExportDataService.Download download = exampleMessageExportDataService.exportSnippet(id, message, snippetId, format);
+        if (download == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Snippet not found");
+            return;
+        }
+        response.setContentType(download.contentType);
+        response.setHeader("Content-disposition", "attachment;filename=\"" + download.filename + "\"");
+        FileCopyUtils.copy(new ByteArrayInputStream(download.body), response.getOutputStream());
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/usages", method = RequestMethod.GET, produces = {"application/json"})
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, READ)")
+    public @ResponseBody List<ExampleMessageUsage> messageUsages(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId
+    ) throws Exception {
+        return exampleMessagesService.findUsages(id, messageId, null);
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/snippet/{snippetId}/usages", method = RequestMethod.GET, produces = {"application/json"})
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, READ)")
+    public @ResponseBody List<ExampleMessageUsage> snippetUsages(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @PathVariable("snippetId") String snippetId
+    ) throws Exception {
+        return exampleMessagesService.findUsages(id, messageId, snippetId);
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/detach", method = RequestMethod.POST, produces = {"application/json"})
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, WRITE)")
+    public @ResponseBody ResponseMessage<List<ExampleMessageUsage>> detachMessage(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @RequestBody(required = false) ExampleMessageDetachRequest request
+    ) throws Exception {
+        List<ExampleMessageUsage> remaining;
+        try {
+            remaining = exampleMessagesService.detach(id, messageId, null,
+                    request != null ? request.getSectionId() : null,
+                    request != null ? request.getKind() : null);
+        } catch (GenericException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        return new ResponseMessage<>(ResponseMessage.Status.SUCCESS, "References detached", messageId, remaining, new Date());
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/snippet/{snippetId}/detach", method = RequestMethod.POST, produces = {"application/json"})
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, WRITE)")
+    public @ResponseBody ResponseMessage<List<ExampleMessageUsage>> detachSnippet(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @PathVariable("snippetId") String snippetId,
+            @RequestBody(required = false) ExampleMessageDetachRequest request
+    ) throws Exception {
+        List<ExampleMessageUsage> remaining;
+        try {
+            remaining = exampleMessagesService.detach(id, messageId, snippetId,
+                    request != null ? request.getSectionId() : null,
+                    request != null ? request.getKind() : null);
+        } catch (GenericException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        return new ResponseMessage<>(ResponseMessage.Status.SUCCESS, "References detached", snippetId, remaining, new Date());
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}", method = RequestMethod.DELETE, produces = {"application/json"})
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, WRITE)")
+    public @ResponseBody ResponseMessage<IgExampleMessagesDTO> deleteMessage(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId
+    ) throws Exception {
+        IgExampleMessagesDTO dto;
+        try {
+            dto = exampleMessagesService.deleteExampleMessage(id, messageId);
+        } catch (GenericException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        return new ResponseMessage<>(ResponseMessage.Status.SUCCESS, "Example message deleted", messageId, dto, new Date());
+    }
+
+    @RequestMapping(value = "/api/example-messages/{id}/message/{messageId}/snippet/{snippetId}", method = RequestMethod.DELETE, produces = {"application/json"})
+    @PreAuthorize("AccessResource('IGDOCUMENT', #id, WRITE)")
+    public @ResponseBody ResponseMessage<IgExampleMessagesDTO> deleteSnippet(
+            @PathVariable("id") String id,
+            @PathVariable("messageId") String messageId,
+            @PathVariable("snippetId") String snippetId
+    ) throws Exception {
+        IgExampleMessagesDTO dto;
+        try {
+            dto = exampleMessagesService.deleteSnippet(id, messageId, snippetId);
+        } catch (GenericException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        return new ResponseMessage<>(ResponseMessage.Status.SUCCESS, "Snippet deleted", snippetId, dto, new Date());
     }
 
 }

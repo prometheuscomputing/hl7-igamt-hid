@@ -87,15 +87,8 @@ public class SectionSerializationServiceImpl implements SectionSerializationServ
 			throws RegistrySerializationException {
 		Element serializedSection = null;
 		if(documentStructureDataModel instanceof IgDataModel) {
-			boolean infrastructureOnly = exportConfiguration.getIgGeneralConfiguration() != null
-					&& exportConfiguration.getIgGeneralConfiguration().isNotMessageInfrastructure();
 			if (Type.TEXT.equals(section.getType())) {
-				if (!infrastructureOnly) {
-					serializedSection = SerializeTextSection((TextSection) section, level, (IgDataModel) documentStructureDataModel, exportConfiguration);
-				} else if (section instanceof TextSection && containsMessageSection((TextSection) section)) {
-					serializedSection = serializeMessageExampleAncestors((TextSection) section, level,
-							(IgDataModel) documentStructureDataModel, exportConfiguration);
-				}
+				serializedSection = SerializeTextSection((TextSection) section, level, (IgDataModel) documentStructureDataModel, exportConfiguration);
 			} else
 			if (Type.MESSAGESECTION.equals(section.getType())) {
 				serializedSection = SerializeMessageSection((TextSection) section, level, (IgDataModel) documentStructureDataModel, exportConfiguration);
@@ -353,49 +346,6 @@ public class SectionSerializationServiceImpl implements SectionSerializationServ
 		if (attribute != null) {
 			attribute.setValue("Message Example: " + title);
 		}
-	}
-
-	/**
-	 * Infrastructure-only export skips narrative text, but message example sections still
-	 * belong in the document and in its table of contents. Keep the ancestor headings so
-	 * those sections stay in place, without the surrounding narrative body.
-	 */
-	private Element serializeMessageExampleAncestors(TextSection section, int level, IgDataModel igDataModel,
-			ExportConfiguration exportConfiguration) {
-		Element element = SerializeCommonSection(section, level, igDataModel, exportConfiguration);
-		Element content = element.getFirstChildElement("SectionContent");
-		if (content != null) {
-			element.removeChild(content);
-		}
-		if (section.getChildren() == null) {
-			return element;
-		}
-		List<TextSection> children = section.getChildren().stream().collect(Collectors.toList());
-		Collections.sort(children);
-		for (TextSection child : children) {
-			Element childElement = null;
-			if (Type.MESSAGESECTION.equals(child.getType())) {
-				childElement = SerializeMessageSection(child, level + 1, igDataModel, exportConfiguration);
-			} else if (containsMessageSection(child)) {
-				childElement = serializeMessageExampleAncestors(child, level + 1, igDataModel, exportConfiguration);
-			}
-			if (childElement != null) {
-				element.appendChild(childElement);
-			}
-		}
-		return element;
-	}
-
-	private boolean containsMessageSection(TextSection section) {
-		if (section == null || section.getChildren() == null) {
-			return false;
-		}
-		for (TextSection child : section.getChildren()) {
-			if (child != null && (Type.MESSAGESECTION.equals(child.getType()) || containsMessageSection(child))) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private Element serializeTextOrMessageSection(TextSection child, int level,

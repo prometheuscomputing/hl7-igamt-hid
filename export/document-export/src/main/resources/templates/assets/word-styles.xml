@@ -466,6 +466,46 @@
 			<w:szCs w:val="17" />
 		</w:rPr>
 	</w:style>
+	<!--
+		One line of an example message. Consecutive lines share their borders and shading, so a message
+		reads as one box; a long line wraps under itself, indented, so the start of each segment shows.
+	-->
+	<w:style w:type="paragraph" w:styleId="IgExample">
+		<w:name w:val="IG Example Message" />
+		<w:basedOn w:val="Normal" />
+		<w:pPr>
+			<w:pBdr>
+				<w:top w:val="single" w:sz="4" w:space="4" w:color="DDE3E8" />
+				<w:left w:val="single" w:sz="4" w:space="4" w:color="DDE3E8" />
+				<w:bottom w:val="single" w:sz="4" w:space="4" w:color="DDE3E8" />
+				<w:right w:val="single" w:sz="4" w:space="4" w:color="DDE3E8" />
+			</w:pBdr>
+			<w:shd w:val="clear" w:color="auto" w:fill="F4F6F8" />
+			<w:spacing w:before="80" w:after="160" w:line="252" w:lineRule="auto" />
+			<w:contextualSpacing />
+			<w:ind w:left="280" w:hanging="280" />
+			<w:jc w:val="left" />
+		</w:pPr>
+		<w:rPr>
+			<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+			<w:noProof />
+			<w:sz w:val="17" />
+			<w:szCs w:val="17" />
+		</w:rPr>
+	</w:style>
+	<w:style w:type="paragraph" w:styleId="IgExampleNote">
+		<w:name w:val="IG Example Note" />
+		<w:basedOn w:val="Normal" />
+		<w:pPr>
+			<w:spacing w:before="40" w:after="80" />
+		</w:pPr>
+		<w:rPr>
+			<w:i />
+			<w:color w:val="9B2C2C" />
+			<w:sz w:val="19" />
+			<w:szCs w:val="19" />
+		</w:rPr>
+	</w:style>
 
 	<!--
 		Reference tables (structures, fields, bindings, codes): horizontal rules only, shaded header row
@@ -560,6 +600,20 @@
 				<w:left w:w="0" w:type="dxa" />
 				<w:bottom w:w="40" w:type="dxa" />
 				<w:right w:w="200" w:type="dxa" />
+			</w:tblCellMar>
+		</w:tblPr>
+	</w:style>
+	<!-- Facts of an example message (message, snippet, link to IGAMT): labels and values, no rules -->
+	<w:style w:type="table" w:styleId="IgExampleFacts">
+		<w:name w:val="IG Example Facts" />
+		<w:basedOn w:val="TableNormal" />
+		<w:uiPriority w:val="59" />
+		<w:tblPr>
+			<w:tblCellMar>
+				<w:top w:w="10" w:type="dxa" />
+				<w:left w:w="0" w:type="dxa" />
+				<w:bottom w:w="10" w:type="dxa" />
+				<w:right w:w="120" w:type="dxa" />
 			</w:tblCellMar>
 		</w:tblPr>
 	</w:style>

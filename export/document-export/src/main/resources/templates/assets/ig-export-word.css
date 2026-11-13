@@ -49,12 +49,14 @@ td.ig-na, th.ig-na { background-color: #eef1f3; }
 .ig-nh2 { font-size: 12.5pt; }
 .ig-nh3 { font-size: 11.5pt; }
 .ig-nh4 { font-size: 10.5pt; color: #45535f; }
-pre, .codeParagraph, .fr-exmsg-body { font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; }
+pre, .codeParagraph { font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; }
 code, kbd, samp { font-family: Consolas, "Courier New", monospace; font-size: 9pt; }
 blockquote { margin-left: 18pt; color: #45535f; }
-.fr-exmsg-link { font-weight: bold; }
-.fr-exmsg-file { font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; color: #6d7b87; }
-.fr-exmsg-warning { color: #9b2c2c; }
+/* example messages: the lines and notes have Word styles (IgExample, IgExampleNote) */
+.IgExampleFacts th, .fr-view .IgExampleFacts th { color: #45535f; font-size: 9.5pt; background-color: transparent; }
+.IgExampleFacts td, .fr-view .IgExampleFacts td { font-size: 9.5pt; }
+.fr-exmsg-description p, .fr-exmsg-description div, .fr-view .fr-exmsg-description p { margin-bottom: 4pt; }
+.fr-exmsg-mark { background-color: #fff176; }
 .masterDatatypeLabel { color: #9b2c2c; font-weight: bold; }
 .requiredDTM { background-color: #e7f1f4; }
 .lightGreyCell { background-color: #f4f6f8; }

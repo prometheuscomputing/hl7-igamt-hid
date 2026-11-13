@@ -10,6 +10,7 @@ import { DatatypeExportConfigurationComponent } from './components/datatype-expo
 import { DatatypeLibraryExportConfigurationComponent } from './components/datatype-library-export-configuration/datatype-library-export-configuration.component';
 import { DefaultConfigurationComponent } from './components/default-configuration/default-configuration.component';
 import { DeltaExportConfigurationComponent } from './components/delta-export-configuration/delta-export-configuration.component';
+import { ExampleMessageExportConfigurationComponent } from './components/example-message-export-configuration/example-message-export-configuration.component';
 import { ExportConfigurationDialogComponent } from './components/export-configuration-dialog/export-configuration-dialog.component';
 import { ExportDialogComponent } from './components/export-dialog/export-dialog.component';
 import { FontExportConfigurationComponent } from './components/font-export-configuration/font-export-configuration.component';
@@ -33,6 +34,7 @@ import { ExportConfigurationService } from './services/export-configuration.serv
     DatatypeLibraryExportConfigurationComponent,
     FontExportConfigurationComponent,
     IgGeneralDisplayConfigurationComponent,
+    ExampleMessageExportConfigurationComponent,
     CompositeProfileExportConfigurationComponent,
   ],
   imports: [

@@ -26,6 +26,10 @@ export class CreateDialogComponent implements OnInit {
     return isDuplicateExampleName(this.name, this.existingNames);
   }
 
+  get nameEmpty(): boolean {
+    return this.name != null && this.name.length > 0 && !String(this.name).trim();
+  }
+
   get canSubmit(): boolean {
     return !!(this.name && this.name.trim()) && !this.nameTaken;
   }

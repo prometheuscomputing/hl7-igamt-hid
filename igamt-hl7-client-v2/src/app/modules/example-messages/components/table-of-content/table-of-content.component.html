@@ -9,8 +9,20 @@
           </span>
           {{ node.data.label }}
           <context-menu #messageContextMenu>
-            <ng-template (execute)="copyExampleMessage(node)" contextMenuItem>
+            <ng-template (execute)="exportExampleMessage(node, 'html')" contextMenuItem>
+              <i class="fa fa-download"></i> Export HTML
+            </ng-template>
+            <ng-template (execute)="exportExampleMessage(node, 'txt')" contextMenuItem>
+              <i class="fa fa-download"></i> Export Text
+            </ng-template>
+            <ng-template (execute)="exportExampleMessage(node, 'validation')" contextMenuItem>
+              <i class="fa fa-download"></i> Export Validation Report
+            </ng-template>
+            <ng-template (execute)="copyExampleMessage(node)" contextMenuItem [enabled]="!viewOnly">
               <i class="fa fa-copy"></i> Copy Example Message
+            </ng-template>
+            <ng-template (execute)="deleteExampleMessage(node)" contextMenuItem [enabled]="!viewOnly">
+              <i class="fa fa-trash"></i> Delete Example Message
             </ng-template>
           </context-menu>
         </div>
@@ -21,8 +33,17 @@
           </span>
           {{ node.data.label }}
           <context-menu #snippetContextMenu>
-            <ng-template (execute)="copySnippet(node)" contextMenuItem>
+            <ng-template (execute)="exportSnippet(node, 'html')" contextMenuItem>
+              <i class="fa fa-download"></i> Export HTML
+            </ng-template>
+            <ng-template (execute)="exportSnippet(node, 'txt')" contextMenuItem>
+              <i class="fa fa-download"></i> Export Text
+            </ng-template>
+            <ng-template (execute)="copySnippet(node)" contextMenuItem [enabled]="!viewOnly">
               <i class="fa fa-copy"></i> Copy Snippet
+            </ng-template>
+            <ng-template (execute)="deleteSnippet(node)" contextMenuItem [enabled]="!viewOnly">
+              <i class="fa fa-trash"></i> Delete Snippet
             </ng-template>
           </context-menu>
         </div>
@@ -30,7 +51,7 @@
           <div [contextMenu]="profileContexMenu" >
             <app-display-section [element]="node.data"></app-display-section>
             <context-menu #profileContexMenu>
-              <ng-template (execute)="createExampleMessage(node.data.id)" contextMenuItem>
+              <ng-template (execute)="createExampleMessage(node.data.id)" contextMenuItem [enabled]="!viewOnly">
                 <i class="fa fa-plus"></i> Create Example Message
               </ng-template>
             </context-menu>

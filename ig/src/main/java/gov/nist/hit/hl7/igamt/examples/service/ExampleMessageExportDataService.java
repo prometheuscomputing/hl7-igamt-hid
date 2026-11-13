@@ -2,9 +2,14 @@ package gov.nist.hit.hl7.igamt.examples.service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
@@ -75,7 +80,7 @@ public class ExampleMessageExportDataService {
 			dataModel.setProfileId(message.getProfileId());
 			dataModel.setProfileLabel(profileLabel(igDataModel, message.getProfileId()));
 
-			String folder = ExampleMessageExportConfiguration.FOLDER_NAME + "/" + safeName(dataModel.getProfileLabel(), "Profile");
+			String folder = configuration.getFolderName() + "/" + safeName(dataModel.getProfileLabel(), "Profile");
 			String messageName = safeName(message.getName(), "message");
 			dataModel.setFilePath(uniquePath(folder + "/" + messageName + FILE_EXTENSION, usedPaths));
 
@@ -109,7 +114,8 @@ public class ExampleMessageExportDataService {
 	public Map<String, byte[]> collectStaticPages(IgDataModel igDataModel, ExampleMessageExportConfiguration configuration,
 			boolean linkToGuide) {
 		Map<String, byte[]> pages = new LinkedHashMap<>();
-		if (configuration == null || !configuration.isInclude() || igDataModel.getExampleMessages() == null) {
+		if (configuration == null || !configuration.isInclude() || !configuration.producesFiles()
+				|| igDataModel.getExampleMessages() == null) {
 			return pages;
 		}
 		boolean all = configuration.isExportAllMessages();
@@ -120,17 +126,16 @@ public class ExampleMessageExportDataService {
 			}
 			if (all || dataModel.isMessageReferenced()) {
 				String path = ExampleMessageExportConfiguration.pagePath(dataModel.getFilePath());
-				pages.put(path, staticPage(dataModel.getLabel(null), message.getMessage(), path, linkToGuide));
+				pages.put(path, staticPage(dataModel.getLabel(null), message.getMessage(), path, linkToGuide,
+						configuredDescription(configuration, message.getDescription())));
 			}
 			for (Map.Entry<String, String> snippetPath : dataModel.getSnippetFilePaths().entrySet()) {
 				String snippetId = snippetPath.getKey();
 				if (all || dataModel.getReferencedSnippetIds().contains(snippetId)) {
 					SnippetRenderResult render = dataModel.getSnippetRender(snippetId);
-					String content = render != null && render.getRenderedContent() != null
-							? render.getRenderedContent()
-							: message.getMessage();
 					String path = ExampleMessageExportConfiguration.pagePath(snippetPath.getValue());
-					pages.put(path, staticPage(dataModel.getLabel(snippetId), content, path, linkToGuide));
+					pages.put(path, snippetPage(dataModel.getLabel(snippetId), message, render, configuration, path, linkToGuide,
+							configuredDescription(configuration, snippetDescription(message, snippetId))));
 				}
 			}
 		}
@@ -156,10 +161,7 @@ public class ExampleMessageExportDataService {
 				String snippetId = snippetPath.getKey();
 				if (all || dataModel.getReferencedSnippetIds().contains(snippetId)) {
 					SnippetRenderResult render = dataModel.getSnippetRender(snippetId);
-					String content = render != null && render.getRenderedContent() != null
-							? render.getRenderedContent()
-							: message.getMessage();
-					files.put(snippetPath.getValue(), bytes(content));
+					files.put(snippetPath.getValue(), bytes(snippetText(message, render, configuration)));
 				}
 			}
 		}
@@ -167,14 +169,19 @@ public class ExampleMessageExportDataService {
 	}
 
 	/**
-	 * Configuration used by the example-messages feature to dump every message and snippet
-	 * as files, independent of a document export.
+	 * Every message and snippet, using the guide configuration's folder name and snippet
+	 * presentation so the folder can replace the one in the guide export.
 	 */
-	public static ExampleMessageExportConfiguration allFilesConfiguration() {
+	public static ExampleMessageExportConfiguration replacementFolder(ExampleMessageExportConfiguration guide) {
 		ExampleMessageExportConfiguration configuration = new ExampleMessageExportConfiguration();
 		configuration.setInclude(true);
 		configuration.setExportAllMessages(true);
 		configuration.setMode(ExampleMessageExportMode.SEPARATE_FILES);
+			if (guide != null) {
+			configuration.setFolderName(guide.getFolderName());
+			configuration.setSnippetMode(guide.getSnippetMode());
+			configuration.setIncludeDescription(guide.isIncludeDescription());
+		}
 		return configuration;
 	}
 
@@ -239,7 +246,42 @@ public class ExampleMessageExportDataService {
 		return name;
 	}
 
+	private static byte[] snippetPage(String title, ExampleMessage message, SnippetRenderResult render,
+			ExampleMessageExportConfiguration configuration, String archivePath, boolean linkToGuide, String descriptionHtml) {
+		if (configuration != null && configuration.isHighlightSnippet()) {
+			String full = render != null && render.getFullMessage() != null ? render.getFullMessage()
+					: (message != null ? message.getMessage() : "");
+			return staticPageHtml(title, highlightEr7(full, render != null ? render.getParts() : null), archivePath, linkToGuide, descriptionHtml);
+		}
+		String content = render != null && render.getRenderedContent() != null
+				? render.getRenderedContent()
+				: (message != null ? message.getMessage() : "");
+		return staticPage(title, content, archivePath, linkToGuide, descriptionHtml);
+	}
+
+	private static String snippetText(ExampleMessage message, SnippetRenderResult render,
+			ExampleMessageExportConfiguration configuration) {
+		if (configuration != null && configuration.isHighlightSnippet()) {
+			if (render != null && render.getFullMessage() != null) {
+				return render.getFullMessage();
+			}
+			return message != null ? message.getMessage() : "";
+		}
+		if (render != null && render.getRenderedContent() != null) {
+			return render.getRenderedContent();
+		}
+		return message != null ? message.getMessage() : "";
+	}
+
 	private static byte[] staticPage(String title, String body, String archivePath, boolean linkToGuide) {
+		return staticPage(title, body, archivePath, linkToGuide, "");
+	}
+
+	private static byte[] staticPage(String title, String body, String archivePath, boolean linkToGuide, String descriptionHtml) {
+		return staticPageHtml(title, escapeHtml(body), archivePath, linkToGuide, descriptionHtml);
+	}
+
+	private static byte[] staticPageHtml(String title, String bodyHtml, String archivePath, boolean linkToGuide, String descriptionHtml) {
 		String safeTitle = escapeHtml(title != null ? title : "Example message");
 		String backLink = "";
 		if (linkToGuide) {
@@ -256,10 +298,52 @@ public class ExampleMessageExportDataService {
 				+ "<style>body{font-family:Georgia,serif;margin:24px;color:#222;}"
 				+ "a{color:#1565c0;}pre{font-family:Consolas,Monaco,monospace;font-size:13px;"
 				+ "white-space:pre-wrap;word-break:break-all;background:#f5f5f5;padding:12px;"
-				+ "border:1px solid #ccc;}</style></head><body>"
+				+ "border:1px solid #ccc;}mark{background:#fff176;border-bottom:2px solid #f9a825;color:inherit;}"
+				+ ".fr-exmsg-description{margin:0 0 16px;line-height:1.5;}</style></head><body>"
 				+ backLink
-				+ "<h1>" + safeTitle + "</h1><pre>" + escapeHtml(body) + "</pre></body></html>";
+				+ "<h1>" + safeTitle + "</h1>" + descriptionBlock(descriptionHtml) + "<pre>" + bodyHtml + "</pre></body></html>";
 		return bytes(html);
+	}
+
+	private static String configuredDescription(ExampleMessageExportConfiguration configuration, String description) {
+		if (configuration == null || !configuration.isIncludeDescription()) {
+			return "";
+		}
+		return descriptionMarkup(description);
+	}
+
+	private static String snippetDescription(ExampleMessage message, String snippetId) {
+		if (message == null || message.getSnippets() == null || snippetId == null) {
+			return "";
+		}
+		for (MessageSnippet snippet : message.getSnippets()) {
+			if (snippet != null && snippetId.equals(snippet.getId())) {
+				return snippet.getDescription();
+			}
+		}
+		return "";
+	}
+
+	private static String descriptionMarkup(String html) {
+		if (html == null || html.trim().isEmpty()) {
+			return "";
+		}
+		String markup = html.replaceAll("(?is)<script[^>]*>.*?</script>", "")
+				.replaceAll("(?is)<style[^>]*>.*?</style>", "")
+				.replaceAll("(?is)<iframe[^>]*>.*?</iframe>", "")
+				.trim();
+		String text = markup.replaceAll("(?is)<[^>]+>", "").replace("&nbsp;", " ").replaceAll("\\s+", " ").trim();
+		if (text.isEmpty() && !markup.toLowerCase().contains("<img")) {
+			return "";
+		}
+		return markup;
+	}
+
+	private static String descriptionBlock(String markup) {
+		if (markup == null || markup.isEmpty()) {
+			return "";
+		}
+		return "<div class=\"fr-exmsg-description\">" + markup + "</div>";
 	}
 
 	private static String escapeHtml(String value) {
@@ -285,6 +369,273 @@ public class ExampleMessageExportDataService {
 			base = base.substring(0, MAX_NAME_LENGTH).trim();
 		}
 		return base;
+	}
+
+	/**
+	 * One example message as HTML and text. Snippets and the validation report are optional.
+	 * validationHtml is included only when includeValidation is true.
+	 */
+	public byte[] exportOne(String igId, ExampleMessage message, boolean includeSnippets, boolean includeValidation, String validationHtml, String onlySnippetId) throws IOException {
+		Map<String, byte[]> files = new LinkedHashMap<>();
+		Set<String> used = new HashSet<>();
+		String base = safeName(message != null ? message.getName() : null, "message");
+		String body = message != null ? message.getMessage() : "";
+		boolean snippetOnly = onlySnippetId != null && !onlySnippetId.isEmpty();
+		if (!snippetOnly) {
+			String textPath = uniquePath(base + ".txt", used);
+			String pagePath = uniquePath(base + ".html", used);
+			files.put(textPath, bytes(body));
+			files.put(pagePath, staticPage(message != null ? message.getName() : base, body, pagePath, false,
+					descriptionMarkup(message != null ? message.getDescription() : null)));
+		}
+		if ((includeSnippets || snippetOnly) && message != null && message.getSnippets() != null) {
+			for (MessageSnippet snippet : message.getSnippets()) {
+				if (snippet == null || (snippetOnly && !onlySnippetId.equals(snippet.getId()))) {
+					continue;
+				}
+				String snippetBase = base + " - " + safeName(snippet.getName(), "snippet");
+				SnippetRenderResult render = render(igId, message, snippet);
+				String snippetText = uniquePath(snippetBase + ".txt", used);
+				String snippetPage = uniquePath(snippetBase + ".html", used);
+				files.put(snippetText, snippetTextBytes(render, body));
+				files.put(snippetPage, snippetHtmlBytes(message, snippet, render, body));
+			}
+		}
+		if (includeValidation && !snippetOnly) {
+			files.put(uniquePath(base + "-validation.html", used), validationPage(base + " validation", validationHtml));
+		}
+		return zipFiles(files);
+	}
+
+	/**
+	 * One file for one menu choice: the message as HTML, as text, or the validation report.
+	 */
+	public Download exportMessageFile(ExampleMessage message, String format, String validationHtml) {
+		String name = safeName(message != null ? message.getName() : null, "message");
+		String body = message != null ? message.getMessage() : "";
+		if ("txt".equalsIgnoreCase(format) || "text".equalsIgnoreCase(format)) {
+			return new Download(name + ".txt", "text/plain;charset=UTF-8", bytes(body));
+		}
+		if ("validation".equalsIgnoreCase(format)) {
+			return new Download(name + "-validation.html", "text/html;charset=UTF-8",
+					validationPage(name + " validation", validationHtml));
+		}
+		String title = message != null && message.getName() != null ? message.getName() : name;
+		return new Download(name + ".html", "text/html;charset=UTF-8",
+				staticPage(title, body, name + ".html", false, descriptionMarkup(message != null ? message.getDescription() : null)));
+	}
+
+	/**
+	 * A snippet is two files, not an archive: the extracted text, and the full message
+	 * with that snippet highlighted.
+	 */
+	public Download exportSnippet(String igId, ExampleMessage message, String snippetId, String format) {
+		MessageSnippet snippet = findSnippet(message, snippetId);
+		if (snippet == null || message == null) {
+			return null;
+		}
+		SnippetRenderResult render = render(igId, message, snippet);
+		String fallback = message.getMessage() != null ? message.getMessage() : "";
+		boolean html = "html".equalsIgnoreCase(format);
+		String name = safeName(snippet.getName(), "snippet");
+		if (html) {
+			return new Download(name + ".html", "text/html;charset=UTF-8", snippetHtmlBytes(message, snippet, render, fallback));
+		}
+		return new Download(name + ".txt", "text/plain;charset=UTF-8", snippetTextBytes(render, fallback));
+	}
+
+	private static MessageSnippet findSnippet(ExampleMessage message, String snippetId) {
+		if (message == null || message.getSnippets() == null || snippetId == null) {
+			return null;
+		}
+		for (MessageSnippet snippet : message.getSnippets()) {
+			if (snippet != null && snippetId.equals(snippet.getId())) {
+				return snippet;
+			}
+		}
+		return null;
+	}
+
+	private static byte[] snippetTextBytes(SnippetRenderResult render, String fallback) {
+		String content = render != null && render.getRenderedContent() != null
+				? render.getRenderedContent()
+				: fallback;
+		return bytes(content);
+	}
+
+	private static byte[] snippetHtmlBytes(ExampleMessage message, MessageSnippet snippet, SnippetRenderResult render, String fallback) {
+		String messageName = message != null && message.getName() != null ? message.getName() : "Message";
+		String snippetName = snippet != null && snippet.getName() != null ? snippet.getName() : "Snippet";
+		String full = render != null && render.getFullMessage() != null ? render.getFullMessage() : fallback;
+		String description = descriptionMarkup(snippet != null ? snippet.getDescription() : null);
+		return highlightedMessagePage(messageName + " — " + snippetName, full, render != null ? render.getParts() : null, description);
+	}
+
+	private static byte[] highlightedMessagePage(String title, String message, List<SnippetRenderResult.SnippetPart> parts, String descriptionHtml) {
+		String safeTitle = escapeHtml(title);
+		String html = "<!DOCTYPE html>\n<html><head><meta charset=\"UTF-8\"/>"
+				+ "<title>" + safeTitle + "</title>"
+				+ "<style>body{font-family:Georgia,serif;margin:24px;color:#222;}"
+				+ "pre{font-family:Consolas,Monaco,monospace;font-size:13px;white-space:pre-wrap;"
+				+ "word-break:break-all;background:#f5f5f5;padding:12px;border:1px solid #ccc;}"
+				+ "mark{background:#fff176;border-bottom:2px solid #f9a825;color:inherit;}"
+				+ ".fr-exmsg-description{margin:0 0 16px;line-height:1.5;}</style></head><body>"
+				+ "<h1>" + safeTitle + "</h1>" + descriptionBlock(descriptionHtml) + "<pre>" + highlightEr7(message, parts) + "</pre></body></html>";
+		return bytes(html);
+	}
+
+	/** Highlights snippet ranges inside the full message. Columns match the editor: 1-based, end exclusive. */
+	private static String highlightEr7(String message, List<SnippetRenderResult.SnippetPart> parts) {
+		String text = message == null ? "" : message;
+		String[] lines = text.split("\n", -1);
+		@SuppressWarnings("unchecked")
+		List<int[]>[] marks = new List[lines.length];
+		if (parts != null) {
+			for (SnippetRenderResult.SnippetPart part : parts) {
+				if (part == null || part.getHighlightStart() == null || part.getHighlightEnd() == null) {
+					continue;
+				}
+				int startLine = part.getStartLine();
+				int endLine = part.getEndLine();
+				if (startLine < 1) {
+					startLine = 1;
+				}
+				if (endLine < startLine) {
+					endLine = startLine;
+				}
+				int startCol = part.getHighlightStart().getColumn();
+				int endCol = part.getHighlightEnd().getColumn();
+				for (int line = startLine; line <= endLine && line <= lines.length; line++) {
+					String row = lines[line - 1];
+					int from = line == startLine ? Math.max(0, startCol - 1) : 0;
+					int to = line == endLine ? endCol - 1 : row.length();
+					if (from > row.length()) {
+						from = row.length();
+					}
+					if (to < from) {
+						to = from;
+					}
+					if (to > row.length()) {
+						to = row.length();
+					}
+					if (from == to) {
+						continue;
+					}
+					if (marks[line - 1] == null) {
+						marks[line - 1] = new ArrayList<int[]>();
+					}
+					marks[line - 1].add(new int[] { from, to });
+				}
+			}
+		}
+		StringBuilder out = new StringBuilder();
+		for (int i = 0; i < lines.length; i++) {
+			if (i > 0) {
+				out.append('\n');
+			}
+			out.append(paintLine(lines[i], marks[i]));
+		}
+		return out.toString();
+	}
+
+	private static String paintLine(String line, List<int[]> ranges) {
+		if (ranges == null || ranges.isEmpty()) {
+			return escapeHtml(line);
+		}
+		Collections.sort(ranges, new Comparator<int[]>() {
+			public int compare(int[] left, int[] right) {
+				return Integer.compare(left[0], right[0]);
+			}
+		});
+		List<int[]> merged = new ArrayList<int[]>();
+		for (int[] range : ranges) {
+			if (merged.isEmpty() || merged.get(merged.size() - 1)[1] < range[0]) {
+				merged.add(new int[] { range[0], range[1] });
+			} else {
+				int[] last = merged.get(merged.size() - 1);
+				last[1] = Math.max(last[1], range[1]);
+			}
+		}
+		StringBuilder out = new StringBuilder();
+		int cursor = 0;
+		for (int[] range : merged) {
+			if (range[0] > cursor) {
+				out.append(escapeHtml(line.substring(cursor, range[0])));
+			}
+			out.append("<mark>").append(escapeHtml(line.substring(range[0], range[1]))).append("</mark>");
+			cursor = range[1];
+		}
+		if (cursor < line.length()) {
+			out.append(escapeHtml(line.substring(cursor)));
+		}
+		return out.toString();
+	}
+
+	public static final class Download {
+		public final String filename;
+		public final String contentType;
+		public final byte[] body;
+
+		public Download(String filename, String contentType, byte[] body) {
+			this.filename = filename;
+			this.contentType = contentType;
+			this.body = body;
+		}
+	}
+
+	private static byte[] validationPage(String title, String html) {
+		String body = html == null ? "" : html.trim();
+		if (body.toLowerCase().contains("<html")) {
+			return bytes(withReportStyles(body));
+		}
+		String safeTitle = escapeHtml(title);
+		String page = "<!DOCTYPE html>\n<html><head><meta charset=\"UTF-8\"/><title>" + safeTitle + "</title>"
+				+ reportStyleTag()
+				+ "</head><body>"
+				+ (body.isEmpty() ? "<p>No validation report was produced.</p>" : body)
+				+ "</body></html>";
+		return bytes(page);
+	}
+
+	/**
+	 * The validator HTML links to report.css, which is not part of the archive.
+	 * Inline the same rules used by the report shown in the example editor.
+	 */
+	private static String withReportStyles(String html) {
+		String withoutLink = html.replaceAll("(?i)<link[^>]*href=[\"']report\\.css[\"'][^>]*>", "");
+		String style = reportStyleTag();
+		int head = withoutLink.toLowerCase().indexOf("</head>");
+		if (head >= 0) {
+			return withoutLink.substring(0, head) + style + withoutLink.substring(head);
+		}
+		return style + withoutLink;
+	}
+
+	private static String reportStyleTag() {
+		return "<style>" + validationReportCss() + "</style>";
+	}
+
+	private static String validationReportCss() {
+		InputStream in = ExampleMessageExportDataService.class.getResourceAsStream("/example-messages/validation-report.css");
+		if (in == null) {
+			return "";
+		}
+		try {
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			byte[] buffer = new byte[4096];
+			int read;
+			while ((read = in.read(buffer)) >= 0) {
+				out.write(buffer, 0, read);
+			}
+			return new String(out.toByteArray(), StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			return "";
+		} finally {
+			try {
+				in.close();
+			} catch (IOException ignored) {
+			}
+		}
 	}
 
 	private static String uniquePath(String path, Set<String> used) {

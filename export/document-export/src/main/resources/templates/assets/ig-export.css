@@ -25,6 +25,8 @@
   --ig-accent-wash: #e7f1f4;
   --ig-hover: #f1f6f8;
   --ig-target: #fff6d6;
+  --ig-mark: #ffef9e;
+  --ig-mark-rule: #d49b00;
 
   --ig-u-r-bg: #0a5c78;
   --ig-u-r-ink: #ffffff;
@@ -56,6 +58,8 @@
   --ig-accent-wash: #16303a;
   --ig-hover: #18252e;
   --ig-target: #3a3212;
+  --ig-mark: #574a0c;
+  --ig-mark-rule: #d1a520;
 
   --ig-u-r-bg: #2d93b3;
   --ig-u-r-ink: #06141a;
@@ -687,7 +691,7 @@ tr.ig-field-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--i
 .fr-view table th, .fr-view table td { padding: 7px 10px; text-align: left; vertical-align: top; border: 1px solid var(--ig-rule); }
 .fr-view table th, .fr-view table thead td { font-weight: 650; background: var(--ig-canvas); }
 .fr-view code, .fr-view kbd, .fr-view samp { font-family: var(--ig-font-code); font-size: 0.9em; padding: 1px 5px; background: var(--ig-canvas); border-radius: 4px; }
-.fr-view pre, .codeParagraph, .fr-exmsg .fr-exmsg-body {
+.fr-view pre, .codeParagraph, .fr-exmsg-body {
   display: block;
   margin: 14px 0;
   padding: 12px 14px;
@@ -711,13 +715,39 @@ tr.ig-field-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--i
 .fr-view .fr-text-uppercase { text-transform: uppercase; }
 .fr-view::after { content: ""; display: block; clear: both; }
 
-/* example messages inserted in the narrative */
-.fr-exmsg { display: block; margin: 14px 0; padding: 12px 14px; border: 1px solid var(--ig-rule-strong); border-radius: 6px; background: var(--ig-paper); }
-.fr-exmsg .fr-exmsg-link { display: inline-block; margin-bottom: 8px; font-weight: 650; }
-.fr-exmsg .fr-exmsg-file { display: block; margin: 0 0 8px 0; font-family: var(--ig-font-code); font-size: 12px; color: var(--ig-ink-3); }
-.fr-exmsg .fr-exmsg-warning { display: block; margin: 0 0 8px 0; color: var(--ig-u-x-ink); }
-.fr-exmsg .fr-exmsg-body { margin: 0; }
-.fr-exmsg .fr-exmsg-line { white-space: pre-wrap; }
+/*
+ * Example messages. A message section and a widget pasted in rich text write the same block: the
+ * facts (message, snippet, link to IGAMT), a description, notes, then the message one line per
+ * segment. A line that wraps continues indented, so the start of every segment stays visible.
+ */
+.fr-exmsg { display: block; margin: 20px 0; }
+.ig-narrative + .fr-exmsg { margin-top: 14px; }
+.fr-exmsg .fr-exmsg-info { width: auto; margin: 0 0 8px 0; border-collapse: collapse; font-size: 13.5px; line-height: 1.5; }
+.fr-exmsg .fr-exmsg-info th, .fr-exmsg .fr-exmsg-info td { padding: 0; border: 0; background: none; text-align: left; vertical-align: baseline; }
+.fr-exmsg .fr-exmsg-info th { padding-right: 16px; font-weight: 400; color: var(--ig-ink-3); white-space: nowrap; }
+.fr-exmsg .fr-exmsg-info td { font-weight: 600; color: var(--ig-ink); overflow-wrap: anywhere; }
+.fr-exmsg .fr-exmsg-info a { text-decoration: none; }
+.fr-exmsg .fr-exmsg-info a:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* rich text is kept to a reading width; a message in it takes the width of the page, like one of a message section */
+.ig-has-example { max-width: none; }
+.ig-has-example > :not(.fr-exmsg):not(.ig-has-example) { max-width: 82ch; }
+.fr-exmsg .fr-exmsg-description { margin: 0 0 8px 0; max-width: 74ch; font-size: 14.5px; color: var(--ig-ink-2); }
+.fr-exmsg .fr-exmsg-description > :first-child { margin-top: 0; }
+.fr-exmsg .fr-exmsg-description > :last-child { margin-bottom: 0; }
+.fr-exmsg .fr-exmsg-warning { margin: 0 0 8px 0; font-size: 13.5px; color: var(--ig-u-x-ink); }
+.fr-exmsg .fr-exmsg-body { margin: 0; word-break: normal; }
+.fr-exmsg .fr-exmsg-line { padding-left: 2ch; text-indent: -2ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fr-exmsg .fr-exmsg-mark {
+  padding: 1px 0;
+  color: inherit;
+  background: var(--ig-mark);
+  box-shadow: inset 0 -2px 0 var(--ig-mark-rule);
+  border-radius: 2px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.fr-exmsg.fr-exmsg-missing { padding: 10px 14px; border: 1px dashed var(--ig-rule-strong); border-radius: 6px; }
+.fr-exmsg.fr-exmsg-missing .fr-exmsg-warning { margin: 0; }
 
 .masterDatatypeLabel { color: var(--ig-u-x-ink); font-weight: 700; }
 .requiredDTM { background-color: var(--ig-accent-wash) !important; }
@@ -780,6 +810,7 @@ tr.ig-field-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--i
     --ig-rule: #cfd6dc; --ig-rule-strong: #9aa5ae; --ig-accent: #0a5c78; --ig-accent-strong: #07475d; --ig-accent-wash: #e7f1f4;
     --ig-u-r-bg: #0a5c78; --ig-u-r-ink: #ffffff; --ig-u-re-ink: #0a5c78; --ig-u-c-bg: #fcefcf; --ig-u-c-ink: #7a4a00; --ig-u-c-rule: #e6c56f;
     --ig-u-o-bg: #edf0f3; --ig-u-o-ink: #45535f; --ig-u-x-bg: #fbe9e7; --ig-u-x-ink: #9b2c2c; --ig-u-b-ink: #5c6770;
+    --ig-mark: #ffef9e; --ig-mark-rule: #d49b00;
     color-scheme: light;
   }
   body.ig-doc { font-size: 10pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -808,6 +839,7 @@ tr.ig-field-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--i
   .ig-table tr[hidden] { display: table-row; }
   .ig-doc a { color: inherit; }
   .ig-ref { border-bottom: 0; }
-  .fr-view pre, .codeParagraph, .fr-exmsg .fr-exmsg-body { font-size: 8pt; }
+  .fr-view pre, .codeParagraph, .fr-exmsg-body { font-size: 8pt; }
+  .fr-exmsg .fr-exmsg-info, .fr-exmsg .fr-exmsg-description { break-after: avoid; }
   .ig-footer { margin-top: 24pt; }
 }

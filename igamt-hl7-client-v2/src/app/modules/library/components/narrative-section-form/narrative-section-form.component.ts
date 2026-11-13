@@ -40,7 +40,7 @@ export class NarrativeSectionFormComponent implements OnInit  {
           this.form.emit(this.sectionForm);
         },
       );
-    this.froalaConfig$ = this.froalaService.getConfig();
+    this.froalaConfig$ = this.froalaService.getConfig(true);
   }
 
   getDescription() {

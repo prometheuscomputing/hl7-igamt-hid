@@ -70,6 +70,9 @@
             <p-tabPanel header="Conformance Profile">
               <app-conformance-profile-export-configuration [viewOnly]="currentConfiguration.original" [config]="currentConfiguration.conformamceProfileExportConfiguration" [displayColumns]="true" (detectChange)="change($event)" ></app-conformance-profile-export-configuration>
             </p-tabPanel>
+            <p-tabPanel header="Example Messages">
+              <app-example-message-export-configuration [viewOnly]="currentConfiguration.original" [config]="currentConfiguration.igGeneralConfiguration" (detectChange)="change($event)"></app-example-message-export-configuration>
+            </p-tabPanel>
             <p-tabPanel header="Composite Profile">
               <app-composite-profile-export-configuration [viewOnly]="currentConfiguration.original" [config]="currentConfiguration.compositeProfileExportConfiguration" [displayFlavors]="true" [displayColumns]="true" (detectChange)="change($event)"></app-composite-profile-export-configuration>
             </p-tabPanel>

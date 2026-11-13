@@ -1,10 +1,20 @@
+import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 import { IDisplayElement } from "../../shared/models/display-element.interface";
 
 export interface IgExampleMessages {
     id: string;
     title: string;
     createdId?: string;
+    viewOnly?: boolean;
     profileExampleMessages: IProfileExampleMessages[];
+}
+
+export interface IExampleMessageUsage {
+    sectionId: string;
+    sectionType: string;
+    path: string;
+    label: string;
+    kind: 'MESSAGE_SECTION' | 'NARRATIVE' | string;
 }
 
 export interface IProfileExampleMessages {
@@ -134,6 +144,61 @@ export interface MessageElement {
 
 export function normalizeExampleName(name: string): string {
     return (name || '').trim().toLowerCase();
+}
+
+export function siblingMessageNames(ig: IgExampleMessages, messageId: string): string[] {
+    const names: string[] = [];
+    for (const group of (ig && ig.profileExampleMessages) || []) {
+        const messages = group.exampleMessages || [];
+        if (!messages.some((message) => message.id === messageId)) {
+            continue;
+        }
+        for (const message of messages) {
+            if (message.id !== messageId) {
+                names.push(message.name);
+            }
+        }
+    }
+    return names;
+}
+
+export function siblingSnippetNames(ig: IgExampleMessages, messageId: string, snippetId: string): string[] {
+    for (const group of (ig && ig.profileExampleMessages) || []) {
+        for (const message of group.exampleMessages || []) {
+            if (message.id === messageId) {
+                return (message.snippets || [])
+                    .filter((snippet) => snippet.id !== snippetId)
+                    .map((snippet) => snippet.name);
+            }
+        }
+    }
+    return [];
+}
+
+export function exampleNameValidator(existing: string[]): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+        const value = control.value == null ? '' : String(control.value);
+        if (!value.trim()) {
+            return { required: true };
+        }
+        if (isDuplicateExampleName(value, existing)) {
+            return { duplicated: value.trim() + ' is already used' };
+        }
+        return null;
+    };
+}
+
+export function exampleNameError(control: AbstractControl): string {
+    if (!control || !control.errors) {
+        return '';
+    }
+    if (control.errors.required) {
+        return 'Name is required';
+    }
+    if (control.errors.duplicated) {
+        return control.errors.duplicated;
+    }
+    return '';
 }
 
 export function isDuplicateExampleName(name: string, existing: string[]): boolean {

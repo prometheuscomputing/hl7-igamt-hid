@@ -107,6 +107,10 @@ public class WordUtil {
   private static final String REFERENCE_TABLE_STYLE = "IgTable";
   private static final String GRID_TABLE_STYLE = "IgGridTable";
   private static final String FACTS_TABLE_STYLE = "IgFacts";
+  /** Facts of an example message: a narrow column of labels, then what they name. */
+  private static final String EXAMPLE_FACTS_TABLE_STYLE = "IgExampleFacts";
+  private static final int EXAMPLE_LABEL_WIDTH = 1000;
+  private static final int EXAMPLE_FACTS_SPACE_AFTER = 100;
 
   // US Letter, in twentieths of a point
   private static final int PAGE_WIDTH = 12240;
@@ -426,7 +430,8 @@ public class WordUtil {
         table.setTblPr(properties);
       }
       String style = properties.getTblStyle() != null ? properties.getTblStyle().getVal() : null;
-      if (style == null || !(style.equals(REFERENCE_TABLE_STYLE) || style.equals(GRID_TABLE_STYLE) || style.equals(FACTS_TABLE_STYLE))) {
+      if (style == null || !(style.equals(REFERENCE_TABLE_STYLE) || style.equals(GRID_TABLE_STYLE) || style.equals(FACTS_TABLE_STYLE)
+          || style.equals(EXAMPLE_FACTS_TABLE_STYLE))) {
         style = GRID_TABLE_STYLE;
         TblStyle tableStyle = factory.createCTTblPrBaseTblStyle();
         tableStyle.setVal(style);
@@ -467,7 +472,43 @@ public class WordUtil {
           }
         }
       }
-      fitColumns(table, factory);
+      if (style.equals(EXAMPLE_FACTS_TABLE_STYLE)) {
+        setColumnWidths(table, factory, new int[] {EXAMPLE_LABEL_WIDTH, TEXT_WIDTH - EXAMPLE_LABEL_WIDTH});
+      } else {
+        fitColumns(table, factory);
+      }
+    }
+    spaceAfterExampleFacts(document, factory);
+  }
+
+  /**
+   * A table has no space after it, and the importer drops the top margin of a paragraph: the text
+   * that follows the facts of an example message (its description) gets its distance here. The lines
+   * of the message have theirs from their style.
+   */
+  private static void spaceAfterExampleFacts(MainDocumentPart document, ObjectFactory factory) {
+    List<Object> content = document.getContent();
+    for (int i = 0; i + 1 < content.size(); i++) {
+      Object table = unwrap(content.get(i));
+      Object next = unwrap(content.get(i + 1));
+      if (!(table instanceof Tbl) || !(next instanceof P)) {
+        continue;
+      }
+      TblPr properties = ((Tbl) table).getTblPr();
+      if (properties == null || properties.getTblStyle() == null || !EXAMPLE_FACTS_TABLE_STYLE.equals(properties.getTblStyle().getVal())) {
+        continue;
+      }
+      P paragraph = (P) next;
+      if (paragraph.getPPr() == null) {
+        paragraph.setPPr(factory.createPPr());
+      }
+      if (paragraph.getPPr().getPStyle() != null) {
+        continue;
+      }
+      if (paragraph.getPPr().getSpacing() == null) {
+        paragraph.getPPr().setSpacing(factory.createPPrBaseSpacing());
+      }
+      paragraph.getPPr().getSpacing().setBefore(BigInteger.valueOf(EXAMPLE_FACTS_SPACE_AFTER));
     }
   }
 
@@ -498,8 +539,16 @@ public class WordUtil {
         column += span;
       }
     }
-    int[] widths = columnWidths(natural, longestWord, TEXT_WIDTH);
-    for (int i = 0; i < widths.length; i++) {
+    setColumnWidths(table, factory, columnWidths(natural, longestWord, TEXT_WIDTH));
+  }
+
+  /** Gives the columns of the table these widths, in twips, on the grid and on every cell. */
+  private static void setColumnWidths(Tbl table, ObjectFactory factory, int[] widths) {
+    if (table.getTblGrid() == null) {
+      return;
+    }
+    List<TblGridCol> grid = table.getTblGrid().getGridCol();
+    for (int i = 0; i < widths.length && i < grid.size(); i++) {
       grid.get(i).setW(BigInteger.valueOf(widths[i]));
     }
     for (Tr row : rowsOf(table)) {

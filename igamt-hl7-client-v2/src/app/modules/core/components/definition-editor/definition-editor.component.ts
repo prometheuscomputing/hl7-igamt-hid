@@ -27,7 +27,7 @@ export abstract class DefinitionEditorComponent extends AbstractEditorComponent 
     store: Store<any>,
     protected messageService: MessageService, protected froalaService: FroalaService) {
     super(editorMetadata, actions$, store);
-    this.froalaConfig$ = this.froalaService.getConfig();
+    this.froalaConfig$ = this.froalaService.getConfig(true);
 
     this.definition = new FormGroup({
       value: new FormControl(''),
