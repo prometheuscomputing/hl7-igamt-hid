@@ -1,8 +1,6 @@
 <ng-template #headerTitle let-active>
   <h5 class="title-text em-active-title">
-    <span class="badge badge-primary">
-      <i class="fa fa-scissors"></i> Snippet
-    </span>
+    <span class="badge badge-primary" title="Snippet">S</span>
     <span>{{ active && active.display && active.display.variableName ? active.display.variableName : snippetName }}</span>
   </h5>
 </ng-template>

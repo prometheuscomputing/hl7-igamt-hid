@@ -69,14 +69,24 @@ export class SideBarComponent {
         const currentData = current && current.data ? current.data as any : null;
         const currentName = currentData ? currentData.name : null;
         const currentSnippetName = currentData ? currentData.snippetName : null;
+        const profiles = (igExampleMessages.profileExampleMessages || []).slice().sort((left, right) => {
+          const leftPos = left.profile && left.profile.position != null ? left.profile.position : 0;
+          const rightPos = right.profile && right.profile.position != null ? right.profile.position : 0;
+          if (leftPos !== rightPos) {
+            return leftPos - rightPos;
+          }
+          const leftId = left.profile && left.profile.id || '';
+          const rightId = right.profile && right.profile.id || '';
+          return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
+        });
         const nodes: any[] = [];
-        for (const profileExamples of igExampleMessages.profileExampleMessages) {
+        for (const profileExamples of profiles) {
           nodes.push({
             ...profileExamples.profile,
             id: profileExamples.profile.id,
             label: this.getLabel(profileExamples.profile),
             children: [
-              ...profileExamples.exampleMessages.map((message) => ({
+              ...(profileExamples.exampleMessages || []).map((message) => ({
                 ...message,
                 type: Type.EXAMPLEMESSAGE,
                 label: editorId === EditorID.EXAMPLE_MESSAGE && message.id === activeId && currentName != null
@@ -94,7 +104,7 @@ export class SideBarComponent {
                 ]
               }))
             ]
-          })
+          });
         }
         return nodes;
       })

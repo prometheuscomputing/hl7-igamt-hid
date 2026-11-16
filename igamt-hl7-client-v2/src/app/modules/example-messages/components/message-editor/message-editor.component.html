@@ -1,8 +1,6 @@
 <ng-template #headerTitle let-active>
   <h5 class="title-text em-active-title">
-    <span class="badge badge-primary">
-      <i class="fa fa-envelope"></i> Message
-    </span>
+    <span class="badge badge-primary" title="Message">M</span>
     <span>{{ active && active.display && active.display.variableName ? active.display.variableName : messageName }}</span>
   </h5>
 </ng-template>

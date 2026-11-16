@@ -1,0 +1,84 @@
+<div class="ae">
+  <header class="ae-head">
+    <div>
+      <div class="eyebrow"><i class="fa fa-users"></i> Actors</div>
+      <h2>Who takes part in the exchanges</h2>
+      <p>Actors are the systems or organizations on each side of a scenario. Pick an icon so they are easy to spot on the lifelines.</p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card" *ngFor="let actor of actors" [class.invalid]="nameError(actor)">
+      <div class="card-top">
+        <button type="button" class="avatar" (click)="toggleIconPicker(actor)" [disabled]="viewOnly" title="Choose an icon">
+          <i *ngIf="actor.icon" class="fa" [ngClass]="actor.icon"></i>
+          <span *ngIf="!actor.icon">{{ initials(actor) }}</span>
+          <span class="avatar-edit" *ngIf="!viewOnly"><i class="fa fa-pencil"></i></span>
+        </button>
+        <div class="name-block">
+          <input class="name" type="text" placeholder="Actor name" [(ngModel)]="actor.name" (ngModelChange)="touch()" [disabled]="viewOnly">
+          <small class="error" *ngIf="nameError(actor)">{{ nameError(actor) }}</small>
+          <small class="usage" *ngIf="!nameError(actor) && usageCount(actor)">
+            Used in {{ usageCount(actor) }} {{ usageCount(actor) === 1 ? 'scenario' : 'scenarios' }}
+          </small>
+        </div>
+        <button type="button" class="remove" *ngIf="!viewOnly" (click)="remove(actor)" title="Remove actor">
+          <i class="fa fa-trash-o"></i>
+        </button>
+      </div>
+
+      <div class="icon-grid" *ngIf="iconPickerFor === actor.id">
+        <button type="button" class="icon-opt" [class.active]="!actor.icon" (click)="setIcon(actor, '')" title="Initials">
+          <span class="initials">{{ initials(actor) }}</span>
+        </button>
+        <button type="button" class="icon-opt" *ngFor="let item of icons" [class.active]="actor.icon === item.icon"
+                (click)="setIcon(actor, item.icon)" [title]="item.label">
+          <i class="fa" [ngClass]="item.icon"></i>
+        </button>
+      </div>
+
+      <label class="field">
+        <span>Organization</span>
+        <input type="text" placeholder="e.g. County Hospital" [(ngModel)]="actor.organization" (ngModelChange)="touch()" [disabled]="viewOnly">
+      </label>
+      <label class="field">
+        <span>System</span>
+        <input type="text" placeholder="e.g. EHR, Immunization registry" [(ngModel)]="actor.system" (ngModelChange)="touch()" [disabled]="viewOnly">
+      </label>
+
+      <div class="field">
+        <span>Role in the exchange</span>
+        <div class="segmented">
+          <button type="button" *ngFor="let cap of capabilities" [class.active]="actor.capability === cap.value"
+                  [disabled]="viewOnly" (click)="setCapability(actor, cap.value)">
+            <i class="fa" [ngClass]="cap.icon"></i> {{ cap.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="confirm" *ngIf="confirmRemove === actor.id">
+        <span>Removing this actor clears it from {{ usageCount(actor) }} {{ usageCount(actor) === 1 ? 'scenario' : 'scenarios' }} and their messages.</span>
+        <div>
+          <button type="button" class="btn-ghost" (click)="confirmRemove = null">Keep</button>
+          <button type="button" class="btn-danger" (click)="remove(actor)">Remove</button>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" class="card add-card" *ngIf="!viewOnly" (click)="add()">
+      <span class="add-icon"><i class="fa fa-plus"></i></span>
+      <strong>Add actor</strong>
+      <small>A sender, a receiver, or both</small>
+    </button>
+
+    <div class="empty" *ngIf="viewOnly && !actors.length">No actors defined.</div>
+  </div>
+
+  <div class="save-bar" *ngIf="!viewOnly && dirty">
+    <span><i class="fa fa-circle"></i> Unsaved changes</span>
+    <button type="button" class="btn-ghost" (click)="reset()" [disabled]="saving">Discard</button>
+    <button type="button" class="btn-primary" (click)="save()" [disabled]="saving || invalid">
+      <i class="fa fa-circle-o-notch fa-spin" *ngIf="saving"></i> Save actors
+    </button>
+  </div>
+</div>

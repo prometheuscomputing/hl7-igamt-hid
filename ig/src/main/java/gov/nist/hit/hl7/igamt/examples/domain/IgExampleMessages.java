@@ -11,6 +11,8 @@ public class IgExampleMessages {
     @Id
     private String id;
     private List<ExampleMessage> exampleMessages;
+    private List<ExampleActor> actors;
+    private List<ExampleScenario> scenarios;
 
     public String getId() {
         return id;
@@ -29,5 +31,27 @@ public class IgExampleMessages {
 
     public void setExampleMessages(List<ExampleMessage> exampleMessages) {
         this.exampleMessages = exampleMessages;
+    }
+
+    public List<ExampleActor> getActors() {
+        if (actors == null) {
+            actors = new ArrayList<ExampleActor>();
+        }
+        return actors;
+    }
+
+    public void setActors(List<ExampleActor> actors) {
+        this.actors = actors;
+    }
+
+    public List<ExampleScenario> getScenarios() {
+        if (scenarios == null) {
+            scenarios = new ArrayList<ExampleScenario>();
+        }
+        return scenarios;
+    }
+
+    public void setScenarios(List<ExampleScenario> scenarios) {
+        this.scenarios = scenarios;
     }
 }

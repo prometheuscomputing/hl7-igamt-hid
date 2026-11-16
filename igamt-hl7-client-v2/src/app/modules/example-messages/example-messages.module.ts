@@ -15,6 +15,9 @@ import { DeleteUsageDialogComponent } from './components/delete-usage-dialog/del
 import { LocateContextDialogComponent } from './components/locate-context-dialog/locate-context-dialog.component';
 import { MessageEditorComponent } from './components/message-editor/message-editor.component';
 import { SnippetEditorComponent } from './components/snippet-editor/snippet-editor.component';
+import { ScenarioBoardComponent } from './components/scenario-board/scenario-board.component';
+import { ActorsEditorComponent } from './components/actors-editor/actors-editor.component';
+import { ScenarioListComponent } from './components/scenario-list/scenario-list.component';
 
 import * as CodeMirror from 'codemirror';
 
@@ -66,6 +69,9 @@ CodeMirror.defineMode('hl7v2', () => {
     LocateContextDialogComponent,
     MessageEditorComponent,
     SnippetEditorComponent,
+    ScenarioBoardComponent,
+    ActorsEditorComponent,
+    ScenarioListComponent,
   ],
   imports: [
     CommonModule,

@@ -8,6 +8,9 @@ export enum ExampleMessagesActionTypes {
   LoadExampleMessagesFailure = '[ExampleMessages] Load Example Messages Failure',
   OpenExampleMessageEditor = '[ExampleMessages] Open Example Message Editor',
   OpenExampleSnippetEditor = '[ExampleMessages] Open Example Snippet Editor',
+  OpenExampleScenarioEditor = '[ExampleMessages] Open Example Scenario Editor',
+  OpenExampleActorsEditor = '[ExampleMessages] Open Example Actors Editor',
+  OpenExampleScenarioListEditor = '[ExampleMessages] Open Example Scenario List Editor',
 }
 
 export class LoadExampleMessages implements Action {
@@ -33,8 +36,26 @@ export class OpenExampleSnippetEditor implements OpenEditorBase {
   constructor(readonly payload: { id: string, editor: IEditorMetadata }) { }
 }
 
+export class OpenExampleScenarioEditor implements OpenEditorBase {
+  readonly type = ExampleMessagesActionTypes.OpenExampleScenarioEditor;
+  constructor(readonly payload: { id: string, editor: IEditorMetadata }) { }
+}
+
+export class OpenExampleActorsEditor implements OpenEditorBase {
+  readonly type = ExampleMessagesActionTypes.OpenExampleActorsEditor;
+  constructor(readonly payload: { id: string, editor: IEditorMetadata }) { }
+}
+
+export class OpenExampleScenarioListEditor implements OpenEditorBase {
+  readonly type = ExampleMessagesActionTypes.OpenExampleScenarioListEditor;
+  constructor(readonly payload: { id: string, editor: IEditorMetadata }) { }
+}
+
 export type ExampleMessagesActions = LoadExampleMessages
   | LoadExampleMessagesSuccess
   | LoadExampleMessagesFailure
   | OpenExampleMessageEditor
-  | OpenExampleSnippetEditor;
+  | OpenExampleSnippetEditor
+  | OpenExampleScenarioEditor
+  | OpenExampleActorsEditor
+  | OpenExampleScenarioListEditor;

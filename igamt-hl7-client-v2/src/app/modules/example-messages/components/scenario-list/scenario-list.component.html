@@ -1,0 +1,67 @@
+<div class="sl">
+  <header class="sl-head">
+    <div>
+      <div class="eyebrow"><i class="fa fa-exchange"></i> Scenarios</div>
+      <h2>Message exchanges</h2>
+      <p>Each scenario is a conversation between two actors, built message by message with the example messages attached.</p>
+    </div>
+    <span class="saving" *ngIf="saving"><i class="fa fa-circle-o-notch fa-spin"></i> Saving</span>
+  </header>
+
+  <div class="grid">
+    <div class="card" *ngFor="let scenario of scenarios" (click)="open(scenario)">
+      <div class="preview">
+        <ng-container *ngTemplateOutlet="avatar; context: { $implicit: actor(scenario.leftActorId) }"></ng-container>
+        <span class="wire"><span class="wire-arrow"></span></span>
+        <ng-container *ngTemplateOutlet="avatar; context: { $implicit: actor(scenario.rightActorId) }"></ng-container>
+      </div>
+      <strong class="title">{{ scenario.name }}</strong>
+      <span class="actors-line">
+        {{ actor(scenario.leftActorId)?.name || 'No actor' }} and {{ actor(scenario.rightActorId)?.name || 'no actor' }}
+      </span>
+      <p class="summary" *ngIf="scenario.summary">{{ scenario.summary }}</p>
+      <div class="foot">
+        <span class="count">{{ scenario.steps.length }} {{ scenario.steps.length === 1 ? 'message' : 'messages' }}</span>
+        <button type="button" class="remove" *ngIf="!viewOnly" (click)="askRemove(scenario, $event)" title="Remove scenario">
+          <i class="fa fa-trash-o"></i>
+        </button>
+      </div>
+      <div class="confirm" *ngIf="confirmRemove === scenario.id" (click)="$event.stopPropagation()">
+        <span>Remove "{{ scenario.name }}"?</span>
+        <div>
+          <button type="button" class="btn-ghost" (click)="confirmRemove = null">Keep</button>
+          <button type="button" class="btn-danger" (click)="remove(scenario, $event)">Remove</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card new-card" *ngIf="creating">
+      <div class="eyebrow">New scenario</div>
+      <input class="name" type="text" placeholder="Scenario name" [(ngModel)]="name" (keyup.enter)="create()" autofocus>
+      <small class="error" *ngIf="nameTaken()">A scenario with this name already exists</small>
+      <textarea placeholder="What happens in this exchange? (optional)" rows="2" [(ngModel)]="summary"></textarea>
+      <div class="new-foot">
+        <button type="button" class="btn-ghost" (click)="creating = false">Cancel</button>
+        <button type="button" class="btn-primary" [disabled]="!name.trim() || nameTaken() || saving" (click)="create()">
+          Create and open
+        </button>
+      </div>
+    </div>
+
+    <button type="button" class="card add-card" *ngIf="!viewOnly && !creating" (click)="startCreate()">
+      <span class="add-icon"><i class="fa fa-plus"></i></span>
+      <strong>New scenario</strong>
+      <small>Two actors, one conversation</small>
+    </button>
+
+    <div class="empty" *ngIf="viewOnly && !scenarios.length">No scenarios defined.</div>
+  </div>
+</div>
+
+<ng-template #avatar let-actor>
+  <span class="avatar" [class.placeholder]="!actor" [title]="actor?.name || 'No actor'">
+    <i *ngIf="actor?.icon" class="fa" [ngClass]="actor.icon"></i>
+    <span *ngIf="actor && !actor.icon">{{ initials(actor) }}</span>
+    <i *ngIf="!actor" class="fa fa-question"></i>
+  </span>
+</ng-template>

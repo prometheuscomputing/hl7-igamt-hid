@@ -58,6 +58,23 @@ public class ExampleMessagesController {
     @Autowired
     InMemoryDomainExtensionService inMemoryDomainExtensionService;
 
+    @RequestMapping(value = "/api/example-messages/{id}/exchange", method = RequestMethod.POST, produces = {"application/json" })
+    public @ResponseBody
+    ResponseMessage<IgExampleMessagesDTO> saveExchange(
+            @PathVariable("id") String id,
+            @RequestBody ExampleExchangeDTO exchange,
+            Authentication authentication
+    ) throws Exception {
+        IgExampleMessagesDTO saved = this.exampleMessagesService.saveExchange(id, exchange);
+        return new ResponseMessage<>(
+                ResponseMessage.Status.SUCCESS,
+                "Scenario saved",
+                saved.getId(),
+                saved,
+                new Date()
+        );
+    }
+
     @RequestMapping(value = "/api/example-messages/{id}", method = RequestMethod.GET, produces = {"application/json" })
     public @ResponseBody
     IgExampleMessagesDTO getExampleMessages(
