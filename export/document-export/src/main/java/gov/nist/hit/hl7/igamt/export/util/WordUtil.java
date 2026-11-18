@@ -79,6 +79,7 @@ import org.docx4j.wml.TblGridCol;
 import org.docx4j.wml.TblPr;
 import org.docx4j.wml.TblWidth;
 import org.docx4j.wml.Tc;
+import org.docx4j.wml.TcPrInner;
 import org.docx4j.wml.Text;
 import org.docx4j.wml.Tr;
 import org.docx4j.wml.TrPr;
@@ -130,6 +131,7 @@ public class WordUtil {
   /** Room, in twips, of one character of table text and of the side padding of a cell. */
   private static final int TWIPS_PER_CHARACTER = 105;
   private static final int CELL_PADDING = 240;
+  private static final int MINIMUM_NESTED_TABLE_WIDTH = 1200;
   /** Longer words (paths, long identifiers) may break; they do not get a column to themselves. */
   private static final int LONGEST_UNBROKEN_WORD = 16;
   private static final long MAX_COVER_PICTURE_HEIGHT_EMU = 1524000L; // 1.67 in
@@ -239,12 +241,18 @@ public class WordUtil {
         + "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>";
   }
 
-  private static String shorten(String text, int max) {
-    return text.length() <= max ? text : text.substring(0, max - 1).trim() + "…";
+  static String shorten(String text, int max) {
+    if (text.length() <= max) {
+      return text;
+    }
+    // not between the two halves of a character outside the basic plane
+    int end = Character.isHighSurrogate(text.charAt(max - 2)) ? max - 2 : max - 1;
+    return text.substring(0, end).trim() + "\u2026";
   }
 
-  private static String escape(String text) {
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+  /** Text for the XML of the document: without the characters XML cannot carry, with its markup characters escaped. */
+  static String escape(String text) {
+    return gov.nist.hit.hl7.igamt.serialization.util.XmlCharacters.keepValid(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
   }
 
   // ---------------------------------------------------------------- table of contents
@@ -453,62 +461,89 @@ public class WordUtil {
   private static void formatTables(MainDocumentPart document) {
     ObjectFactory factory = Context.getWmlObjectFactory();
     for (Object node : getAllElementFromObject(document, Tbl.class)) {
-      Tbl table = (Tbl) node;
-      TblPr properties = table.getTblPr();
-      if (properties == null) {
-        properties = factory.createTblPr();
-        table.setTblPr(properties);
-      }
-      String style = properties.getTblStyle() != null ? properties.getTblStyle().getVal() : null;
-      if (style == null || !(style.equals(REFERENCE_TABLE_STYLE) || style.equals(GRID_TABLE_STYLE) || style.equals(FACTS_TABLE_STYLE)
-          || style.equals(EXAMPLE_FACTS_TABLE_STYLE))) {
-        style = GRID_TABLE_STYLE;
-        TblStyle tableStyle = factory.createCTTblPrBaseTblStyle();
-        tableStyle.setVal(style);
-        properties.setTblStyle(tableStyle);
-      }
-      boolean reference = style.equals(REFERENCE_TABLE_STYLE);
-
-      TblWidth width = factory.createTblWidth();
-      width.setType("pct");
-      width.setW(BigInteger.valueOf(5000));
-      properties.setTblW(width);
-      properties.setTblInd(null);
-      properties.setTblBorders(null);
-      properties.setTblCellMar(null);
-      CTTblLayoutType layout = factory.createCTTblLayoutType();
-      layout.setType(STTblLayoutType.AUTOFIT);
-      properties.setTblLayout(layout);
-      CTTblLook look = factory.createCTTblLook();
-      look.setVal(reference ? "0620" : "0600");
-      properties.setTblLook(look);
-
-      boolean first = true;
-      for (Tr row : rowsOf(table)) {
-        TrPr rowProperties = row.getTrPr();
-        if (rowProperties == null) {
-          rowProperties = factory.createTrPr();
-          row.setTrPr(rowProperties);
-        }
-        rowProperties.getCnfStyleOrDivIdOrGridBefore().add(factory.createCTTrPrBaseCantSplit(new BooleanDefaultTrue()));
-        if (first && reference) {
-          rowProperties.getCnfStyleOrDivIdOrGridBefore().add(factory.createCTTrPrBaseTblHeader(new BooleanDefaultTrue()));
-        }
-        first = false;
-        for (Tc cell : cellsOf(row)) {
-          if (cell.getTcPr() != null) {
-            cell.getTcPr().setTcBorders(null);
-            cell.getTcPr().setTcMar(null);
-          }
-        }
-      }
-      if (style.equals(EXAMPLE_FACTS_TABLE_STYLE)) {
-        setColumnWidths(table, factory, new int[] {EXAMPLE_LABEL_WIDTH, TEXT_WIDTH - EXAMPLE_LABEL_WIDTH});
-      } else {
-        fitColumns(table, factory);
-      }
+      formatTable((Tbl) node, factory, TEXT_WIDTH);
     }
     spaceAfterExampleFacts(document, factory);
+  }
+
+  /**
+   * @param available the width the table has, in twips: the text width, or the width of the cell it
+   *                  is in. The tables inside its cells are formatted in turn.
+   */
+  private static void formatTable(Tbl table, ObjectFactory factory, int available) {
+    TblPr properties = table.getTblPr();
+    if (properties == null) {
+      properties = factory.createTblPr();
+      table.setTblPr(properties);
+    }
+    String style = properties.getTblStyle() != null ? properties.getTblStyle().getVal() : null;
+    if (style == null || !(style.equals(REFERENCE_TABLE_STYLE) || style.equals(GRID_TABLE_STYLE) || style.equals(FACTS_TABLE_STYLE)
+        || style.equals(EXAMPLE_FACTS_TABLE_STYLE))) {
+      style = GRID_TABLE_STYLE;
+      TblStyle tableStyle = factory.createCTTblPrBaseTblStyle();
+      tableStyle.setVal(style);
+      properties.setTblStyle(tableStyle);
+    }
+    boolean reference = style.equals(REFERENCE_TABLE_STYLE);
+
+    TblWidth width = factory.createTblWidth();
+    width.setType("pct");
+    width.setW(BigInteger.valueOf(5000));
+    properties.setTblW(width);
+    properties.setTblInd(null);
+    properties.setTblBorders(null);
+    properties.setTblCellMar(null);
+    CTTblLayoutType layout = factory.createCTTblLayoutType();
+    layout.setType(STTblLayoutType.AUTOFIT);
+    properties.setTblLayout(layout);
+    CTTblLook look = factory.createCTTblLook();
+    look.setVal(reference ? "0620" : "0600");
+    properties.setTblLook(look);
+
+    boolean first = true;
+    for (Tr row : rowsOf(table)) {
+      TrPr rowProperties = row.getTrPr();
+      if (rowProperties == null) {
+        rowProperties = factory.createTrPr();
+        row.setTrPr(rowProperties);
+      }
+      rowProperties.getCnfStyleOrDivIdOrGridBefore().add(factory.createCTTrPrBaseCantSplit(new BooleanDefaultTrue()));
+      if (first && reference) {
+        rowProperties.getCnfStyleOrDivIdOrGridBefore().add(factory.createCTTrPrBaseTblHeader(new BooleanDefaultTrue()));
+      }
+      first = false;
+      for (Tc cell : cellsOf(row)) {
+        if (cell.getTcPr() != null) {
+          cell.getTcPr().setTcBorders(null);
+          cell.getTcPr().setTcMar(null);
+        }
+      }
+    }
+    squareUp(table, factory);
+    if (style.equals(EXAMPLE_FACTS_TABLE_STYLE)) {
+      int label = Math.min(EXAMPLE_LABEL_WIDTH, available / 3);
+      setColumnWidths(table, factory, new int[] {label, available - label});
+    } else {
+      fitColumns(table, factory, available);
+    }
+    for (Tr row : rowsOf(table)) {
+      for (Tc cell : cellsOf(row)) {
+        // the search stops at a table, so this finds the tables of this cell and not those inside them
+        List<Object> nested = getAllElementFromObject(cell, Tbl.class);
+        if (nested.isEmpty()) {
+          continue;
+        }
+        int room = available;
+        if (cell.getTcPr() != null && cell.getTcPr().getTcW() != null && cell.getTcPr().getTcW().getW() != null) {
+          room = cell.getTcPr().getTcW().getW().intValue();
+        }
+        // inside the padding of the cell; in a cell too narrow for that, as wide as the cell and never wider
+        room = Math.max(Math.min(MINIMUM_NESTED_TABLE_WIDTH, room), room - CELL_PADDING);
+        for (Object inner : nested) {
+          formatTable((Tbl) inner, factory, room);
+        }
+      }
+    }
   }
 
   /**
@@ -548,7 +583,16 @@ public class WordUtil {
    * room of its longest word; the others give that room up.
    */
   static void fitColumns(Tbl table, ObjectFactory factory) {
-    if (table.getTblGrid() == null || table.getTblGrid().getGridCol().size() < 2) {
+    fitColumns(table, factory, TEXT_WIDTH);
+  }
+
+  /** @param available the width the table has, in twips: the text width, or less inside a cell */
+  static void fitColumns(Tbl table, ObjectFactory factory, int available) {
+    if (table.getTblGrid() == null || table.getTblGrid().getGridCol().isEmpty()) {
+      return;
+    }
+    if (table.getTblGrid().getGridCol().size() == 1) {
+      setColumnWidths(table, factory, new int[] {available});
       return;
     }
     List<TblGridCol> grid = table.getTblGrid().getGridCol();
@@ -569,7 +613,7 @@ public class WordUtil {
         column += span;
       }
     }
-    setColumnWidths(table, factory, columnWidths(natural, longestWord, TEXT_WIDTH));
+    setColumnWidths(table, factory, columnWidths(natural, longestWord, available));
   }
 
   /** Gives the columns of the table these widths, in twips, on the grid and on every cell. */
@@ -669,6 +713,62 @@ public class WordUtil {
       }
     }
     return cells;
+  }
+
+  /**
+   * Makes the grid of a table and its rows agree. The importer counts a column too many for some
+   * tables whose cells span columns, and a row can come with fewer cells than the others; Word draws
+   * such a row short of the right edge. The grid loses the columns no row uses, and the last cell of
+   * a short row is widened to the edge.
+   */
+  static void squareUp(Tbl table, ObjectFactory factory) {
+    if (table.getTblGrid() == null) {
+      return;
+    }
+    List<TblGridCol> grid = table.getTblGrid().getGridCol();
+    List<Tr> rows = rowsOf(table);
+    int[] used = new int[rows.size()];
+    int widest = 0;
+    for (int i = 0; i < rows.size(); i++) {
+      used[i] = gridBeforeOf(rows.get(i)) + gridAfterOf(rows.get(i));
+      for (Tc cell : cellsOf(rows.get(i))) {
+        used[i] += spanOf(cell);
+      }
+      widest = Math.max(widest, used[i]);
+    }
+    if (widest == 0) {
+      return;
+    }
+    while (grid.size() > widest) {
+      grid.remove(grid.size() - 1);
+    }
+    for (int i = 0; i < rows.size(); i++) {
+      List<Tc> cells = cellsOf(rows.get(i));
+      int missing = grid.size() - used[i];
+      if (missing <= 0 || cells.isEmpty()) {
+        continue;
+      }
+      Tc last = cells.get(cells.size() - 1);
+      if (last.getTcPr() == null) {
+        last.setTcPr(factory.createTcPr());
+      }
+      TcPrInner.GridSpan span = factory.createTcPrInnerGridSpan();
+      span.setVal(BigInteger.valueOf(spanOf(last) + missing));
+      last.getTcPr().setGridSpan(span);
+    }
+  }
+
+  /** Grid columns a row leaves empty after its last cell. */
+  private static int gridAfterOf(Tr row) {
+    if (row.getTrPr() != null) {
+      for (Object property : row.getTrPr().getCnfStyleOrDivIdOrGridBefore()) {
+        Object value = unwrap(property);
+        if (value instanceof CTTrPrBase.GridAfter && ((CTTrPrBase.GridAfter) value).getVal() != null) {
+          return Math.max(0, ((CTTrPrBase.GridAfter) value).getVal().intValue());
+        }
+      }
+    }
+    return 0;
   }
 
   /** Grid columns a row leaves empty before its first cell. */

@@ -56,9 +56,62 @@ var IgExportText = (function () {
 
   /* ---------------------------------------------------------------- theme */
 
+  // Authors colour words for a white page. On the dark page a colour that is too dark to read is
+  // lightened, keeping its hue, until it has the contrast of ordinary text; the light page gets it back.
+  function channels(colour) {
+    var m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(colour);
+    return m ? [+m[1], +m[2], +m[3]] : null;
+  }
+  function luminance(rgb) {
+    var c = [0, 0, 0];
+    for (var i = 0; i < 3; i++) { var v = rgb[i] / 255; c[i] = v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  function contrast(a, b) {
+    var la = luminance(a), lb = luminance(b);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  }
+  function hasOwnBackground(node, stop) {
+    for (; node && node !== stop; node = node.parentNode) {
+      var behind = node.style ? (node.style.backgroundColor || node.style.background) : '';
+      if (behind && !/^(transparent|none|initial|inherit|unset|rgba\(0, 0, 0, 0\))$/.test(behind)) { return true; }
+    }
+    return false;
+  }
+  function readableAuthorColours(dark) {
+    var content = document.getElementById('ig-content');
+    if (!content) { return; }
+    var page = channels(getComputedStyle(document.body).backgroundColor) || [16, 24, 31];
+    each(content.querySelectorAll('[style*="color"]'), function (node) {
+      if (node.hasAttribute('data-ig-colour')) {
+        node.style.color = node.getAttribute('data-ig-colour');
+        node.removeAttribute('data-ig-colour');
+      }
+      if (!dark || !node.style.color || hasOwnBackground(node, content)) { return; }
+      var rgb = channels(getComputedStyle(node).color);
+      if (!rgb || contrast(rgb, page) >= 4.5) { return; }
+      var original = node.style.color, mixed = rgb;
+      for (var share = 0.1; share <= 1 && contrast(mixed, page) < 4.5; share += 0.1) {
+        mixed = [0, 1, 2].map(function (i) { return Math.round(rgb[i] + (255 - rgb[i]) * share); });
+      }
+      node.setAttribute('data-ig-colour', original);
+      node.style.color = 'rgb(' + mixed.join(', ') + ')';
+    });
+  }
+
+  // the theme can also be set from outside (a host page, a reader's own script)
+  if ('MutationObserver' in window) {
+    new MutationObserver(function () { readableAuthorColours(root.getAttribute('data-theme') === 'dark'); })
+      .observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+  // paper is white whatever the theme of the screen
+  window.addEventListener('beforeprint', function () { readableAuthorColours(false); });
+  window.addEventListener('afterprint', function () { readableAuthorColours(root.getAttribute('data-theme') === 'dark'); });
+
   var themeButton = document.getElementById('ig-theme');
   function applyTheme(theme) {
     root.setAttribute('data-theme', theme);
+    if (!('MutationObserver' in window)) { readableAuthorColours(theme === 'dark'); }
     if (themeButton) {
       themeButton.textContent = theme === 'dark' ? 'Light' : 'Dark';
       themeButton.setAttribute('aria-label', theme === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme');
@@ -203,6 +256,50 @@ var IgExportText = (function () {
   each(main.querySelectorAll('.ig-usage:not([title])'), function (chip) {
     var name = usageNames[chip.textContent.trim()];
     if (name) { chip.title = name; }
+  });
+
+  /* ---------------------------------------------------------------- tables that scroll sideways */
+
+  // A table wider than its frame scrolls inside it. With a keyboard that only works when the frame
+  // can take the focus, so it becomes a tab stop while it scrolls and has nothing focusable inside.
+  function keyboardScroll(wrap) {
+    var scrolls = wrap.scrollWidth > wrap.clientWidth + 1 && getComputedStyle(wrap).overflowX !== 'visible';
+    if (scrolls && !wrap.hasAttribute('tabindex') && !wrap.querySelector('a[href], button, input, select, [tabindex]')) {
+      var caption = wrap.querySelector('caption');
+      wrap.setAttribute('tabindex', '0');
+      wrap.setAttribute('role', 'group'); // a region would be a landmark, and a guide has hundreds of tables
+      wrap.setAttribute('aria-label', (caption ? caption.textContent.trim() + ', ' : '') + 'table that scrolls sideways');
+      wrap.setAttribute('data-ig-scrolls', '');
+    } else if (!scrolls && wrap.hasAttribute('data-ig-scrolls')) {
+      wrap.removeAttribute('tabindex');
+      wrap.removeAttribute('role');
+      wrap.removeAttribute('aria-label');
+      wrap.removeAttribute('data-ig-scrolls');
+    }
+  }
+  var scrollFrames = main.querySelectorAll('.ig-table-wrap');
+  var scrollWatch = null;
+  if ('IntersectionObserver' in window) {
+    // sections off screen are not laid out yet: look at a frame when it comes into view
+    scrollWatch = new IntersectionObserver(function (entries) {
+      each(entries, function (entry) { if (entry.isIntersecting) { keyboardScroll(entry.target); } });
+    }, { rootMargin: '100% 0px' });
+    each(scrollFrames, function (wrap) { scrollWatch.observe(wrap); });
+  } else {
+    each(scrollFrames, keyboardScroll);
+  }
+  var scrollResize = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(scrollResize);
+    scrollResize = setTimeout(function () {
+      if (scrollWatch) {
+        // measuring every frame would lay out the whole document: watch again, the frames in view report first
+        scrollWatch.disconnect();
+        each(scrollFrames, function (wrap) { scrollWatch.observe(wrap); });
+      } else {
+        each(scrollFrames, keyboardScroll);
+      }
+    }, 200);
   });
 
   /* ---------------------------------------------------------------- table filters */
@@ -852,13 +949,27 @@ var IgExportText = (function () {
   function escapeHtml(text) {
     return text.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
   }
+  // The terms are looked up in the text as it is written, and the pieces are escaped afterwards:
+  // looked up in escaped text, "amp" would match inside the "&amp;" of "Lamp & Light".
   function highlight(text, terms) {
-    var html = escapeHtml(text);
+    var lower = text.toLowerCase();
+    var ranges = [];
     terms.forEach(function (term) {
-      var safe = escapeHtml(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      html = html.replace(new RegExp('(' + safe + ')(?![^<]*>)', 'ig'), '<mark>$1</mark>');
+      if (!term) { return; }
+      for (var at = lower.indexOf(term); at !== -1; at = lower.indexOf(term, at + term.length)) {
+        ranges.push([at, at + term.length]);
+      }
     });
-    return html;
+    ranges.sort(function (a, b) { return a[0] - b[0] || b[1] - a[1]; });
+    var html = '';
+    var done = 0;
+    ranges.forEach(function (range) {
+      if (range[1] <= done) { return; }
+      var start = Math.max(range[0], done);
+      html += escapeHtml(text.slice(done, start)) + '<mark>' + escapeHtml(text.slice(start, range[1])) + '</mark>';
+      done = range[1];
+    });
+    return html + escapeHtml(text.slice(done));
   }
 
   var active = -1;

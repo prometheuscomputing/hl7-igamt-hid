@@ -236,7 +236,7 @@
 			<w:spacing w:before="60" w:after="0" w:line="240" w:lineRule="auto" />
 		</w:pPr>
 		<w:rPr>
-			<w:color w:val="6D7B87" />
+			<w:color w:val="5F6D79" />
 			<w:sz w:val="18" />
 			<w:szCs w:val="18" />
 		</w:rPr>
@@ -260,7 +260,7 @@
 			<w:spacing w:before="480" w:after="0" />
 		</w:pPr>
 		<w:rPr>
-			<w:color w:val="6D7B87" />
+			<w:color w:val="5F6D79" />
 			<w:sz w:val="18" />
 			<w:szCs w:val="18" />
 		</w:rPr>
@@ -373,7 +373,7 @@
 			<w:spacing w:after="0" w:line="240" w:lineRule="auto" />
 		</w:pPr>
 		<w:rPr>
-			<w:color w:val="6D7B87" />
+			<w:color w:val="5F6D79" />
 			<w:sz w:val="17" />
 			<w:szCs w:val="17" />
 		</w:rPr>
@@ -388,7 +388,7 @@
 			<w:spacing w:after="0" w:line="240" w:lineRule="auto" />
 		</w:pPr>
 		<w:rPr>
-			<w:color w:val="6D7B87" />
+			<w:color w:val="5F6D79" />
 			<w:sz w:val="17" />
 			<w:szCs w:val="17" />
 		</w:rPr>
@@ -491,6 +491,20 @@
 			<w:noProof />
 			<w:sz w:val="17" />
 			<w:szCs w:val="17" />
+		</w:rPr>
+	</w:style>
+	<w:style w:type="paragraph" w:styleId="IgRule">
+		<w:name w:val="IG Rule" />
+		<w:basedOn w:val="Normal" />
+		<w:pPr>
+			<w:pBdr>
+				<w:bottom w:val="single" w:sz="6" w:space="1" w:color="B8C2CB" />
+			</w:pBdr>
+			<w:spacing w:before="0" w:after="160" w:line="120" w:lineRule="exact" />
+		</w:pPr>
+		<w:rPr>
+			<w:sz w:val="8" />
+			<w:szCs w:val="8" />
 		</w:rPr>
 	</w:style>
 	<w:style w:type="paragraph" w:styleId="IgExampleNote">

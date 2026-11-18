@@ -25,8 +25,8 @@ th { font-weight: bold; }
 .ig-seg, .ig-bracket, .ig-group-name { font-family: Consolas, "Courier New", monospace; font-size: 8.5pt; }
 th.c-seq, th.c-path, th.c-card, th.c-length, th.c-datatype, th.c-valueset, th.c-flavor, th.c-code, th.c-codesystem { font-family: Calibri, Arial, sans-serif; font-size: 8.5pt; }
 td.c-code, .ig-seg, .ig-group-name { font-weight: bold; }
-.ig-group-word { color: #6d7b87; }
-tr.ig-group-end td { color: #6d7b87; font-size: 8pt; }
+.ig-group-word { color: #5f6d79; }
+tr.ig-group-end td { color: #5f6d79; font-size: 8pt; }
 tr.ig-group-end .ig-group-name { font-weight: normal; }
 .ig-bracket { color: #0a5c78; font-weight: bold; }
 td.ig-na, th.ig-na { background-color: #eef1f3; }
@@ -37,7 +37,7 @@ td.ig-na, th.ig-na { background-color: #eef1f3; }
 .u-c, .u-ce, .u-cab { color: #8a5400; }
 .u-o, .u-p { color: #45535f; font-weight: normal; }
 .u-x, .u-e { color: #9b2c2c; }
-.u-b, .u-w, .u-ix, .u-d { color: #6d7b87; font-weight: normal; }
+.u-b, .u-w, .u-ix, .u-d { color: #5f6d79; font-weight: normal; }
 .ig-usage-branches { font-weight: normal; }
 .ig-strength.s-required { color: #07475d; font-weight: bold; }
 
@@ -61,4 +61,4 @@ blockquote { margin-left: 18pt; color: #45535f; }
 .requiredDTM { background-color: #e7f1f4; }
 .lightGreyCell { background-color: #f4f6f8; }
 .alignCenter { text-align: center; }
-.ig-empty { color: #6d7b87; font-style: italic; font-size: 9.5pt; }
+.ig-empty { color: #5f6d79; font-style: italic; font-size: 9.5pt; }

@@ -61,7 +61,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 
 		element.addAttribute(new Attribute("name", nz(message.getName())));
 		element.addAttribute(new Attribute("profile", nz(dataModel.getProfileLabel())));
-		element.addAttribute(new Attribute("label", dataModel.getLabel(snippetFound ? snippetId : null)));
+		element.addAttribute(new Attribute("label", nz(dataModel.getLabel(snippetFound ? snippetId : null))));
 		if (snippetFound) {
 			element.addAttribute(new Attribute("snippetName", nz(snippet.getName())));
 		}
@@ -98,11 +98,11 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 		if (configuration.isRelativeLink() && configuration.producesFiles()) {
 			// the block of a snippet links to its message too: that file has to be in the download
 			dataModel.markReferenced(null);
-			element.addAttribute(new Attribute("messagePage", pageHref(igDataModel, messageId, null)));
-			element.addAttribute(new Attribute("messageFile", fileHref(igDataModel, messageId, null)));
+			element.addAttribute(new Attribute("messagePage", nz(pageHref(igDataModel, messageId, null))));
+			element.addAttribute(new Attribute("messageFile", nz(fileHref(igDataModel, messageId, null))));
 			if (snippetFound) {
-				element.addAttribute(new Attribute("snippetPage", pageHref(igDataModel, messageId, snippetId)));
-				element.addAttribute(new Attribute("snippetFile", fileHref(igDataModel, messageId, snippetId)));
+				element.addAttribute(new Attribute("snippetPage", nz(pageHref(igDataModel, messageId, snippetId))));
+				element.addAttribute(new Attribute("snippetFile", nz(fileHref(igDataModel, messageId, snippetId))));
 			}
 		}
 		if (configuration.isIgamtLink()) {
@@ -344,15 +344,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 		if (content == null) {
 			return new String[0];
 		}
-		String normalized = content.replace("\r\n", "\n").replace('\r', '\n');
-		StringBuilder clean = new StringBuilder(normalized.length());
-		for (int i = 0; i < normalized.length(); i++) {
-			char c = normalized.charAt(i);
-			if (c == '\n' || c == '\t' || c >= 0x20) {
-				clean.append(c);
-			}
-		}
-		String text = clean.toString();
+		String text = xmlText(content.replace("\r\n", "\n").replace('\r', '\n'));
 		if (text.endsWith("\n")) {
 			text = text.substring(0, text.length() - 1);
 		}
@@ -366,7 +358,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 		Document doc = Jsoup.parseBodyFragment(html);
 		doc.outputSettings().prettyPrint(false).escapeMode(Entities.EscapeMode.xhtml);
 		doc.select("script, style, iframe, object, form").remove();
-		String markup = doc.body().html().replaceAll("[^\\u0009\\u000A\\u000D\\u0020-\\uD7FF\\uE000-\\uFFFD]", "").trim();
+		String markup = xmlText(doc.body().html()).trim();
 		if (Jsoup.parse(markup).text().trim().isEmpty() && doc.select("img").isEmpty()) {
 			return "";
 		}
@@ -388,7 +380,16 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 	}
 
 	private static String nz(String value) {
-		return value != null ? value : "";
+		return value != null ? xmlText(value) : "";
+	}
+
+	/**
+	 * The text without what XML cannot carry: control characters (the framing bytes of MLLP among
+	 * them), U+FFFE, U+FFFF and half of a surrogate pair. One such character in a name or in a
+	 * message would make the whole export fail.
+	 */
+	static String xmlText(String value) {
+		return gov.nist.hit.hl7.igamt.serialization.util.XmlCharacters.keepValid(value);
 	}
 
 	private static void appendInfoTable(org.jsoup.nodes.Element parent, String messageName, String messagePage,

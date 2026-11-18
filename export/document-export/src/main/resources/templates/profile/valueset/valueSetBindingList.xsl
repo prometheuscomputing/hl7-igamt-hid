@@ -83,7 +83,6 @@
                 </xsl:element>
                 <xsl:element name="tbody">
                     <!-- <xsl:for-each select="Binding/StructureElementBindings/StructureElementBinding/ValuesetBinding"> -->
-                    <xsl:value-of select="../../../@name"/>
                     <xsl:for-each select=".//ValuesetBinding">
 
                         <xsl:sort lang="langage-code" data-type="number" select="../@Position1" order="ascending"/>

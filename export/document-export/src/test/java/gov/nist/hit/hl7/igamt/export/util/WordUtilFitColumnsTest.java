@@ -141,4 +141,38 @@ public class WordUtilFitColumnsTest {
     WordUtil.fitColumns(table, factory);
     assertEquals(null, ((Tc) ((Tr) table.getContent().get(0)).getContent().get(0)).getTcPr());
   }
+
+  private static int columns(Tr row) {
+    int total = 0;
+    for (Object node : row.getContent()) {
+      Tc cell = (Tc) node;
+      total += cell.getTcPr() != null && cell.getTcPr().getGridSpan() != null ? cell.getTcPr().getGridSpan().getVal().intValue() : 1;
+    }
+    return total;
+  }
+
+  /** The importer counts four columns for some tables of three, and a row can come short of the others. */
+  @Test
+  public void gridAndRowsAreMadeToAgree() {
+    Tbl table = table(2000, 3000, 3000, 1638);
+    Tr head = row(table, cell(1, "If"), cell(2, "Then"));
+    Tr body = row(table, cell(1, "code"), cell(1, "type"), cell(1, "value"));
+    Tr label = row(table, cell(1, "A label on a row of its own"));
+    WordUtil.squareUp(table, factory);
+
+    assertEquals(3, table.getTblGrid().getGridCol().size());
+    assertEquals(3, columns(head));
+    assertEquals(3, columns(body));
+    assertEquals(3, columns(label));
+
+    // a table that is already square is left as it is
+    Tbl square = table(4000, 5638);
+    Tr one = row(square, cell(1, "a"), cell(1, "b"));
+    Tr two = row(square, cell(2, "ab"));
+    WordUtil.squareUp(square, factory);
+    assertEquals(2, square.getTblGrid().getGridCol().size());
+    assertEquals(2, columns(one));
+    assertEquals(2, columns(two));
+    assertTrue(((Tc) one.getContent().get(1)).getTcPr() == null);
+  }
 }

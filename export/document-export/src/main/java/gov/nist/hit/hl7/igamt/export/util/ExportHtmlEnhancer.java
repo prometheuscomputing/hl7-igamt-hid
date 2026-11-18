@@ -67,6 +67,8 @@ public class ExportHtmlEnhancer {
   private static final String UNSET_FONT = "times new roman";
   private static final String UNSET_FONT_SIZE = "12";
 
+  /** How many levels of headings the contents of the printed page list. */
+  private static final int PRINTED_CONTENTS_DEPTH = 3;
   /** Table of the facts of an example message (message, snippet, link to IGAMT): not a data table. */
   private static final String EXAMPLE_FACTS = "fr-exmsg-info";
   private static final String EXAMPLE_LINE = "fr-exmsg-line";
@@ -178,6 +180,7 @@ public class ExportHtmlEnhancer {
   }
 
   private void run() {
+    ExportHtmlSanitizer.clean(doc);
     tidyEmbeddedFragments();
     dropRepeatedIds();
     normalizeHeadings();
@@ -186,6 +189,7 @@ public class ExportHtmlEnhancer {
     normalizeFlow(content);
     collectOutline();
     decorateTables();
+    readableOnBackgrounds();
     addWhereUsed();
     placeExamples();
     if (target == Target.HTML) {
@@ -803,6 +807,73 @@ public class ExportHtmlEnhancer {
     for (Element warning : doc.select(".fr-exmsg > .fr-exmsg-warning")) {
       warning.tagName("p").attr("class", "IgExampleNote");
     }
+  }
+
+  // ---------------------------------------------------------------- colours
+
+  private static final Pattern BACKGROUND = Pattern.compile("(?i)(?:^|;)\\s*background(?:-color)?\\s*:\\s*([^;]+)");
+  private static final Pattern OWN_COLOUR = Pattern.compile("(?i)(?:^|;)\\s*color\\s*:");
+  private static final Pattern HEX_COLOUR = Pattern.compile("(?i)#([0-9a-f]{6}|[0-9a-f]{3})\\b");
+  private static final Pattern RGB_COLOUR = Pattern
+      .compile("(?i)rgba?\\(\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*(?:,\\s*([0-9.]+)\\s*)?\\)");
+
+  /**
+   * The colours that mark changes come from the export configuration and authors colour cells of
+   * their own: on each of these backgrounds the text is black or white, whichever reads better.
+   */
+  private void readableOnBackgrounds() {
+    for (Element element : content.select("[style*=background]")) {
+      String style = element.attr("style");
+      Matcher background = BACKGROUND.matcher(style);
+      if (!background.find() || OWN_COLOUR.matcher(style).find()) {
+        continue;
+      }
+      int[] rgb = rgb(background.group(1));
+      if (rgb != null) {
+        String ink = luminance(rgb) > 0.179 ? "#000000" : "#ffffff"; // 0.179: where black and white contrast equally
+        element.attr("style", style.trim().replaceAll(";\\s*$", "") + "; color: " + ink);
+      }
+    }
+  }
+
+  /** The red, green and blue of a colour written as #rgb, #rrggbb or rgb(...); null for anything else. */
+  static int[] rgb(String value) {
+    Matcher hex = HEX_COLOUR.matcher(value);
+    if (hex.find()) {
+      String digits = hex.group(1);
+      if (digits.length() == 3) {
+        digits = "" + digits.charAt(0) + digits.charAt(0) + digits.charAt(1) + digits.charAt(1) + digits.charAt(2) + digits.charAt(2);
+      }
+      return new int[] { Integer.parseInt(digits.substring(0, 2), 16), Integer.parseInt(digits.substring(2, 4), 16),
+          Integer.parseInt(digits.substring(4, 6), 16) };
+    }
+    Matcher function = RGB_COLOUR.matcher(value);
+    if (function.find()) {
+      if (function.group(4) != null && seeThrough(function.group(4))) {
+        return null; // what shows is mostly the page behind it
+      }
+      return new int[] { Math.min(255, Integer.parseInt(function.group(1))), Math.min(255, Integer.parseInt(function.group(2))),
+          Math.min(255, Integer.parseInt(function.group(3))) };
+    }
+    return null;
+  }
+
+  private static boolean seeThrough(String alpha) {
+    try {
+      return Double.parseDouble(alpha) < 0.5;
+    } catch (NumberFormatException e) {
+      return true;
+    }
+  }
+
+  /** Relative luminance as the accessibility guidelines define it, 0 for black to 1 for white. */
+  static double luminance(int[] rgb) {
+    double[] linear = new double[3];
+    for (int i = 0; i < 3; i++) {
+      double channel = rgb[i] / 255.0;
+      linear[i] = channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+    }
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
   }
 
   // ---------------------------------------------------------------- tables
@@ -1423,6 +1494,15 @@ public class ExportHtmlEnhancer {
     for (Node node : new ArrayList<Node>(body.childNodes())) {
       main.appendChild(node);
     }
+    // on paper there is no sidebar: the contents follow the cover
+    Element printed = doc.createElement("nav").addClass("ig-print-toc").attr("aria-label", "Contents");
+    printed.appendElement("p").addClass("ig-print-toc-title").text("Contents");
+    printed.appendChild(printedContents(roots, 1));
+    if (cover != null && cover.parent() != null) {
+      cover.after(printed);
+    } else {
+      main.prependChild(printed);
+    }
     Element footer = main.appendElement("footer").addClass("ig-footer");
     footer.appendElement("span").text("Exported " + new SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH).format(new Date()) + " with IGAMT");
     body.appendChild(app);
@@ -1433,9 +1513,12 @@ public class ExportHtmlEnhancer {
     head.prependElement("meta").attr("name", "viewport").attr("content", "width=device-width, initial-scale=1");
     // the file carries everything it needs: served from a web server, it does not ask for a favicon either
     head.appendElement("link").attr("rel", "icon").attr("href", "data:,");
+    // a browser reads line ends as line feeds before it checks the script against the policy
+    String script = asset("ig-export.js").replace("\r\n", "\n").replace('\r', '\n');
+    head.prependElement("meta").attr("http-equiv", "Content-Security-Policy").attr("content", ExportHtmlSanitizer.contentSecurityPolicy(script));
     head.prependElement("meta").attr("charset", "utf-8");
     head.appendElement("meta").attr("name", "generator").attr("content", "IGAMT");
-    body.appendElement("script").appendChild(new org.jsoup.nodes.DataNode(asset("ig-export.js"), ""));
+    body.appendElement("script").appendChild(new org.jsoup.nodes.DataNode(script, ""));
   }
 
   /** What the document holds, as links to the matching registries. */
@@ -1466,6 +1549,29 @@ public class ExportHtmlEnhancer {
       holder.appendElement("span").addClass("ig-inventory-label").text(label);
     }
     return list.children().isEmpty() ? null : list;
+  }
+
+  /** The contents as they are printed: the first {@value #PRINTED_CONTENTS_DEPTH} levels, as plain links. */
+  private Element printedContents(List<Heading> headings, int level) {
+    Element list = doc.createElement("ol");
+    for (Heading heading : headings) {
+      Element item = list.appendElement("li");
+      Element link = item.appendElement("a").attr("href", "#" + heading.id);
+      link.appendElement("span").addClass("ig-toc-num").text(heading.number);
+      if (KIND_LABELS.containsKey(heading.kind)) {
+        String name = resourceName(heading);
+        link.appendElement("span").addClass("ig-toc-code").text(heading.code);
+        if (!name.isEmpty()) {
+          link.appendElement("span").text(name);
+        }
+      } else {
+        link.appendElement("span").text(heading.title);
+      }
+      if (level < PRINTED_CONTENTS_DEPTH && !heading.children.isEmpty()) {
+        item.appendChild(printedContents(heading.children, level + 1));
+      }
+    }
+    return list;
   }
 
   private Element tocList(List<Heading> headings) {
@@ -1504,7 +1610,40 @@ public class ExportHtmlEnhancer {
    * The Word importer understands a small part of CSS and names bookmarks after element ids, which
    * Word only accepts when they start with a letter. Keep the markup within what it handles.
    */
+  /**
+   * The Word importer fetches whatever a picture or a style points at, from the server, with no
+   * limit of any kind. Pictures that could be read safely are already in the document as data;
+   * one that is still an address is replaced by a link to it, and styles lose their addresses.
+   */
+  private void keepWordFromFetching() {
+    for (Element picture : doc.select("img")) {
+      String source = picture.attr("src").trim();
+      if (source.regionMatches(true, 0, "data:", 0, 5)) {
+        continue;
+      }
+      String label = picture.attr("alt").trim();
+      if (source.matches("(?i)^https?://.+")) {
+        picture.replaceWith(doc.createElement("a").attr("href", source).text(label.isEmpty() ? source : label));
+      } else if (!label.isEmpty()) {
+        picture.replaceWith(new org.jsoup.nodes.TextNode(label, ""));
+      } else {
+        picture.remove();
+      }
+    }
+    for (Element styled : doc.select("[style*=url], [style*=URL], [style*=Url]")) {
+      StringBuilder kept = new StringBuilder();
+      for (String declaration : styled.attr("style").split(";")) {
+        if (!declaration.toLowerCase(Locale.ENGLISH).replace("\\", "").contains("url") && !declaration.trim().isEmpty()) {
+          kept.append(declaration.trim()).append("; ");
+        }
+      }
+      styled.attr("style", kept.toString().trim());
+    }
+    doc.select("[background]").removeAttr("background");
+  }
+
   private void prepareForWord() {
+    keepWordFromFetching();
     Map<String, String> renamed = new HashMap<String, String>();
     java.util.Set<String> used = new java.util.HashSet<String>();
     for (Element element : doc.select("[id]")) {
@@ -1545,6 +1684,13 @@ public class ExportHtmlEnhancer {
     Element body = doc.body();
     for (String attribute : new String[] {"data-format", "data-export-type"}) {
       body.removeAttr(attribute);
+    }
+
+    // The importer gives every rule the same paragraph object, shared by all the documents it
+    // ever makes, and the formatting done afterwards would change it for all of them: a rule
+    // becomes a paragraph of its own, with the line in its style.
+    for (Element rule : doc.select("hr")) {
+      rule.replaceWith(doc.createElement("p").addClass("IgRule").text("\u00a0"));
     }
 
     // A class that names a Word style makes the importer apply that style

@@ -294,6 +294,10 @@ public class ExampleMessageExportDataService {
 			backLink = "<p><a href=\"" + back + "\">Back to the guide</a></p>";
 		}
 		String html = "<!DOCTYPE html>\n<html><head><meta charset=\"UTF-8\"/>"
+				// the page has no script of its own, so none is allowed: a handler or a script link in a
+				// description an author wrote stays inert
+				+ "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; "
+				+ "img-src data: https: http:; base-uri 'none'; form-action 'none'\"/>"
 				+ "<title>" + safeTitle + "</title>"
 				+ "<style>body{font-family:Georgia,serif;margin:24px;color:#222;}"
 				+ "a{color:#1565c0;}pre{font-family:Consolas,Monaco,monospace;font-size:13px;"
@@ -331,7 +335,14 @@ public class ExampleMessageExportDataService {
 		String markup = html.replaceAll("(?is)<script[^>]*>.*?</script>", "")
 				.replaceAll("(?is)<style[^>]*>.*?</style>", "")
 				.replaceAll("(?is)<iframe[^>]*>.*?</iframe>", "")
+				.replaceAll("(?is)</?(meta|base|link|script|style|iframe|object|embed)\\b[^>]*>", "")
 				.trim();
+		// handlers: the page has a policy that runs no script, this is for a reader that ignores it
+		String withoutHandlers = markup;
+		do {
+			markup = withoutHandlers;
+			withoutHandlers = markup.replaceAll("(?is)(<[a-z][^<>]*?)\\s+on[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)", "$1");
+		} while (!withoutHandlers.equals(markup));
 		String text = markup.replaceAll("(?is)<[^>]+>", "").replace("&nbsp;", " ").replaceAll("\\s+", " ").trim();
 		if (text.isEmpty() && !markup.toLowerCase().contains("<img")) {
 			return "";
@@ -474,6 +485,10 @@ public class ExampleMessageExportDataService {
 	private static byte[] highlightedMessagePage(String title, String message, List<SnippetRenderResult.SnippetPart> parts, String descriptionHtml) {
 		String safeTitle = escapeHtml(title);
 		String html = "<!DOCTYPE html>\n<html><head><meta charset=\"UTF-8\"/>"
+				// the page has no script of its own, so none is allowed: a handler or a script link in a
+				// description an author wrote stays inert
+				+ "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; "
+				+ "img-src data: https: http:; base-uri 'none'; form-action 'none'\"/>"
 				+ "<title>" + safeTitle + "</title>"
 				+ "<style>body{font-family:Georgia,serif;margin:24px;color:#222;}"
 				+ "pre{font-family:Consolas,Monaco,monospace;font-size:13px;white-space:pre-wrap;"
