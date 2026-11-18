@@ -22,4 +22,11 @@ public interface ExampleMessageSerializationService {
 	 * input unchanged when it contains no widget.
 	 */
 	String rewriteNarrative(String html, IgDataModel igDataModel, ExampleMessageExportConfiguration configuration);
+
+	/**
+	 * Base used for Open in IGAMT links during the current export. Null keeps the configured host.
+	 */
+	void usePublicBase(String base);
+
+	void clearPublicBase();
 }

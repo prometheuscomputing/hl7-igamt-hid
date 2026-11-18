@@ -507,6 +507,11 @@ block-ui-content {
   border: 2px solid #d8d8d8 !important;
 }
 
+.structure-editor-content .ui-treetable .ui-treetable-tbody > tr.ig-locate-flash > td,
+.structure-editor-content .ui-treetable .ui-treetable-tbody > tr.ig-locate-flash > td td {
+  background-color: #fff3cd !important;
+}
+
 .structure-editor-content .ui-treetable .ui-treetable-thead > tr > th {
   border: 2px solid #d8d8d8 !important;
 }

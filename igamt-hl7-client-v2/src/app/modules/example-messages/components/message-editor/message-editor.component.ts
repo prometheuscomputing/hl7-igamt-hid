@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatDialog } from '@angular/material';
@@ -34,7 +34,7 @@ import { VALIDATION_REPORT_CSS, VALIDATION_REPORT_SCRIPT } from './validation-re
   templateUrl: './message-editor.component.html',
   styleUrls: ['./message-editor.component.scss'],
 })
-export class MessageEditorComponent extends DamAbstractEditorComponent implements OnInit {
+export class MessageEditorComponent extends DamAbstractEditorComponent implements OnInit, OnDestroy {
 
   message: string;
   narrative: string = '';
@@ -55,6 +55,8 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
         click: () => { },
       },
     },
+    animateExpand: false,
+    scrollOnActivate: true,
   };
   staleMessageTree = false;
   parseError = '';
@@ -74,10 +76,16 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   validationError: string = '';
   validationTabIndex = 0;
   showQuietDetections = false;
+  treeFilter = '';
+  validationSheetHeight = 300;
+  sheetDragging = false;
+  activeValidationEntry: IExampleMessageValidationEntry = null;
+  private sheetDragStart: { y: number, height: number } = null;
 
   @ViewChild('codemirror') private codeEditor!: CodemirrorComponent;
   @ViewChild('treeroot') private parsedTree: TreeComponent;
   @ViewChild('reportHost') private reportHost: ElementRef;
+  @ViewChild('contentStage') private contentStage: ElementRef;
 
   constructor(
     actions$: Actions,
@@ -461,12 +469,292 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
       this.parseError = '';
       await this.updateStaleMessageState();
       this.highlightSnippetIfAvailable();
+      setTimeout(() => {
+        if (this.snippetToHighlightPaths.length === 0) {
+          this.expandToSegments();
+        }
+        this.applyTreeFilter();
+      }, 0);
     } catch (error) {
       this.parsed = null;
       this.parseError = this.extractParseError(error);
       this.store.dispatch(this.messageService.actionFromError(error));
     } finally {
       this.loading = false;
+    }
+  }
+
+  onTreeFilterChange(value: string) {
+    this.treeFilter = value || '';
+    this.applyTreeFilter();
+  }
+
+  clearTreeFilter() {
+    this.treeFilter = '';
+    this.applyTreeFilter();
+  }
+
+  applyTreeFilter() {
+    if (!this.parsedTree || !this.parsedTree.treeModel) {
+      return;
+    }
+    const query = (this.treeFilter || '').trim().toLowerCase();
+    if (!query) {
+      this.parsedTree.treeModel.clearFilter();
+      return;
+    }
+    this.parsedTree.treeModel.filterNodes((node: TreeNode) => {
+      const data = node && node.data;
+      if (!data) {
+        return false;
+      }
+      return this.nodeMatchesFilter(data, query);
+    });
+  }
+
+  private nodeMatchesFilter(data: any, query: string): boolean {
+    const fields = [data.hl7Path, data.name, data.profilePath, data.positionalPath, data.type];
+    return fields.some((field) => field && String(field).toLowerCase().indexOf(query) >= 0);
+  }
+
+  expandAllTree() {
+    if (this.parsedTree && this.parsedTree.treeModel) {
+      this.parsedTree.treeModel.expandAll();
+    }
+  }
+
+  collapseAllTree() {
+    if (this.parsedTree && this.parsedTree.treeModel) {
+      this.parsedTree.treeModel.collapseAll();
+    }
+  }
+
+  expandToSegments() {
+    if (!this.parsedTree || !this.parsedTree.treeModel) {
+      return;
+    }
+    this.parsedTree.treeModel.collapseAll();
+    const roots = this.parsedTree.treeModel.roots || [];
+    for (const root of roots) {
+      this.expandAncestorsOfSegments(root);
+    }
+  }
+
+  private expandAncestorsOfSegments(node: any): boolean {
+    if (!node) {
+      return false;
+    }
+    const type = node.data && node.data.type;
+    if (type === 'SEGMENT' || type === 'SEGMENTREF') {
+      return true;
+    }
+    if (type === 'FIELD' || type === 'COMPONENT' || type === 'SUBCOMPONENT') {
+      return false;
+    }
+    let hasSegment = false;
+    const children = node.children || [];
+    for (const child of children) {
+      if (this.expandAncestorsOfSegments(child)) {
+        hasSegment = true;
+      }
+    }
+    if (hasSegment || type === 'GROUP' || !type) {
+      if (node.expand) {
+        node.expand();
+      }
+    }
+    return hasSegment || type === 'GROUP';
+  }
+
+  isStructuralNode(data: any): boolean {
+    const type = data && data.type;
+    return type === 'GROUP' || type === 'SEGMENT' || type === 'SEGMENTREF';
+  }
+
+  treeNodeTitle(data: any): string {
+    if (!data) {
+      return '';
+    }
+    const parts = [data.hl7Path, data.name, data.profilePath].filter((part) => !!part);
+    return parts.join(' — ');
+  }
+
+  startSheetResize(event: MouseEvent) {
+    if (!event) {
+      return;
+    }
+    event.preventDefault();
+    this.sheetDragging = true;
+    this.sheetDragStart = { y: event.clientY, height: this.validationSheetHeight };
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  onSheetResize(event: MouseEvent) {
+    if (!this.sheetDragging || !this.sheetDragStart || !event) {
+      return;
+    }
+    const next = this.sheetDragStart.height + (this.sheetDragStart.y - event.clientY);
+    this.validationSheetHeight = this.clampSheetHeight(next);
+  }
+
+  @HostListener('document:mouseup')
+  stopSheetResize() {
+    if (!this.sheetDragging) {
+      return;
+    }
+    this.sheetDragging = false;
+    this.sheetDragStart = null;
+    this.refreshCodeMirror();
+  }
+
+  validationSheetCollapsed(): boolean {
+    return this.validationSheetHeight <= 72;
+  }
+
+  toggleValidationSheet() {
+    if (this.validationSheetCollapsed()) {
+      this.validationSheetHeight = this.clampSheetHeight(Math.round(this.stageHeight() * 0.46));
+    } else {
+      this.validationSheetHeight = 46;
+    }
+    setTimeout(() => this.refreshCodeMirror(), 50);
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent) {
+    if (!event || this.activeTab !== 0) {
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+      return;
+    }
+    const editorFocused = this.codeEditor && this.codeEditor.codeMirror && this.codeEditor.codeMirror.hasFocus();
+    const target = event.target as HTMLElement;
+    const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+    if ((editorFocused || typing) && !event.altKey) {
+      return;
+    }
+    if (!this.validationResult) {
+      return;
+    }
+    event.preventDefault();
+    this.stepValidation(event.key === 'ArrowDown' ? 1 : -1);
+  }
+
+  private stageHeight(): number {
+    const stage = this.contentStage && this.contentStage.nativeElement;
+    return stage && stage.clientHeight ? stage.clientHeight : 640;
+  }
+
+  private clampSheetHeight(height: number): number {
+    return Math.max(46, Math.min(this.stageHeight() - 72, Math.round(height)));
+  }
+
+  currentValidationKind(): 'errors' | 'alerts' | 'warnings' | 'affirmatives' | 'informationals' | 'report' {
+    const kinds: Array<'errors' | 'alerts' | 'warnings' | 'affirmatives' | 'informationals' | 'report'> = this.showQuietDetections
+      ? ['errors', 'alerts', 'warnings', 'affirmatives', 'informationals', 'report']
+      : ['errors', 'alerts', 'warnings', 'report'];
+    return kinds[this.validationTabIndex] || 'errors';
+  }
+
+  validationEntries(): IExampleMessageValidationEntry[] {
+    const kind = this.currentValidationKind();
+    if (kind === 'report') {
+      return [];
+    }
+    return this.entriesFor(kind);
+  }
+
+  validationPositionLabel(): string {
+    const kind = this.currentValidationKind();
+    if (kind === 'report') {
+      return 'Report';
+    }
+    const entries = this.validationEntries();
+    if (!entries.length) {
+      return 'No ' + kind;
+    }
+    const index = this.activeValidationIndex(entries);
+    return (index >= 0 ? index + 1 : 0) + ' / ' + entries.length + ' ' + kind;
+  }
+
+  canStepValidation(delta: number): boolean {
+    const entries = this.validationEntries();
+    if (!entries.length) {
+      return false;
+    }
+    const index = this.activeValidationIndex(entries);
+    if (index < 0) {
+      return true;
+    }
+    const next = index + delta;
+    return next >= 0 && next < entries.length;
+  }
+
+  stepValidation(delta: number) {
+    const entries = this.validationEntries();
+    if (!entries.length) {
+      return;
+    }
+    const index = this.activeValidationIndex(entries);
+    const start = index < 0 ? (delta > 0 ? -1 : 0) : index;
+    const next = Math.max(0, Math.min(entries.length - 1, start + delta));
+    this.selectValidationEntry(entries[next]);
+  }
+
+  selectValidationEntry(entry: IExampleMessageValidationEntry, revealMessage: boolean = true) {
+    if (!entry) {
+      return;
+    }
+    this.activeValidationEntry = entry;
+    const parsed = this.findParsedForValidation(entry);
+    if (parsed) {
+      this.highlight(parsed);
+      this.revealInTree(parsed);
+    }
+    this.jumpToEntry(entry);
+    if (revealMessage) {
+      const stage = this.stageHeight();
+      if (this.validationSheetHeight > stage * 0.62) {
+        this.validationSheetHeight = this.clampSheetHeight(stage * 0.42);
+        setTimeout(() => this.refreshCodeMirror(), 50);
+      } else if (this.validationSheetCollapsed()) {
+        this.validationSheetHeight = this.clampSheetHeight(280);
+      }
+    }
+    setTimeout(() => this.scrollActiveValidationRow(), 0);
+  }
+
+  isActiveValidationEntry(entry: IExampleMessageValidationEntry): boolean {
+    return !!entry && entry === this.activeValidationEntry;
+  }
+
+  private selectFirstValidationEntry() {
+    const entries = this.validationEntries();
+    if (!entries.length) {
+      return;
+    }
+    if (this.activeValidationIndex(entries) >= 0) {
+      this.selectValidationEntry(this.activeValidationEntry, false);
+      return;
+    }
+    this.selectValidationEntry(entries[0], false);
+  }
+
+  private activeValidationIndex(entries: IExampleMessageValidationEntry[]): number {
+    return entries.indexOf(this.activeValidationEntry);
+  }
+
+  private scrollActiveValidationRow() {
+    const row = document.querySelector('.validation-table tr.active-entry') as HTMLElement;
+    if (row && row.scrollIntoView) {
+      row.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  private refreshCodeMirror() {
+    if (this.codeEditor && this.codeEditor.codeMirror) {
+      this.codeEditor.codeMirror.refresh();
     }
   }
 
@@ -492,6 +780,10 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     if (!this.message || !this.messageId) {
       return;
     }
+    this.activeTab = 0;
+    if (this.validationSheetHeight < 220) {
+      this.validationSheetHeight = this.clampSheetHeight(Math.round(this.stageHeight() * 0.5));
+    }
     this.validating = true;
     this.validationError = '';
     this.igId$.pipe(
@@ -499,12 +791,14 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
       mergeMap((igId) => this.exampleMessagesService.validateExampleMessage(igId, this.messageId, this.message)),
       finalize(() => {
         this.validating = false;
+        setTimeout(() => this.refreshCodeMirror(), 50);
       }),
     ).subscribe(
       (result) => {
         this.validationResult = result;
         this.validationError = result && result.error ? result.error : '';
         this.showQuietDetections = false;
+        this.activeValidationEntry = null;
         if (!this.validationError) {
           if (result.errors > 0) {
             this.validationTabIndex = 0;
@@ -515,6 +809,7 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
           } else {
             this.validationTabIndex = 3;
           }
+          setTimeout(() => this.selectFirstValidationEntry(), 0);
         }
       },
       (error) => {
@@ -908,9 +1203,11 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     this.validationError = '';
     this.validationTabIndex = 0;
     this.showQuietDetections = false;
+    this.activeValidationEntry = null;
     this.snippetValidationWarnings = [];
     this.snippetToHighlightPaths = [];
     this.selected = null;
+    this.treeFilter = '';
   }
 
   private currentSnippetNames(): string[] {
@@ -1029,6 +1326,9 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   ngOnInit() {
     // Wait for CodeMirror to be ready, then add mousedown handler for multi-select
     setTimeout(() => this.setupEditorClickHandler(), 500);
+  }
+
+  ngOnDestroy() {
   }
 
   setupEditorClickHandler() {

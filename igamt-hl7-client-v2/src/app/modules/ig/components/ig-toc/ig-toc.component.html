@@ -51,10 +51,11 @@
             [contextMenu]="messageSectionContextMenu"
             [routerLink]="getElementUrl(node.data)"
             routerLinkActive="active-node"
-            style="display: inline-flex; align-items: center; gap: 4px;"
+            class="toc-message-entry"
           >
-            <span style="color: #2196F3; font-weight: bold;">M</span>
-            {{ node.data.path }} {{ node.data.variableName }}
+            <span class="toc-number">{{ node.data.path }}</span>
+            <span class="toc-mark" title="Message">M</span>
+            <span class="toc-label">{{ node.data.variableName }}</span>
           </span>
           <context-menu #messageSectionContextMenu [disabled]="viewOnly || delta">
             <ng-template

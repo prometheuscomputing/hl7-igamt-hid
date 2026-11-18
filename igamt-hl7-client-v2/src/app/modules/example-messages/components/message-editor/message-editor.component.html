@@ -20,45 +20,72 @@
 
             <!-- Snippet validation warnings (shown after save if message changes broke snippets) -->
             <div *ngIf="snippetValidationWarnings && snippetValidationWarnings.length > 0"
-                style="margin: 10px 0; padding: 12px 16px; background-color: #fff8e1; border: 1px solid #ffe082; border-radius: 4px; color: #f57f17; font-size: 13px;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                    <i class="fa fa-exclamation-triangle" style="font-size: 16px;"></i>
+                class="snippet-warning-banner">
+                <div class="snippet-warning-header">
+                    <i class="fa fa-exclamation-triangle"></i>
                     <strong>Snippet Warning</strong>
-                    <span style="font-weight: normal; color: #888; margin-left: auto; cursor: pointer;" (click)="snippetValidationWarnings = []">
+                    <span class="snippet-warning-dismiss" (click)="snippetValidationWarnings = []">
                         <i class="fa fa-times"></i> Dismiss
                     </span>
                 </div>
                 <div>The following snippets have references that no longer resolve in the updated message:</div>
-                <ul style="margin: 6px 0 0 0; padding-left: 20px;">
+                <ul>
                     <li *ngFor="let w of snippetValidationWarnings">
                         <strong>{{ w.snippetName }}</strong>
-                        <span style="color: #888;"> &mdash; broken paths: {{ w.brokenPaths.join(', ') }}</span>
+                        <span class="snippet-warning-paths"> &mdash; broken paths: {{ w.brokenPaths.join(', ') }}</span>
                     </li>
                 </ul>
             </div>
 
+            <div class="content-stage" #contentStage>
             <div class="message-workspace">
 
                 <div class="message-tree-panel">
-                    <div style="height: auto; border-bottom: 1px solid lightgray; box-shadow: 0px 3px 5px -2px rgba(0, 0, 0, 0.75); z-index: 1;">
-                        <div style="height: 40px; display: flex; align-items: center; justify-content: center;">
-                            Message Tree
+                    <div class="message-tree-header">
+                        <div class="message-tree-title">
+                            <span>Message Tree</span>
+                            <div class="message-tree-actions">
+                                <button type="button" class="btn btn-xs btn-default" title="Expand to segments"
+                                        (click)="expandToSegments()" [disabled]="!parsed || staleMessageTree || loading">
+                                    <i class="fa fa-indent"></i>
+                                </button>
+                                <button type="button" class="btn btn-xs btn-default" title="Expand all"
+                                        (click)="expandAllTree()" [disabled]="!parsed || staleMessageTree || loading">
+                                    <i class="fa fa-plus-square-o"></i>
+                                </button>
+                                <button type="button" class="btn btn-xs btn-default" title="Collapse all"
+                                        (click)="collapseAllTree()" [disabled]="!parsed || staleMessageTree || loading">
+                                    <i class="fa fa-minus-square-o"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div *ngIf="selectedElements.length > 0" style="padding: 4px 8px; background-color: #e3f2fd; border-top: 1px solid #bbdefb; display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
-                            <span style="color: #1565C0;">
+                        <div class="message-tree-filter">
+                            <i class="fa fa-search"></i>
+                            <input type="text"
+                                   class="form-control form-control-sm"
+                                   placeholder="Filter by path or name…"
+                                   [ngModel]="treeFilter"
+                                   (ngModelChange)="onTreeFilterChange($event)"
+                                   [disabled]="!parsed || staleMessageTree || loading" />
+                            <button *ngIf="treeFilter" type="button" class="tree-filter-clear" (click)="clearTreeFilter()" title="Clear filter">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                        <div *ngIf="selectedElements.length > 0" class="message-tree-selection">
+                            <span class="selection-count">
                                 <i class="fa fa-check-square-o"></i> {{ selectedElements.length }} selected
                             </span>
-                            <div style="display: flex; gap: 4px;">
-                                <button *ngIf="!viewOnly" class="btn btn-sm btn-outline-primary" (click)="createSnippetFromSelection()" [disabled]="staleMessageTree" style="font-size: 11px; padding: 1px 6px;">
+                            <div class="selection-actions">
+                                <button *ngIf="!viewOnly" class="btn btn-sm btn-outline-primary" (click)="createSnippetFromSelection()" [disabled]="staleMessageTree">
                                     <i class="fa fa-scissors"></i> Create Snippet
                                 </button>
-                                <button class="btn btn-sm btn-outline-secondary" (click)="clearAllSelections()" style="font-size: 11px; padding: 1px 6px;">
+                                <button class="btn btn-sm btn-outline-secondary" (click)="clearAllSelections()">
                                     <i class="fa fa-times"></i> Clear
                                 </button>
                             </div>
                         </div>
                     </div>
-                    <div style="flex: 1; background-color: rgb(246, 246, 246); position: relative; overflow: hidden;">
+                    <div class="message-tree-body">
                         <div *ngIf="!loading && staleMessageTree" class="stale-overlay">
                             <span style="text-align: center;">Save or Create message to see parsed content.</span>
                         </div>
@@ -71,18 +98,29 @@
                                 <pre>{{ parseError }}</pre>
                             </div>
                         </div>
-                        <div *ngIf="loading" style="height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; position: absolute;">
-                            <mat-spinner *ngIf="loading" class="verification-progress" diameter="45"></mat-spinner>
+                        <div *ngIf="loading" class="message-tree-loading">
+                            <mat-spinner class="verification-progress" diameter="45"></mat-spinner>
                         </div>
-                        <div *ngIf="!loading && parsed" style="height: 100%; width: 100%; overflow: scroll; padding: 15px;">
+                        <div *ngIf="!loading && parsed" class="message-tree-scroll">
                             <tree-root #treeroot [nodes]="parsed.children" [options]="options">
                                 <ng-template #treeNodeTemplate let-index="index" let-node>
-                                    <div [contextMenu]="elementContextMenu">
-                                        <span [ngClass]="{ 'selected': isElementSelected(node.data) }" (click)="highlight(node.data, $event)" style="white-space: nowrap; color: black; cursor: pointer;">
-                                            <app-entity-bagde [type]="node.data.type" ></app-entity-bagde>
-                                            {{ node.data.hl7Path }}
-                                            <span *ngIf="node.data.type !== 'GROUP'">- {{ node.data.name }}</span>
-                                        </span>
+                                    <div class="tree-node-wrap" [contextMenu]="elementContextMenu">
+                                        <div class="tree-node-row"
+                                             [class.selected]="isElementSelected(node.data)"
+                                             [class.tree-node-structural]="isStructuralNode(node.data)"
+                                             [title]="treeNodeTitle(node.data)"
+                                             (click)="highlight(node.data, $event)">
+                                            <span class="tree-node-check"
+                                                  (click)="toggleSelect(node.data); $event.stopPropagation()"
+                                                  [attr.title]="isElementSelected(node.data) ? 'Deselect' : 'Add to selection'">
+                                                <i class="fa" [ngClass]="isElementSelected(node.data) ? 'fa-check-square' : 'fa-square-o'"></i>
+                                            </span>
+                                            <app-entity-bagde [type]="node.data.type"></app-entity-bagde>
+                                            <span class="tree-node-text">
+                                                <span class="tree-node-path">{{ node.data.hl7Path }}</span>
+                                                <span class="tree-node-name" *ngIf="node.data.type !== 'GROUP' && node.data.name">{{ node.data.name }}</span>
+                                            </span>
+                                        </div>
                                         <context-menu #elementContextMenu>
                                             <ng-template (execute)="createSnippet(node.data)" contextMenuItem [enabled]="!viewOnly && !staleMessageTree">
                                                 <i class="fa fa-scissors"></i> Create Snippet
@@ -104,12 +142,14 @@
                 <div class="message-content-panel">
                     <div class="message-content-header">
                         <span><i class="fa fa-file-text-o"></i> Message Content</span>
-                        <button class="btn btn-sm btn-success" type="button"
-                                (click)="validateMessage()"
-                                [disabled]="validating || !message">
-                            <i class="fa" [ngClass]="validating ? 'fa-circle-o-notch fa-spin' : 'fa-check-circle'"></i>
-                            {{ validating ? 'Validating...' : 'Validate' }}
-                        </button>
+                        <div class="message-content-actions">
+                            <button class="btn btn-sm btn-success" type="button"
+                                    (click)="validateMessage()"
+                                    [disabled]="validating || !message">
+                                <i class="fa" [ngClass]="validating ? 'fa-circle-o-notch fa-spin' : 'fa-check-circle'"></i>
+                                {{ validating ? 'Validating...' : 'Validate' }}
+                            </button>
+                        </div>
                     </div>
                     <ngx-codemirror
                         #codemirror
@@ -122,16 +162,32 @@
                 </div>
             </div>
 
-            <div class="validation-result-panel">
+            <div class="validation-result-panel" [style.height.px]="validationSheetHeight" [class.sheet-dragging]="sheetDragging">
+                <div class="validation-sheet-handle" (mousedown)="startSheetResize($event)" title="Drag to resize the results">
+                    <span class="validation-sheet-grip"></span>
+                </div>
                 <div class="validation-result-header">
                     <span><i class="fa fa-check-square-o"></i> Message Validation Result</span>
                     <span class="validation-result-actions">
+                        <button type="button" class="btn btn-xs btn-default" (click)="toggleValidationSheet()"
+                                [title]="validationSheetCollapsed() ? 'Show the results' : 'Collapse the results'">
+                            <i class="fa" [ngClass]="validationSheetCollapsed() ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                        </button>
+                        <span class="validation-nav" *ngIf="validationResult && !validationError && currentValidationKind() !== 'report'">
+                            <button class="btn btn-xs btn-default" type="button" (click)="stepValidation(-1)" [disabled]="!canStepValidation(-1)" title="Previous finding">
+                                <i class="fa fa-chevron-up"></i>
+                            </button>
+                            <span>{{ validationPositionLabel() }}</span>
+                            <button class="btn btn-xs btn-default" type="button" (click)="stepValidation(1)" [disabled]="!canStepValidation(1)" title="Next finding">
+                                <i class="fa fa-chevron-down"></i>
+                            </button>
+                        </span>
                         <button *ngIf="validationResult && validationResult.html && !validationError"
                                 class="btn btn-xs btn-info" type="button"
                                 (click)="downloadReport()">
                             <i class="fa fa-download"></i> Download Report
                         </button>
-                        <span class="validation-result-hint">Context-free</span>
+                        <span class="validation-result-hint">Drag the top edge to resize</span>
                     </span>
                 </div>
                 <div class="validation-result-body">
@@ -143,6 +199,7 @@
                     </div>
                     <div *ngIf="!validating && !validationError && !validationResult" class="validation-empty">
                         Click <strong>Validate</strong> to check this example message against the IG profile.
+                        Drag the top of this panel to give the results more room.
                     </div>
                     <ng-container *ngIf="!validating && !validationError && validationResult">
                         <div class="validation-quiet-bar">
@@ -225,8 +282,9 @@
                                 </thead>
                                 <tbody>
                                     <tr *ngFor="let entry of entriesFor(kind)"
-                                        (click)="jumpToEntry(entry)"
-                                        [class.clickable]="entry.line">
+                                        (click)="selectValidationEntry(entry)"
+                                        [class.clickable]="true"
+                                        [class.active-entry]="isActiveValidationEntry(entry)">
                                         <td class="col-line">{{ entry.line || '-' }}{{ entry.column ? ':' + entry.column : '' }}</td>
                                         <td class="col-path">
                                             <a *ngIf="validationEr7Path(entry)" class="er7-location-link" (click)="openValidationInMessage($event, entry)">{{ validationEr7Path(entry) }}</a>
@@ -247,6 +305,7 @@
                         </div>
                     </ng-template>
                 </div>
+            </div>
             </div>
 
         </p-tabPanel>
@@ -294,4 +353,3 @@
     </p-tabView>
 
 </div>
-

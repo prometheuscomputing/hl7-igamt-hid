@@ -7,9 +7,9 @@
   overflow: auto;
 }
 
-/* Snippet highlight in CodeMirror — purple/violet background */
+/* Snippet highlight uses the same yellow as example messages */
 ::ng-deep .cm-snippet-highlight {
-  background-color: #ce93d8 !important;
+  background-color: #f3c60b !important;
   border-radius: 2px;
 }
 

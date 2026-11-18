@@ -305,7 +305,6 @@ public class ExampleMessagesController {
             ExampleMessageExportConfiguration configuration = ExampleMessageExportDataService.replacementFolder(guideExampleMessages());
             exampleMessageExportDataService.populate(igDataModel, configuration);
             Map<String, byte[]> files = exampleMessageExportDataService.collectStaticPages(igDataModel, configuration, true);
-            files.putAll(exampleMessageExportDataService.collectFiles(igDataModel, configuration));
             byte[] zip = exampleMessageExportDataService.zipFiles(files);
             response.setContentType("application/zip");
             response.setHeader("Content-disposition", "attachment;filename=ExampleMessages-" + id + ".zip");

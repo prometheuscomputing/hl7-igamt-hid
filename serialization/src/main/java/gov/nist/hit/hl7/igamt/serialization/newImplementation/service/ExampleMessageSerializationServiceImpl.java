@@ -29,6 +29,25 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 
 	@Value("${host.url:http://localhost:9000}")
 	private String hostUrl = "http://localhost:9000";
+	private static final ThreadLocal<String> PUBLIC_BASE = new ThreadLocal<String>();
+
+	@Override
+	public void usePublicBase(String base) {
+		if (base == null || base.trim().isEmpty()) {
+			PUBLIC_BASE.remove();
+			return;
+		}
+		String trimmed = base.trim();
+		while (trimmed.endsWith("/")) {
+			trimmed = trimmed.substring(0, trimmed.length() - 1);
+		}
+		PUBLIC_BASE.set(trimmed);
+	}
+
+	@Override
+	public void clearPublicBase() {
+		PUBLIC_BASE.remove();
+	}
 	private static final String MODE_INLINE = "INLINE";
 	private static final String MODE_FILE = "SEPARATE_FILES";
 	private static final String MODE_MISSING = "MISSING";
@@ -407,7 +426,8 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 				|| igDataModel.getModel().getId() == null) {
 			return "";
 		}
-		String base = hostUrl == null ? "" : hostUrl.trim();
+		String override = PUBLIC_BASE.get();
+		String base = override != null && !override.isEmpty() ? override : (hostUrl == null ? "" : hostUrl.trim());
 		while (base.endsWith("/")) {
 			base = base.substring(0, base.length() - 1);
 		}

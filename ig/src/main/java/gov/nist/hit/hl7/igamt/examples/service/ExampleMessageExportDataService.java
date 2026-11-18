@@ -124,7 +124,7 @@ public class ExampleMessageExportDataService {
 			if (message == null) {
 				continue;
 			}
-			if (all || dataModel.isMessageReferenced()) {
+			if (includeMessage(dataModel, all)) {
 				String path = ExampleMessageExportConfiguration.pagePath(dataModel.getFilePath());
 				pages.put(path, staticPage(dataModel.getLabel(null), message.getMessage(), path, linkToGuide,
 						configuredDescription(configuration, message.getDescription())));
@@ -154,7 +154,7 @@ public class ExampleMessageExportDataService {
 		boolean all = configuration.isExportAllMessages();
 		for (ExampleMessageDataModel dataModel : igDataModel.getExampleMessages().values()) {
 			ExampleMessage message = dataModel.getModel();
-			if (all || dataModel.isMessageReferenced()) {
+			if (includeMessage(dataModel, all)) {
 				files.put(dataModel.getFilePath(), bytes(message.getMessage()));
 			}
 			for (Map.Entry<String, String> snippetPath : dataModel.getSnippetFilePaths().entrySet()) {
@@ -183,6 +183,34 @@ public class ExampleMessageExportDataService {
 			configuration.setIncludeDescription(guide.isIncludeDescription());
 		}
 		return configuration;
+	}
+
+	/**
+	 * A listing the standalone export can open. Message pages link back to this file.
+	 */
+	public byte[] catalogIndex(Map<String, byte[]> pages) {
+		StringBuilder list = new StringBuilder();
+		if (pages != null) {
+			for (String path : pages.keySet()) {
+				if (path == null || !path.endsWith(".html") || "index.html".equals(path)) {
+					continue;
+				}
+				list.append("<li><a href=\"")
+						.append(ExampleMessageExportConfiguration.relativeHref(path))
+						.append("\">")
+						.append(escapeHtml(path))
+						.append("</a></li>");
+			}
+		}
+		String html = "<!DOCTYPE html>\n<html><head><meta charset=\"UTF-8\"/><title>Example messages</title>"
+				+ "<style>body{font-family:Georgia,serif;margin:24px;}a{color:#1565c0;}</style></head><body>"
+				+ "<h1>Example messages</h1><ul>" + list + "</ul></body></html>";
+		return bytes(html);
+	}
+
+	private static boolean includeMessage(ExampleMessageDataModel dataModel, boolean all) {
+		return all || dataModel.isMessageReferenced()
+				|| (dataModel.getReferencedSnippetIds() != null && !dataModel.getReferencedSnippetIds().isEmpty());
 	}
 
 	public byte[] zipFiles(Map<String, byte[]> files) throws IOException {

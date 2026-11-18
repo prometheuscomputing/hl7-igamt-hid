@@ -1,27 +1,49 @@
 .exmsg-config {
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
 .exmsg-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 10px;
   align-items: stretch;
 }
 
-.exmsg-row .card {
-  flex: 1 1 260px;
-  margin: 0 10px 10px 0;
+.exmsg-row-top,
+.exmsg-row-bottom {
+  grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr);
 }
 
-.exmsg-grow {
-  flex: 2 1 320px;
+.exmsg-row-choices {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.exmsg-row .card {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .exmsg-row .custom-card-title {
   background: #f4f6f8;
   border-bottom: 1px solid #e4e7eb;
   font-weight: 700;
+  margin: 0;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+
+.exmsg-row .list-group {
+  flex: 1;
+}
+
+.exmsg-row .list-group-item {
+  display: flex;
+  align-items: flex-start;
+  min-height: 38px;
 }
 
 .exmsg-body {
@@ -41,8 +63,38 @@
   line-height: 1.45;
 }
 
+:host ::ng-deep .list-group-item p-checkbox,
+:host ::ng-deep .list-group-item p-radiobutton {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+}
+
+:host ::ng-deep .ui-chkbox,
+:host ::ng-deep .ui-radiobutton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  vertical-align: top;
+}
+
 :host ::ng-deep .ui-chkbox-label,
 :host ::ng-deep .ui-radiobutton-label {
-  font-weight: 700;
+  display: block;
+  flex: 1;
+  margin: 0 0 0 8px;
+  line-height: 1.35;
+  font-weight: 600;
   color: #222;
+  white-space: normal;
+}
+
+@media (max-width: 980px) {
+  .exmsg-row-choices,
+  .exmsg-row-top,
+  .exmsg-row-bottom {
+    grid-template-columns: 1fr;
+  }
 }

@@ -9,3 +9,33 @@
 .toc-container {
   height: 100%;
 }
+
+.em-toc-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.em-toc-mark {
+  flex: 0 0 auto;
+}
+
+.em-toc-mark-snippet {
+  background-color: #6a1b9a;
+  color: #fff;
+}
+
+.em-toc-label {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+:host ::ng-deep .node-content-wrapper,
+:host ::ng-deep .node-wrapper {
+  white-space: nowrap;
+  word-break: normal;
+}
