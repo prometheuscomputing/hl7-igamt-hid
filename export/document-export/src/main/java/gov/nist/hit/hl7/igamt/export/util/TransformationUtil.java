@@ -15,10 +15,12 @@ package gov.nist.hit.hl7.igamt.export.util;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.xml.transform.ErrorListener;
 import javax.xml.transform.Source;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
@@ -38,29 +40,53 @@ import gov.nist.hit.hl7.igamt.export.domain.XSLTIncludeUriResolver;
 public class TransformationUtil {
 
   public static File doTransformToTempHtml(String xmlContent, String xsltPath, ExportParameters exportParameters) throws IOException, TransformerException {
-    File tmpHtmlFile = File.createTempFile("temp" + UUID.randomUUID().toString(), ".html");
-    // File tmpHtmlFile = new File("temp_" + UUID.randomUUID().toString() +
-    // ".html");
-    // Generate xml file containing profile
     File tmpXmlFile = File.createTempFile("temp" + UUID.randomUUID().toString(), ".xml");
-    // File tmpXmlFile = new File("temp_" + UUID.randomUUID().toString() +
-    // ".xml");
-    FileUtils.writeStringToFile(tmpXmlFile, xmlContent, Charset.forName("UTF-8"));
-    TransformerFactory factoryTf =  TransformerFactory.newInstance("org.apache.xalan.processor.TransformerFactoryImpl", null);
-    factoryTf.setURIResolver(new XSLTIncludeUriResolver());
-    Source xslt = new StreamSource(TransformationUtil.class.getResourceAsStream(xsltPath));
-    Transformer transformer;
-    // Apply XSL transformation on xml file to generate html
-    transformer = factoryTf.newTransformer(xslt);
-    // Set the parameters
-    Map<String, String> exportPararMap = exportParameters.toMap();
-    for (Map.Entry<String, String> param : exportPararMap.entrySet()) {
-      if (param != null && param.getKey() != null && param.getValue() != null) {
-        transformer.setParameter(param.getKey(), param.getValue());
+    File tmpHtmlFile = File.createTempFile("temp" + UUID.randomUUID().toString(), ".html");
+    boolean done = false;
+    try (InputStream stylesheet = TransformationUtil.class.getResourceAsStream(xsltPath)) {
+      FileUtils.writeStringToFile(tmpXmlFile, xmlContent, Charset.forName("UTF-8"));
+      TransformerFactory factoryTf = TransformerFactory.newInstance("org.apache.xalan.processor.TransformerFactoryImpl", null);
+      factoryTf.setURIResolver(new XSLTIncludeUriResolver());
+      Source xslt = new StreamSource(stylesheet);
+      Transformer transformer = factoryTf.newTransformer(xslt);
+      Map<String, String> exportPararMap = exportParameters.toMap();
+      for (Map.Entry<String, String> param : exportPararMap.entrySet()) {
+        if (param != null && param.getKey() != null && param.getValue() != null) {
+          transformer.setParameter(param.getKey(), param.getValue());
+        }
+      }
+      transformer.setErrorListener(STRICT);
+      transformer.transform(new StreamSource(tmpXmlFile), new StreamResult(tmpHtmlFile));
+      done = true;
+      return tmpHtmlFile;
+    } finally {
+      // the XML holds the whole guide: never leave it behind, nor a half-written result
+      FileUtils.deleteQuietly(tmpXmlFile);
+      if (!done) {
+        FileUtils.deleteQuietly(tmpHtmlFile);
       }
     }
-    transformer.transform(new StreamSource(tmpXmlFile), new StreamResult(tmpHtmlFile));
-    return tmpHtmlFile;
   }
+
+  /**
+   * Xalan's default listener prints stylesheet errors and carries on, which yields a truncated
+   * document that still looks like a successful export. Fail instead.
+   */
+  private static final ErrorListener STRICT = new ErrorListener() {
+    @Override
+    public void warning(TransformerException exception) {
+      // warnings do not affect the output
+    }
+
+    @Override
+    public void error(TransformerException exception) throws TransformerException {
+      throw exception;
+    }
+
+    @Override
+    public void fatalError(TransformerException exception) throws TransformerException {
+      throw exception;
+    }
+  };
 
 }

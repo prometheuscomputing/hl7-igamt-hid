@@ -17,42 +17,16 @@
 		<xsl:call-template name="valueSetAttributes" />
 		<!--		</xsl:if>-->
 		<xsl:if test="normalize-space(@url)!=''">
-			<xsl:if test="$documentTargetFormat='docx'">
-				<xsl:element name="br" />
-			</xsl:if>
-			<xsl:element name="p">
-				<xsl:element name="b">
-					<xsl:text>Reference URL: </xsl:text>
-				</xsl:element>
-				<xsl:element name="a">
-					<xsl:attribute name="href">
-						<xsl:value-of select="@url" />
-					</xsl:attribute>
-					<xsl:attribute name="target">
-						<xsl:text>_blank</xsl:text>
-					</xsl:attribute>
-					<xsl:value-of select="@url" />
-				</xsl:element>
-			</xsl:element>
+			<p class="ig-caption">
+				<xsl:text>Reference URL </xsl:text>
+				<a href="{@url}" target="_blank" rel="noopener"><xsl:value-of select="@url" /></a>
+			</p>
 		</xsl:if>
-		<xsl:if test="normalize-space(@url)!=''">
-			<xsl:if test="$documentTargetFormat='docx'">
-				<xsl:element name="br" />
-			</xsl:if>
-			<xsl:element name="p">
-				<xsl:element name="b">
-					<xsl:text>Phinvad URL: </xsl:text>
-				</xsl:element>
-				<xsl:element name="a">
-					<xsl:attribute name="href">
-						<xsl:value-of select="@phinvadURL" />
-					</xsl:attribute>
-					<xsl:attribute name="target">
-						<xsl:text>_blank</xsl:text>
-					</xsl:attribute>
-					<xsl:value-of select="@phinvadURL" />
-				</xsl:element>
-			</xsl:element>
+		<xsl:if test="normalize-space(@phinvadURL)!=''">
+			<p class="ig-caption">
+				<xsl:text>PHIN VADS URL </xsl:text>
+				<a href="{@phinvadURL}" target="_blank" rel="noopener"><xsl:value-of select="@phinvadURL" /></a>
+			</p>
 		</xsl:if>
 		<xsl:if
 				test="@contentDefinition='Intensional' and normalize-space(@InfoForExternal)!=''">

@@ -399,14 +399,21 @@ public class DatatypeSerializationServiceImpl implements DatatypeSerializationSe
       if(conformanceStatementDelta.getAction().equals(DeltaAction.DELETED) || conformanceStatementDelta.getAction().equals(DeltaAction.ADDED)) {
         Element addedDesc = new Element("Change");
         addedDesc.addAttribute(new Attribute("type", Type.CONFORMANCESTATEMENT.getValue()));
-        addedDesc.addAttribute(new Attribute("identifier", conformanceStatementDelta.getIdentifier().getCurrent()));
+        // A deleted statement only has a previous identifier, an added one only a current identifier.
+        String identifier = conformanceStatementDelta.getIdentifier().getCurrent() != null
+            ? conformanceStatementDelta.getIdentifier().getCurrent()
+            : conformanceStatementDelta.getIdentifier().getPrevious();
+        if (identifier == null) {
+          identifier = "";
+        }
+        addedDesc.addAttribute(new Attribute("identifier", identifier));
         addedDesc.addAttribute(new Attribute("action", conformanceStatementDelta.getAction().name()));
         addedDesc.addAttribute(new Attribute("property", PropertyType.DESCRIPTION.name()));
         element.appendChild(addedDesc);
 
         Element addedId = new Element("Change");
         addedId.addAttribute(new Attribute("type", Type.CONFORMANCESTATEMENT.getValue()));
-        addedId.addAttribute(new Attribute("identifier", conformanceStatementDelta.getIdentifier().getCurrent()));
+        addedId.addAttribute(new Attribute("identifier", identifier));
         addedId.addAttribute(new Attribute("action", conformanceStatementDelta.getAction().name()));
         addedId.addAttribute(new Attribute("property", PropertyType.IDENTIFIER.name()));
         element.appendChild(addedId);

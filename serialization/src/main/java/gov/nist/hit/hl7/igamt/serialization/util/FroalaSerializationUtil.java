@@ -15,7 +15,6 @@ package gov.nist.hit.hl7.igamt.serialization.util;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -62,7 +61,9 @@ public class FroalaSerializationUtil {
     input = input.replace("</p>", "</div>");
     // input = input.replace("&reg;","&amp;reg;");
     input = input.replace("&lsquo;", "&#39;");
-    input = input.replaceAll("[^\\p{Print}]", "?");
+    // Keep the author's text as written (accents, symbols, non-Latin scripts); only drop
+    // control characters, which XML cannot carry.
+    input = XmlCharacters.keepValid(input);
     Document doc = Jsoup.parse(input);
     Elements elements1 = doc.select("h1");
     elements1.tagName("p").attr("style",
@@ -97,10 +98,11 @@ public class FroalaSerializationUtil {
               bytes = IOUtils.toByteArray(imgis);
             }
           } else {
-            String filename = elementImg.attr("src");
-            ext = FilenameUtils.getExtension(filename);
-            URL url = new URL(filename);
-            bytes = IOUtils.toByteArray(url);
+            // an address the author typed: fetched only from the public web, and only if it is a picture
+            RemoteImageLoader.Image image = RemoteImageLoader.load(elementImg.attr("src"));
+            if (image != null) {
+              elementImg.attr("src", "data:" + image.mediaType + ";base64," + Base64.getEncoder().encodeToString(image.bytes));
+            }
           }
           if (bytes != null && bytes.length > 0) {
             String imgEnc = Base64.getEncoder().encodeToString(bytes);

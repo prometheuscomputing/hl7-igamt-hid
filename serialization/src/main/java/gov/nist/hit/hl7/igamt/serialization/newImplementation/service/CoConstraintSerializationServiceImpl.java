@@ -110,23 +110,97 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 	private Element serializeCoConstraintsTableContentCompactDelta(SerializableCoConstraintTable coConstraintsTable,
 			List<SerializableDataElementHeader> headersList, int calculateGroupNameColspan, List<CoConstraintBinding> coConstraintDeltaChanged, ConformanceProfileExportConfiguration conformanceProfileExportConfiguration) {
 		Element tableContent = new Element("tbody");
+		// the same columns as the header: one for the grouper when the table has groups, one per narrative
+		boolean isGroup = coConstraintsTable.getGroups() != null && !coConstraintsTable.getGroups().isEmpty();
+		List<CoConstraintHeader> narratives = coConstraintsTable.getHeaders().getNarratives();
 		if (coConstraintsTable.getCoConstraints() != null) {
 			int position = 0;
 			for (CoConstraint coConstraint : coConstraintsTable.getCoConstraints()) {
 				position += 1;
 				Element rowElement = serializeRowCompactDelta(coConstraint, headersList, position, conformanceProfileExportConfiguration);
 				if (rowElement != null) {
+					appendGroupAndNarrativeCells(rowElement, coConstraint, narratives, isGroup, false);
 					tableContent.appendChild(rowElement);
 				}
 			}
 		}
-		for (CoConstraintGroupBinding coConstraintGroupBinding : coConstraintsTable.getGroups()) {
-			Element groupElement = serializeGroupCompactDelta(coConstraintGroupBinding, headersList, calculateGroupNameColspan, conformanceProfileExportConfiguration);
-			if(groupElement != null){
-				tableContent.appendChild(groupElement);
+		if (coConstraintsTable.getGroups() != null) {
+			for (CoConstraintGroupBinding coConstraintGroupBinding : coConstraintsTable.getGroups()) {
+				appendGroupCompactDelta(tableContent, coConstraintGroupBinding, headersList, narratives, calculateGroupNameColspan,
+						conformanceProfileExportConfiguration);
 			}
 		}
 		return tableContent;
+	}
+
+	/**
+	 * A group of a differential table: its heading row, then its rows as the rows outside a group
+	 * are written. A group that did not change is left out when the configuration hides what did not
+	 * change, and so is a group none of whose rows is left.
+	 */
+	private void appendGroupCompactDelta(Element tableContent, CoConstraintGroupBinding group, List<SerializableDataElementHeader> headersList,
+			List<CoConstraintHeader> narratives, int colspanTableWidth, ConformanceProfileExportConfiguration configuration) {
+		if (group == null || !GroupBindingType.CONTAINED.equals(group.getType())) {
+			return;
+		}
+		// a group is listed for as long as one of its rows is: the rows decide what a mode hides
+		boolean wholeGroup = DeltaAction.ADDED.equals(group.getDelta()) || DeltaAction.DELETED.equals(group.getDelta());
+		String color = wholeGroup ? configuration.getDeltaConfig().getColors().get(group.getDelta()) : null;
+		List<Element> rows = new ArrayList<Element>();
+		List<CoConstraint> groupRows = ((CoConstraintGroupBindingContained) group).getCoConstraints();
+		if (groupRows != null) {
+			int position = 0;
+			for (CoConstraint coConstraint : groupRows) {
+				position += 1;
+				Element row = wholeGroup ? serializeRowCompact(coConstraint, headersList, narratives, true, true, position)
+						: serializeRowCompactDelta(coConstraint, headersList, position, configuration);
+				if (row == null) {
+					continue;
+				}
+				if (!wholeGroup) {
+					appendGroupAndNarrativeCells(row, coConstraint, narratives, true, true);
+				} else if (color != null) {
+					row.addAttribute(new Attribute("style", "background-color: " + color));
+				}
+				rows.add(row);
+			}
+		}
+		// a group whose name, usage or cardinality changed is a change of its own, whatever became of its rows
+		boolean changedItself = DeltaAction.CHANGED.equals(group.getDelta()) || DeltaAction.UPDATED.equals(group.getDelta());
+		if (rows.isEmpty() && !changedItself) {
+			return;
+		}
+		Element heading = serializeGroupHeaderCompact(group, colspanTableWidth);
+		if (changedItself && color == null) {
+			color = configuration.getDeltaConfig().getColors().get(group.getDelta());
+		}
+		if (color != null && heading.getAttribute("style") == null) {
+			heading.addAttribute(new Attribute("style", "background-color: " + color));
+		}
+		tableContent.appendChild(heading);
+		for (Element row : rows) {
+			tableContent.appendChild(row);
+		}
+	}
+
+	/** The cells after the "if" and "then" columns: what the row is grouped by, then one cell per narrative column. */
+	private void appendGroupAndNarrativeCells(Element tr, CoConstraint coConstraintTableRow, List<CoConstraintHeader> narrativesHeadersList,
+			boolean isGroup, boolean isWithinGroup) {
+		if (isGroup) {
+			Element tdGroup = new Element("td");
+			tdGroup.appendChild(isWithinGroup ? "Within same group" : "Distinct");
+			tr.appendChild(tdGroup);
+		}
+		if (narrativesHeadersList == null) {
+			return;
+		}
+		for (CoConstraintHeader header : narrativesHeadersList) {
+			if (header == null) {
+				continue;
+			}
+			CoConstraintCell cell = coConstraintTableRow.getCells() != null ? coConstraintTableRow.getCells().get(header.getKey()) : null;
+			tr.appendChild(cell != null ? serializeCellCompact(cell, cell.getType()) : new Element("td"));
+		}
 	}
 
 	private Element serializeCoConstraintsTableContentCompact(SerializableCoConstraintTable coConstraintsTable,
@@ -147,9 +221,20 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 				tableContent.appendChild(rowElement);
 			}
 		}
+		// A group is a heading row followed by its own rows, all in the same table body
 		for (CoConstraintGroupBinding coConstraintGroupBinding : coConstraintsTable.getGroups()) {
-			Element groupElement = serializeGroupCompact(coConstraintGroupBinding, ifAndThenHeadersList, narrativeHeadersList, isGroup, true, calculateGroupNameColspan);
-			tableContent.appendChild(groupElement);
+			if (coConstraintGroupBinding == null || !GroupBindingType.CONTAINED.equals(coConstraintGroupBinding.getType())) {
+				continue;
+			}
+			tableContent.appendChild(serializeGroupHeaderCompact(coConstraintGroupBinding, calculateGroupNameColspan));
+			List<CoConstraint> groupRows = ((CoConstraintGroupBindingContained) coConstraintGroupBinding).getCoConstraints();
+			if (groupRows != null) {
+				int groupPosition = 0;
+				for (CoConstraint coConstraint : groupRows) {
+					groupPosition += 1;
+					tableContent.appendChild(serializeRowCompact(coConstraint, ifAndThenHeadersList, narrativeHeadersList, true, true, groupPosition));
+				}
+			}
 		}
 		return tableContent;
 	}
@@ -175,11 +260,11 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 //		th.addAttribute(new Attribute("class", "ifContentThead"));
 		th.addAttribute(
 				new Attribute("colspan", String.valueOf(calculateHeadersNumber(coConstraintTable.getHeaders().getSerializableSelectors()))));
-		th.appendChild("IF");
+		th.appendChild("If");
 		tr.appendChild(th);
 		th = new Element("th");
 		th.addAttribute(new Attribute("colspan", String.valueOf(calculateHeadersNumber(coConstraintTable.getHeaders().getSerializableConstraints()))));
-		th.appendChild("THEN");
+		th.appendChild("Then");
 		tr.appendChild(th);
 		if (!coConstraintTable.getGroups().isEmpty()) {
 			th = new Element("th");
@@ -192,7 +277,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 			th = new Element("th");
 			th.addAttribute(new Attribute("class", "greenHeader"));
 			th.addAttribute(new Attribute("colspan", String.valueOf(coConstraintTable.getHeaders().getNarratives().size())));
-			th.appendChild("NARRATIVES");
+			th.appendChild("Narrative");
 			tr.appendChild(th);
 		}
 		thead.appendChild(tr);
@@ -202,7 +287,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 				if (coConstraintHeader.isCardinality()) {
 					Element thIF = new Element("th");
 					thIF.addAttribute(new Attribute("class", "ifContentThead"));
-					String headerLabel = ((DataElementHeader) coConstraintHeader).getColumnType().name() + " " + coConstraintHeader.getName();
+					String headerLabel = columnLabel(((DataElementHeader) coConstraintHeader).getColumnType(), coConstraintHeader.getName());
 					thIF.appendChild(headerLabel);
 					tr.appendChild(thIF);
 					Element thCard = new Element("th");
@@ -212,7 +297,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 				} else {
 					Element thIF = new Element("th");
 					thIF.addAttribute(new Attribute("class", "ifContentThead"));
-					String headerLabel = coConstraintHeader.getColumnType().name() + " " + coConstraintHeader.getName();
+					String headerLabel = columnLabel(coConstraintHeader.getColumnType(), coConstraintHeader.getName());
 					thIF.appendChild(headerLabel);
 					tr.appendChild(thIF);
 				}
@@ -222,7 +307,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 			if (coConstraintHeader != null) {
 				if (coConstraintHeader.isCardinality()) {
 					Element thThen = new Element("th");
-					String headerLabel = coConstraintHeader.getColumnType().name() + " " + coConstraintHeader.getName();
+					String headerLabel = columnLabel(coConstraintHeader.getColumnType(), coConstraintHeader.getName());
 					thThen.appendChild(headerLabel);
 					tr.appendChild(thThen);
 					Element thCard = new Element("th");
@@ -230,7 +315,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 					tr.appendChild(thCard);
 				} else {
 					Element thThen = new Element("th");
-					String headerLabel = coConstraintHeader.getColumnType().name() + " " + coConstraintHeader.getName();
+					String headerLabel = columnLabel(coConstraintHeader.getColumnType(), coConstraintHeader.getName());
 					thThen.appendChild(headerLabel);
 					tr.appendChild(thThen);
 				}
@@ -238,7 +323,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 		}
 		if (!coConstraintTable.getGroups().isEmpty()) {
 			Element thGroupBy = new Element("th");
-			String headerLabel = "Group Id :  " + coConstraintTable.getHeaders().getGrouper().getName();
+			String headerLabel = coConstraintTable.getHeaders().getGrouper().getName() + " (group ID)";
 			thGroupBy.appendChild(headerLabel);
 			tr.appendChild(thGroupBy);
 		}
@@ -247,7 +332,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 			if (coConstraintHeader != null) {
 				Element thUser = new Element("th");
 				thUser.addAttribute(new Attribute("class", "greenHeader"));
-				String headerLabel = "TEXT " + ((NarrativeHeader) coConstraintHeader).getTitle();
+				String headerLabel = ((NarrativeHeader) coConstraintHeader).getTitle();
 				thUser.appendChild(headerLabel);
 				tr.appendChild(thUser);
 			}
@@ -258,131 +343,127 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 
 	public Element serializeCellCompact(CoConstraintCell coConstraintTableCell, ColumnType columnType) {
 		Element tdCell = new Element("td");
+		if (coConstraintTableCell == null || columnType == null) {
+			return tdCell;
+		}
 		switch (columnType) {
 		case CODE:
 			CodeCell codeCell = (CodeCell) coConstraintTableCell;
-			Element table = new Element("table");
-			// table.addAttribute(new Attribute("style", "border : none"));
-			Element tr1 = new Element("tr");
-			Element tr2 = new Element("tr");
-			Element tr3 = new Element("tr");
-			table.appendChild(tr1);
-			table.appendChild(tr2);
-			table.appendChild(tr3);
-			Element td1 = new Element("td");
-			Element td2 = new Element("td");
-			Element td3 = new Element("td");
-			td1.addAttribute(new Attribute("style", "border : none"));
-			td2.addAttribute(new Attribute("style", "border : none"));
-			td3.addAttribute(new Attribute("style", "border : none"));
-			tr1.appendChild(td1);
-			tr2.appendChild(td2);
-			tr3.appendChild(td3);
-			String location = "";
-			for (int i : codeCell.getLocations()) {
-				if (codeCell.getLocations().size() == 1) {
-					location = String.valueOf(codeCell.getLocations().get(0));
-				} else if (codeCell.getLocations().size() == 2) {
-					location = codeCell.getLocations().get(0) + " or " + codeCell.getLocations().get(1);
-				} else if (codeCell.getLocations().size() == 3) {
-					location = codeCell.getLocations().get(0) + " or " + codeCell.getLocations().get(1)
-							+ " or " + codeCell.getLocations().get(2);
-				} else {
-					location = location + "or" + i;
-				}
+			Element code = cellItem(tdCell);
+			code.appendChild(cellPart("cc-code", codeCell.getCode()));
+			List<String> codeDetails = new ArrayList<String>();
+			if (!Strings.isNullOrEmpty(codeCell.getCodeSystem())) {
+				codeDetails.add(codeCell.getCodeSystem());
 			}
-			td1.appendChild("Code : " + codeCell.getCode());
-			td2.appendChild("Code System : " + codeCell.getCodeSystem());
-			td3.appendChild("Location : " + location);
-			tdCell.appendChild(table);
+			if (codeCell.getLocations() != null && !codeCell.getLocations().isEmpty()) {
+				codeDetails.add("at " + joinLocations(codeCell.getLocations()));
+			}
+			appendDetails(code, codeDetails);
 			break;
-
 		case VALUE:
 			ValueCell dataCell = (ValueCell) coConstraintTableCell;
 			if (dataCell.getValue() != null) {
 				tdCell.appendChild(dataCell.getValue());
-			} else {
-				tdCell.appendChild("");
 			}
 			break;
-
 		case VALUESET:
 			ValueSetCell vSCell = (ValueSetCell) coConstraintTableCell;
-			Element table3 = new Element("table");
-			table3.addAttribute(new Attribute("style", "border : none"));
 			if (vSCell.getBindings() != null) {
 				for (ValuesetBinding valuesetBinding : vSCell.getBindings()) {
-					//				Element trTable = new Element("tr");	
-					//				trTable.addAttribute(new Attribute("style", "border : none"));
-					Element trV1 = new Element("tr");
-					Element trV2 = new Element("tr");
-					Element trV3 = new Element("tr");
-					table3.appendChild(trV1);
-					table3.appendChild(trV2);
-					table3.appendChild(trV3);
-					Element tdV1 = new Element("td");
-					Element tdV2 = new Element("td");
-					Element tdV3 = new Element("td");
-					tdV1.addAttribute(new Attribute("style", "border : none"));
-					tdV2.addAttribute(new Attribute("style", "border : none"));
-					tdV3.addAttribute(new Attribute("style", "border : none"));
-					trV1.appendChild(tdV1);
-					trV2.appendChild(tdV2);
-					trV3.appendChild(tdV3);
-					tdV1.appendChild("Strength : " + valuesetBinding.getStrength());
-					tdV2.appendChild("Location: " + valuesetBinding.getValuesetLocations().toString());
-					tdV3.appendChild("Valuesets : " + generateValuesetNames(valuesetBinding.getValueSets()));
-					//				table3.appendChild(trTable);
-					tdCell.appendChild(table3);
+					Element binding = cellItem(tdCell);
+					boolean first = true;
+					for (String name : valuesetNames(valuesetBinding.getValueSets())) {
+						if (!first) {
+							binding.appendChild(", ");
+						}
+						binding.appendChild(cellPart("cc-valueset", name));
+						first = false;
+					}
+					List<String> bindingDetails = new ArrayList<String>();
+					if (valuesetBinding.getStrength() != null) {
+						bindingDetails.add(valuesetBinding.getStrength().value);
+					}
+					if (valuesetBinding.getValuesetLocations() != null && !valuesetBinding.getValuesetLocations().isEmpty()) {
+						bindingDetails.add("at " + joinLocations(valuesetBinding.getValuesetLocations()));
+					}
+					appendDetails(binding, bindingDetails);
 				}
-			} else {
-				table3 = null;
 			}
-			//				tdCell.appendChild(table3);
 			break;
-
 		case VARIES:
 			VariesCell variesCell = (VariesCell) coConstraintTableCell;
-			if (variesCell.getCellType() != null) {
+			if (variesCell.getCellType() != null && variesCell.getCellValue() != null) {
 				tdCell = serializeCellCompact(variesCell.getCellValue(), variesCell.getCellType());
-			} else {
-				tdCell.appendChild("");
 			}
-
-			//				if(coConstraintTableCell.getCardinalityMax() != null) {
-			//					Element tdCard = new Element("td");
-			//					tdCard.appendChild(coConstraintTableCell.getCardinalityMax());
-			//					tdCell.appendChild(tdCard);
-			//				}
 			break;
-
 		case DATATYPE:
-			Element table2 = new Element("table");
-			// table.addAttribute(new Attribute("style", "border : none"));
-			Element trD1 = new Element("tr");
-			Element trD2 = new Element("tr");
-			table2.appendChild(trD1);
-			table2.appendChild(trD2);
-			Element tdD1 = new Element("td");
-			Element tdD2 = new Element("td");
-			tdD1.addAttribute(new Attribute("style", "border : none"));
-			tdD2.addAttribute(new Attribute("style", "border : none"));
-			trD1.appendChild(tdD1);
-			trD2.appendChild(tdD2);
 			DatatypeCell datatypeCell = (DatatypeCell) coConstraintTableCell;
-			if (datatypeCell.getDatatypeId() != null && !Strings.isNullOrEmpty(datatypeCell.getDatatypeId())) {
+			if (!Strings.isNullOrEmpty(datatypeCell.getDatatypeId())) {
 				Datatype datatype = datatypeService.findById(datatypeCell.getDatatypeId());
-				tdD1.appendChild("Value : " + datatype.getName());
-				tdD2.appendChild("Flavor : " + datatype.getLabel());
-			} else {
-				tdD1.appendChild("");
-				tdD2.appendChild("");
+				if (datatype != null) {
+					Element item = cellItem(tdCell);
+					item.appendChild(cellPart("cc-datatype", datatype.getLabel()));
+					if (datatype.getName() != null && !datatype.getName().equals(datatype.getLabel())) {
+						List<String> datatypeDetails = new ArrayList<String>();
+						datatypeDetails.add("flavor of " + datatype.getName());
+						appendDetails(item, datatypeDetails);
+					}
+				}
 			}
-			tdCell.appendChild(table2);
+			break;
+		default:
 			break;
 		}
-
 		return tdCell;
+	}
+
+	/** One line of a co-constraint cell: a value followed by its qualifiers. */
+	private static Element cellItem(Element cell) {
+		Element item = new Element("div");
+		item.addAttribute(new Attribute("class", "cc-item"));
+		cell.appendChild(item);
+		return item;
+	}
+
+	private static Element cellPart(String cssClass, String text) {
+		Element part = new Element("span");
+		part.addAttribute(new Attribute("class", cssClass));
+		part.appendChild(text == null ? "" : text);
+		return part;
+	}
+
+	private static void appendDetails(Element item, List<String> details) {
+		if (details.isEmpty()) {
+			return;
+		}
+		item.appendChild(" ");
+		item.appendChild(cellPart("cc-sub", String.join(", ", details)));
+	}
+
+	private static String joinLocations(java.util.Collection<Integer> locations) {
+		List<String> parts = new ArrayList<String>();
+		for (Integer location : new java.util.TreeSet<Integer>(locations)) {
+			parts.add(String.valueOf(location));
+		}
+		return String.join(" or ", parts);
+	}
+
+	private static String columnLabel(ColumnType type, String name) {
+		String kind = type == null ? "" : type.name().toLowerCase().replace("valueset", "value set").replace("datatype", "data type");
+		return kind.isEmpty() ? name : name + " (" + kind + ")";
+	}
+
+	private List<String> valuesetNames(List<String> ids) {
+		List<String> names = new ArrayList<String>();
+		if (ids != null) {
+			for (String id : ids) {
+				Valueset vs = valuesetService.findById(id);
+				if (vs != null) {
+					names.add(vs.getBindingIdentifier());
+				}
+			}
+		}
+		return names;
 	}
 
 	public Element serializeRowCompactDelta(CoConstraint coConstraintTableRow, List<SerializableDataElementHeader> headersList, int position, ConformanceProfileExportConfiguration conformanceProfileExportConfiguration) {
@@ -399,7 +480,9 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 			tr.addAttribute(new Attribute("style", "background-color: "+conformanceProfileExportConfiguration.getDeltaConfig().getColors().get(coConstraintTableRow.getDelta())));
 			Element td = new Element("td");
 			if (position == 1) {
-				td.appendChild(" 1 (Primary)");
+				td.appendChild("1");
+			td.appendChild(" ");
+			td.appendChild(cellPart("cc-sub", "primary"));
 			} else {
 				td.appendChild(String.valueOf(position));
 			}
@@ -420,16 +503,20 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 			for (SerializableDataElementHeader header : headersList) {
 				if (coConstraintTableRow.getCells().containsKey(header.getKey())) {
 					CoConstraintCell coConstraintTableCell = coConstraintTableRow.getCells().get(header.getKey());
-					Element tdCell = serializeCellCompact(coConstraintTableCell, coConstraintTableCell.getType());
-					tr.appendChild(tdCell);
+					tr.appendChild(coConstraintTableCell != null ? serializeCellCompact(coConstraintTableCell, coConstraintTableCell.getType()) : new Element("td"));
 					if (header.isCardinality()) {
 						Element tdCard = new Element("td");
-						tdCard.appendChild(coConstraintTableCell.getCardinalityMax());
+						if (coConstraintTableCell != null && coConstraintTableCell.getCardinalityMax() != null) {
+							tdCard.appendChild(coConstraintTableCell.getCardinalityMax());
+						}
 						tr.appendChild(tdCard);
 					}
 				} else {
-					Element tdEmpty = new Element("td");
-					tr.appendChild(tdEmpty);
+					tr.appendChild(new Element("td"));
+					if (header.isCardinality()) {
+						// the column of the value and the one of its cardinality
+						tr.appendChild(new Element("td"));
+					}
 				}
 
 			}
@@ -439,7 +526,9 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 
 			Element td = new Element("td");
 			if (position == 1) {
-				td.appendChild(" 1 (Primary)");
+				td.appendChild("1");
+			td.appendChild(" ");
+			td.appendChild(cellPart("cc-sub", "primary"));
 			} else {
 				td.appendChild(String.valueOf(position));
 			}
@@ -595,18 +684,20 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 				if (coConstraintTableRow.getCells().containsKey(header.getKey())) {
 					CoConstraintCell coConstraintTableCell = coConstraintTableRow.getCells().get(header.getKey());
 					// I added this if close because it throws an error in a context outside of Delta where coConstraintTableCell is null
-					if(coConstraintTableCell != null) {
-						Element tdCell = serializeCellCompact(coConstraintTableCell, coConstraintTableCell.getType());
-						tr.appendChild(tdCell);
-					}
+					tr.appendChild(coConstraintTableCell != null ? serializeCellCompact(coConstraintTableCell, coConstraintTableCell.getType()) : new Element("td"));
 					if (header.isCardinality()) {
 						Element tdCard = new Element("td");
-						tdCard.appendChild(coConstraintTableCell.getCardinalityMax());
+						if (coConstraintTableCell != null && coConstraintTableCell.getCardinalityMax() != null) {
+							tdCard.appendChild(coConstraintTableCell.getCardinalityMax());
+						}
 						tr.appendChild(tdCard);
 					}
 				} else {
-					Element tdEmpty = new Element("td");
-					tr.appendChild(tdEmpty);
+					tr.appendChild(new Element("td"));
+					if (header.isCardinality()) {
+						// the column of the value and the one of its cardinality
+						tr.appendChild(new Element("td"));
+					}
 				}
 
 			}
@@ -621,7 +712,9 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 		Element tr = new Element("tr");
 		Element td = new Element("td");
 		if (position == 1) {
-			td.appendChild(" 1 (Primary)");
+			td.appendChild("1");
+			td.appendChild(" ");
+			td.appendChild(cellPart("cc-sub", "primary"));
 		} else {
 			td.appendChild(String.valueOf(position));
 		}
@@ -638,46 +731,25 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 		for (SerializableDataElementHeader header : ifAndThenHeadersList) {
 			if (coConstraintTableRow.getCells().containsKey(header.getKey())) {
 				CoConstraintCell coConstraintTableCell = coConstraintTableRow.getCells().get(header.getKey());
-				if(coConstraintTableCell != null) {
-					Element tdCell = serializeCellCompact(coConstraintTableCell, coConstraintTableCell.getType());
-					tr.appendChild(tdCell);
-				}
+				tr.appendChild(coConstraintTableCell != null ? serializeCellCompact(coConstraintTableCell, coConstraintTableCell.getType()) : new Element("td"));
 				if (header.getType().equals(HeaderType.DATAELEMENT)) {
 					if (header.isCardinality()) {
 						Element tdCard = new Element("td");
-						tdCard.appendChild(coConstraintTableCell.getCardinalityMax());
+						if (coConstraintTableCell != null && coConstraintTableCell.getCardinalityMax() != null) {
+							tdCard.appendChild(coConstraintTableCell.getCardinalityMax());
+						}
 						tr.appendChild(tdCard);
 					}
 				}
 			} else {
-				Element tdEmpty = new Element("td");
-				tr.appendChild(tdEmpty);
-			}
-		}
-		if (isGroup) {
-			Element tdCard = new Element("td");
-			if(isWithinGroup) {
-				tdCard.appendChild("Within Same Group");
-				tr.appendChild(tdCard);
-			} else {
-				tdCard.appendChild("Distinct");
-				tr.appendChild(tdCard);
-			}
-		}
-		for (CoConstraintHeader header : narrativesHeadersList) {
-			if (coConstraintTableRow.getCells().containsKey(header.getKey())) {
-				CoConstraintCell coConstraintTableCell = coConstraintTableRow.getCells().get(header.getKey());
-				if(coConstraintTableCell != null) {
-
-					Element tdCell = serializeCellCompact(coConstraintTableCell, coConstraintTableCell.getType());
-					tr.appendChild(tdCell);
+				tr.appendChild(new Element("td"));
+				if (header.isCardinality()) {
+					// the column of the value and the one of its cardinality
+					tr.appendChild(new Element("td"));
 				}
-			} else {
-				Element tdEmpty = new Element("td");
-				tr.appendChild(tdEmpty);
 			}
-
 		}
+		appendGroupAndNarrativeCells(tr, coConstraintTableRow, narrativesHeadersList, isGroup, isWithinGroup);
 		return tr;
 
 	}
@@ -736,14 +808,10 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 	public Element serializeGroupHeaderCompact(CoConstraintGroupBinding coConstraintGroupBinding, int colspanTableWidth) {
 		// Element tbody = new Element("thead");
 		Element tr = new Element("tr");
-		tr.addAttribute(new Attribute("class", "lightGreyCell"));
-		tr.addAttribute(new Attribute("style", "border-top:3pt solid black"));
-		tr.addAttribute(new Attribute("align", "center"));
-		tr.addAttribute(new Attribute("class", "lightPinkCell"));
+		tr.addAttribute(new Attribute("class", "cc-group"));
+		// the group has no identifier: an empty cell, not an empty heading
+		tr.appendChild(new Element("td"));
 		Element th = new Element("th");
-		th.appendChild("");
-		tr.appendChild(th);
-		th = new Element("th");
 		th.appendChild(coConstraintGroupBinding.getRequirement().getUsage().toString());
 		tr.appendChild(th);
 		th = new Element("th");
@@ -755,7 +823,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 		th = new Element("th");
 		th.addAttribute(new Attribute("colspan", Integer.toString(colspanTableWidth)));
 		if (coConstraintGroupBinding != null && coConstraintGroupBinding.getType().equals(GroupBindingType.CONTAINED)) {
-			th.appendChild("Group name : " + ((CoConstraintGroupBindingContained) coConstraintGroupBinding).getName());
+			th.appendChild("Group " + ((CoConstraintGroupBindingContained) coConstraintGroupBinding).getName());
 		}
 		tr.appendChild(th);
 		// tbody.appendChild(tr);
@@ -830,7 +898,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 		th.addAttribute(new Attribute("colspan", "4"));
 		th.addAttribute(new Attribute("class", "lightPinkCell"));
 		if (coConstraintGroupBinding != null && coConstraintGroupBinding.getType().equals(GroupBindingType.CONTAINED)) {
-			th.appendChild("Group name : " + ((CoConstraintGroupBindingContained) coConstraintGroupBinding).getName() + "  |  " + "Usage : "
+			th.appendChild("Group " + ((CoConstraintGroupBindingContained) coConstraintGroupBinding).getName() + "  |  " + "Usage : "
 					+ coConstraintGroupBinding.getRequirement().getUsage().toString() + "  |  " + "Cardinality : ["
 					+ Integer.toString(coConstraintGroupBinding.getRequirement().getCardinality().getMin()) + " : "
 					+ coConstraintGroupBinding.getRequirement().getCardinality().getMax() + "]");
@@ -979,7 +1047,7 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 		th.addAttribute(new Attribute("class", "ifContentThead"));
 		th.addAttribute(new Attribute("width", "30%"));
 		// th.addAttribute(new Attribute("colspan", "2"));
-		th.appendChild("IF");
+		th.appendChild("If");
 		tr.appendChild(th);
 		th = new Element("th");
 		th.appendChild("Then");
@@ -1007,11 +1075,11 @@ public class CoConstraintSerializationServiceImpl implements CoConstraintSeriali
 	//		th.addAttribute(new Attribute("class", "ifContentThead"));
 	//		th.addAttribute(
 	//				new Attribute("colspan", String.valueOf(calculateHeadersNumber(coConstraintTable.getHeaders().getSelectors()))));
-	//		th.appendChild("IF");
+	//		th.appendChild("If");
 	//		tr.appendChild(th);
 	//		th = new Element("th");
 	//		th.addAttribute(new Attribute("colspan", String.valueOf(calculateHeadersNumber(coConstraintTable.getHeaders().getConstraints()))));
-	//		th.appendChild("THEN");
+	//		th.appendChild("Then");
 	//		tr.appendChild(th);
 	//		th = new Element("th");
 	//		th.addAttribute(new Attribute("class", "greenHeader"));

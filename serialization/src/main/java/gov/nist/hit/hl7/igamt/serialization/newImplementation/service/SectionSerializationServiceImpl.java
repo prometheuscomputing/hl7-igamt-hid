@@ -535,7 +535,6 @@ public class SectionSerializationServiceImpl implements SectionSerializationServ
 
 					List<ValuesetDataModel> ValuesetDataModelList = igDataModel.getValuesets().stream().collect(Collectors.toList());
 					Collections.sort(ValuesetDataModelList);
-					System.out.println("s");
 
 //                 	ArrayList<Link> sorted = new ArrayList<>(valuesetRegistry.getChildren());
 //                	Collections.sort(sorted);

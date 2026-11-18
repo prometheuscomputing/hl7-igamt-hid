@@ -2,6 +2,26 @@
 
 This describes the example-message feature as it is built on `example-messages-export` (`4e12274c7`, same commit as `example-messages-2026-04-15`). The export and its configuration screen may be replaced. How a person points the guide at a message is in "How to link a message or a snippet". Everything the export writes, including the configuration, the files, and the HTML, is in "Export". A new design can add, drop, or combine options, as long as those considerations stay true.
 
+## With the new export layout
+
+The export was rebuilt after this note was written (branch `export-overhaul`), and the two were merged. Where the rest of this note and this section disagree, this section is right.
+
+| What the note says | What is true now |
+| --- | --- |
+| The export CSS for `.fr-exmsg*` is in `templates/style/globalStyle.xsl` | That file is gone. The page rules are in `templates/assets/ig-export.css`, the Word rules in `templates/assets/ig-export-word.css` and `templates/assets/word-styles.xml` (`IgExample`, `IgExampleNote`, `IgExampleFacts`). |
+| A missing message is `div.fr-exmsg.fr-exmsg-missing` holding `span.fr-exmsg-link` in rich text, and `div.fr-exmsg` holding `div.fr-exmsg-warning` in a message section | Both write `div.fr-exmsg.fr-exmsg-missing` holding `div.fr-exmsg-warning`. |
+| In rich text, warnings come after the message; in a message section, before it | Before it, in both. |
+| The links of the Word file go to snapshot pages that its download does not contain | A link to a snapshot page carries `data-text-href`, the address of the `.txt` of the same message or snippet. `ExportHtmlEnhancer` uses it as the link in Word, where the `.txt` files sit beside the document, and removes the attribute everywhere. The XSLT reads it from `messageFile` and `snippetFile` on `ExampleMessage`. A reader who has only the Word file can open the IGAMT link; the two others need the extracted download. |
+| The Word file shows the block as the importer makes it | `ExportHtmlEnhancer.examplesForWord` turns each line of the message into a paragraph of style `IgExample` (one shaded box, a wrapped line continues indented) and the facts into a table of style `IgExampleFacts`. |
+
+`ExportHtmlEnhancer` leaves `table.fr-exmsg-info` alone: it is not one of the data tables of the guide. On the page, rich text that holds an example gets the class `ig-has-example` so the message is as wide as one of a message section.
+
+Both writers of the block are checked against each other, and against the Word document, by `ExampleMessageExportPipelineTest` in `export/document-export`. It compares them for a snippet, a whole message, a missing message and a missing snippet, with the snapshot and highlight on. It does not cover every configuration or the warnings of a snippet render, so a change to one writer still has to be made in the other by hand.
+
+The block of a snippet links to its message as well, so a guide that cites only a snippet now gets the file of the whole message in its download too. In Word, the spaces of a message that a paragraph would drop are written as non-breaking spaces and a tab as four of them, so that the line looks as it does on the page; text copied out of the Word file carries those characters. The `.txt` files are exact.
+
+The snapshot pages and the `.txt` files are as described below; they were not changed.
+
 ## Message, snippet, and metadata
 
 Stored in Mongo as one `IgExampleMessages` document per guide. The document id is the guide id. `exampleMessages` is the list of messages. This is not part of the conformance profile.

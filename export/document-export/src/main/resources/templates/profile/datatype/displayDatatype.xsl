@@ -1,5 +1,4 @@
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-	<xsl:import href="/templates/profile/datatype/displayComplexDatatype.xsl" />
 
 	<xsl:import href="/templates/profile/resource/preDef.xsl" />
 	<xsl:import href="/templates/profile/resource/postDef.xsl" />
@@ -10,47 +9,37 @@
 		<xsl:param name="inlineConstraint" select="'true'"></xsl:param>
 		<xsl:param name="target" select="'html'"></xsl:param>
 		<xsl:param name="increment" select="0"></xsl:param>
-		<xsl:variable name="h" select="4" />
+		<xsl:variable name="h" select="@h + $increment" />
 		
 		<xsl:for-each select="Datatype">
-			<xsl:element name="{concat('h', $h)}">
-				<xsl:if test="$target = 'docx'">
-					<xsl:attribute name="class">
-						<xsl:value-of select="concat('Heading', $h)" />
-					</xsl:attribute>
-				</xsl:if>
-				<xsl:element name="u">
-					<xsl:attribute name="id">
-						<xsl:value-of select="@id" />
-					</xsl:attribute>
-					<xsl:attribute name="class">
-						<xsl:value-of select="concat('section',$h)" />
-					</xsl:attribute>
+			<xsl:call-template name="igHeading">
+				<xsl:with-param name="level" select="$h" />
+				<xsl:with-param name="id" select="@id" />
+				<xsl:with-param name="title">
+					<xsl:value-of select="@label" />
+					<xsl:if test="normalize-space(../@description) != ''">
+						<xsl:value-of select="concat('-', ../@description)" />
+					</xsl:if>
+					<xsl:if test="normalize-space(@domainCompatibilityVersion) != ''">
+						<xsl:value-of select="concat(' (', @domainCompatibilityVersion, ')')" />
+					</xsl:if>
+				</xsl:with-param>
+				<xsl:with-param name="kind" select="'Datatype'" />
+				<xsl:with-param name="code" select="@label" />
+				<xsl:with-param name="target" select="$target" />
+				<xsl:with-param name="master">
 					<xsl:choose>
-						<xsl:when test="@scope = 'MASTER'">
-							<xsl:element name="span">
-								<xsl:attribute name="class">
-									<xsl:text>masterDatatypeLabel</xsl:text>
-								</xsl:attribute>
-								<xsl:text>MAS</xsl:text>
-							</xsl:element>
-							<xsl:element name="span">
-								<xsl:text> - </xsl:text>
-								<xsl:value-of select="@label" />
-							</xsl:element>
-						</xsl:when>
-						<xsl:otherwise>
-							<xsl:value-of select="concat(@label,'-',../@description,' (',@domainCompatibilityVersion,') ')" />
-						</xsl:otherwise>
+						<xsl:when test="@scope = 'MASTER'">true</xsl:when>
+						<xsl:otherwise>false</xsl:otherwise>
 					</xsl:choose>
-				</xsl:element>
-			</xsl:element>
-			
+				</xsl:with-param>
+			</xsl:call-template>
+			<!-- in a data type library, the facts of the flavor come first -->
+			<xsl:if test="$exportTypeVar != 'ig'">
+				<xsl:call-template name="LibraryFlavorFacts" />
+			</xsl:if>
 			<xsl:if test="@name = 'DTM' or @name = 'DT' ">
 			<!-- <xsl:apply-templates select="DateTimeDatatype"/> -->
-				<xsl:choose>
-				<!-- If exportTypeVar is "ig", use existing content -->
-				<xsl:when test="$exportTypeVar = 'ig'">
 			<xsl:element name="span">
 				<xsl:element name="b">
 					Data Type Definition
@@ -132,147 +121,6 @@
 					</xsl:element>
 				</xsl:element>
 			</xsl:element>
-			</xsl:when>
-					<xsl:otherwise>
-
-						<html>
-							<head>
-								<style>
-									table, th, td {
-									border: 2px solid black;
-									border-collapse: collapse;
-									}
-									th, td, p {
-									padding: 5px;
-									text-align: left;
-									}
-									.grisfonce {
-									background-color:#c1c1d7;
-									}
-									.rose {
-									background-color:#ffcccc;
-									color: #333333;
-									}
-									#customers tr:nth-child(even) {
-									background-color: #ffcccc;
-									}
-									#customers tr:hover {
-									background-color: #ddd;
-									}
-									.centered-table {
-									text-align: center;
-									}
-
-								</style>
-							</head>
-							<body>
-								<center>
-									<table style="background-color:#e0e0eb;" width="800" border="1"
-										   cellspacing="1" cellpadding="1">
-										<tr>
-											<td>
-												<div align="center">
-													<h2>
-														<U>
-															<b>
-																<xsl:value-of select="../@title" />
-															</b>
-														</U>
-													</h2>
-													<p>
-														<b>Purpose and Use : </b>
-														<xsl:value-of select="substring-before(substring-after(@usageNotes, '&gt;'), '&lt;')"  />
-													</p>
-													<table class="centered-table" width="800">
-														<tr>
-															<th class="grisfonce" colspan="10" style="text-align: center;">
-																<font color="#cc0000"><xsl:value-of select="concat(@datatypeFlavor,'(',@datatypeName,')',' Data type')" /></font>
-															</th>
-														</tr>
-														<tr>
-															<th colspan="3" class="rose"> Data Type Flavor</th>
-															<td colspan="7">
-																<xsl:value-of select="@datatypeFlavor" />
-															</td>
-														</tr>
-														<tr>
-															<th colspan="3" class="rose"> Data Type Name</th>
-															<td colspan="7">
-																<xsl:value-of select="@datatypeName" />
-															</td>
-														</tr>
-														<tr>
-															<th colspan="3" class="rose"> Short Description</th>
-															<td colspan="7">
-																<xsl:value-of select="@shortDescription" />
-															</td>
-														</tr>
-														<tr>
-															<th colspan="3" class="rose"> HL7 Versions</th>
-															<td colspan="7">
-																<xsl:value-of select="@hl7versions" />
-															</td>
-														</tr>
-														<tr>
-															<th colspan="3" class="rose"> Status</th>
-															<td colspan="7"><xsl:value-of select="@status" /></td>
-														</tr>
-														<tr>
-															<th colspan="3" class="rose"> Publication Date</th>
-															<td colspan="7">
-																<xsl:value-of select="@publicationDate" />
-															</td>
-														</tr>
-														<tr>
-															<th colspan="10" class="grisfonce" style="text-align: center;">
-																<font color="#cc0000"><xsl:value-of select="concat(../@title,' ','Standard Data Type Definition')" /></font>
-															</th>
-														</tr>
-													</table>
-													<table class="centered-table" id="customers" width="800">
-														<tr>
-															<td  style="width: 5%;">
-																<font color="#cc0000">#</font>
-															</td>
-															<td colspan="5">
-																<font color="#cc0000">Value</font>
-															</td>
-															<td colspan="1">
-																<font color="#cc0000">Format</font>
-															</td>
-															<td colspan="1">
-																<font color="#cc0000">Usage</font>
-															</td>
-														</tr>
-														<xsl:for-each select="DateTimeComponentDefinition">
-															<xsl:sort select="@position" data-type="number"
-																	  order="ascending" />
-
-															<tr>
-																<td  style="width: 5%;">
-																	<xsl:value-of select="@position" />
-																</td>
-																<td colspan="5" class="rouge">
-																	<xsl:value-of select="@name" />
-																</td>
-																<td colspan="1" class="rouge">
-																	<xsl:value-of select="@format" />
-																</td>
-																<td colspan="1" class="rouge">
-																	<xsl:value-of select="@usage" />
-																</td>
-															</tr>
-														</xsl:for-each>
-													</table>
-												</div>
-											</td>
-										</tr>
-									</table>
-								</center>
-							</body>
-						</html>
-					</xsl:otherwise>
-				</xsl:choose>
 		</xsl:if>
 			
 			<xsl:call-template name="PreDef" />

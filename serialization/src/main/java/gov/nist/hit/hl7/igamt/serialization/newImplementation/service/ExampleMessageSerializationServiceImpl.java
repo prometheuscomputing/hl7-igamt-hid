@@ -52,6 +52,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 	private static final String MODE_FILE = "SEPARATE_FILES";
 	private static final String MODE_MISSING = "MISSING";
 	private static final String MISSING_TEXT = "The referenced example message is no longer available.";
+	private static final String MISSING_SNIPPET_TEXT = "The attached snippet could not be found; the full message is shown.";
 
 	@Override
 	public Element serializeReference(IgDataModel igDataModel, String messageId, String snippetId,
@@ -79,7 +80,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 
 		element.addAttribute(new Attribute("name", nz(message.getName())));
 		element.addAttribute(new Attribute("profile", nz(dataModel.getProfileLabel())));
-		element.addAttribute(new Attribute("label", dataModel.getLabel(snippetFound ? snippetId : null)));
+		element.addAttribute(new Attribute("label", nz(dataModel.getLabel(snippetFound ? snippetId : null))));
 		if (snippetFound) {
 			element.addAttribute(new Attribute("snippetName", nz(snippet.getName())));
 		}
@@ -92,7 +93,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 			}
 		}
 		if (snippetRequested && !snippetFound) {
-			element.appendChild(warning("The snippet attached to this section could not be found; the full message is shown."));
+			element.appendChild(warning(MISSING_SNIPPET_TEXT));
 		}
 		if (snippetFound && render.getWarnings() != null) {
 			for (String text : render.getWarnings()) {
@@ -114,9 +115,13 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 			element.addAttribute(new Attribute("mode", "NONE"));
 		}
 		if (configuration.isRelativeLink() && configuration.producesFiles()) {
-			element.addAttribute(new Attribute("messagePage", pageHref(igDataModel, messageId, null)));
+			// the block of a snippet links to its message too: that file has to be in the download
+			dataModel.markReferenced(null);
+			element.addAttribute(new Attribute("messagePage", nz(pageHref(igDataModel, messageId, null))));
+			element.addAttribute(new Attribute("messageFile", nz(fileHref(igDataModel, messageId, null))));
 			if (snippetFound) {
-				element.addAttribute(new Attribute("snippetPage", pageHref(igDataModel, messageId, snippetId)));
+				element.addAttribute(new Attribute("snippetPage", nz(pageHref(igDataModel, messageId, snippetId))));
+				element.addAttribute(new Attribute("snippetFile", nz(fileHref(igDataModel, messageId, snippetId))));
 			}
 		}
 		if (configuration.isIgamtLink()) {
@@ -163,7 +168,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 			widget.empty();
 			if (dataModel == null || dataModel.getModel() == null) {
 				widget.addClass("fr-exmsg-missing");
-				widget.appendElement("span").addClass("fr-exmsg-link").text(MISSING_TEXT);
+				widget.appendElement("div").addClass("fr-exmsg-warning").text(MISSING_TEXT);
 				continue;
 			}
 			ExampleMessage message = dataModel.getModel();
@@ -172,28 +177,35 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 			boolean snippetFound = snippet != null && render != null;
 			dataModel.markReferenced(snippetFound ? snippetId : null);
 			boolean snapshotLink = configuration.isRelativeLink() && configuration.producesFiles();
+			if (snapshotLink) {
+				// the block of a snippet links to its message too: that file has to be in the download
+				dataModel.markReferenced(null);
+			}
 			String messagePage = snapshotLink ? pageHref(igDataModel, messageId, null) : "";
+			String messageFile = snapshotLink ? fileHref(igDataModel, messageId, null) : "";
 			String snippetPage = snippetFound && snapshotLink
 					? pageHref(igDataModel, messageId, snippetId) : "";
+			String snippetFile = snippetFound && snapshotLink
+					? fileHref(igDataModel, messageId, snippetId) : "";
 			String igamt = configuration.isIgamtLink()
 					? igamtUrl(igDataModel, messageId, snippetFound ? snippetId : null) : "";
-			appendInfoTable(widget, nz(message.getName()), messagePage,
-					snippetFound ? nz(snippet.getName()) : "", snippetPage, igamt);
+			appendInfoTable(widget, nz(message.getName()), messagePage, messageFile,
+					snippetFound ? nz(snippet.getName()) : "", snippetPage, snippetFile, igamt);
 			if (configuration.isIncludeDescription()) {
 				String description = snippetFound ? dataModel.findSnippet(snippetId).getDescription() : message.getDescription();
 				appendDescription(widget, description);
 			}
-			if (configuration.isInline()) {
-				org.jsoup.nodes.Element body = widget.appendElement("div").addClass("fr-exmsg-body");
-				appendNarrativeLines(body, message, render, snippetFound, configuration.isHighlightSnippet());
-			}
 			if (snippetId != null && !snippetId.isEmpty() && !snippetFound) {
 				widget.appendElement("div").addClass("fr-exmsg-warning")
-						.text("The attached snippet could not be found; the full message is shown.");
+						.text(MISSING_SNIPPET_TEXT);
 			} else if (snippetFound && render.getWarnings() != null) {
 				for (String text : render.getWarnings()) {
 					widget.appendElement("div").addClass("fr-exmsg-warning").text(text);
 				}
+			}
+			if (configuration.isInline()) {
+				org.jsoup.nodes.Element body = widget.appendElement("div").addClass("fr-exmsg-body");
+				appendNarrativeLines(body, message, render, snippetFound, configuration.isHighlightSnippet());
 			}
 		}
 		return doc.body().html();
@@ -351,15 +363,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 		if (content == null) {
 			return new String[0];
 		}
-		String normalized = content.replace("\r\n", "\n").replace('\r', '\n');
-		StringBuilder clean = new StringBuilder(normalized.length());
-		for (int i = 0; i < normalized.length(); i++) {
-			char c = normalized.charAt(i);
-			if (c == '\n' || c == '\t' || c >= 0x20) {
-				clean.append(c);
-			}
-		}
-		String text = clean.toString();
+		String text = xmlText(content.replace("\r\n", "\n").replace('\r', '\n'));
 		if (text.endsWith("\n")) {
 			text = text.substring(0, text.length() - 1);
 		}
@@ -373,7 +377,7 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 		Document doc = Jsoup.parseBodyFragment(html);
 		doc.outputSettings().prettyPrint(false).escapeMode(Entities.EscapeMode.xhtml);
 		doc.select("script, style, iframe, object, form").remove();
-		String markup = doc.body().html().replaceAll("[^\\u0009\\u000A\\u000D\\u0020-\\uD7FF\\uE000-\\uFFFD]", "").trim();
+		String markup = xmlText(doc.body().html()).trim();
 		if (Jsoup.parse(markup).text().trim().isEmpty() && doc.select("img").isEmpty()) {
 			return "";
 		}
@@ -395,27 +399,41 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 	}
 
 	private static String nz(String value) {
-		return value != null ? value : "";
+		return value != null ? xmlText(value) : "";
+	}
+
+	/**
+	 * The text without what XML cannot carry: control characters (the framing bytes of MLLP among
+	 * them), U+FFFE, U+FFFF and half of a surrogate pair. One such character in a name or in a
+	 * message would make the whole export fail.
+	 */
+	static String xmlText(String value) {
+		return gov.nist.hit.hl7.igamt.serialization.util.XmlCharacters.keepValid(value);
 	}
 
 	private static void appendInfoTable(org.jsoup.nodes.Element parent, String messageName, String messagePage,
-			String snippetName, String snippetPage, String igamtHref) {
+			String messageFile, String snippetName, String snippetPage, String snippetFile, String igamtHref) {
 		org.jsoup.nodes.Element table = parent.appendElement("table").addClass("fr-exmsg-info");
-		addInfoRow(table, "Message", messageName, messagePage);
+		addInfoRow(table, "Message", messageName, messagePage, messageFile);
 		if (snippetName != null && !snippetName.isEmpty()) {
-			addInfoRow(table, "Snippet", snippetName, snippetPage);
+			addInfoRow(table, "Snippet", snippetName, snippetPage, snippetFile);
 		}
 		if (igamtHref != null && !igamtHref.isEmpty()) {
-			addInfoRow(table, "IGAMT", "Open in IGAMT", igamtHref);
+			addInfoRow(table, "IGAMT", "Open in IGAMT", igamtHref, "");
 		}
 	}
 
-	private static void addInfoRow(org.jsoup.nodes.Element table, String label, String value, String href) {
+	/** textHref: the text file of a snapshot page, which is what the Word export links to. */
+	private static void addInfoRow(org.jsoup.nodes.Element table, String label, String value, String href,
+			String textHref) {
 		org.jsoup.nodes.Element row = table.appendElement("tr");
 		row.appendElement("th").text(label);
 		org.jsoup.nodes.Element cell = row.appendElement("td");
 		if (href != null && !href.isEmpty()) {
-			cell.appendElement("a").attr("href", href).text(value != null ? value : "");
+			org.jsoup.nodes.Element link = cell.appendElement("a").attr("href", href).text(value != null ? value : "");
+			if (textHref != null && !textHref.isEmpty()) {
+				link.attr("data-text-href", textHref);
+			}
 		} else {
 			cell.text(value != null ? value : "");
 		}
@@ -447,6 +465,19 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 	 * export folder, so the href is relative and works when the folder is opened as files.
 	 */
 	private static String pageHref(IgDataModel igDataModel, String messageId, String snippetId) {
+		return ExampleMessageExportConfiguration.relativeHref(
+				ExampleMessageExportConfiguration.pagePath(filePath(igDataModel, messageId, snippetId)));
+	}
+
+	/**
+	 * Link to the text file of this message. The Word download carries the text files beside the
+	 * document and not the pages, so that is where its links go.
+	 */
+	private static String fileHref(IgDataModel igDataModel, String messageId, String snippetId) {
+		return ExampleMessageExportConfiguration.relativeHref(filePath(igDataModel, messageId, snippetId));
+	}
+
+	private static String filePath(IgDataModel igDataModel, String messageId, String snippetId) {
 		if (messageId == null || messageId.isEmpty() || igDataModel == null) {
 			return "";
 		}
@@ -456,6 +487,6 @@ public class ExampleMessageSerializationServiceImpl implements ExampleMessageSer
 		}
 		boolean snippet = snippetId != null && !snippetId.isEmpty() && dataModel.findSnippet(snippetId) != null;
 		String filePath = snippet ? dataModel.getSnippetFilePath(snippetId) : dataModel.getFilePath();
-		return ExampleMessageExportConfiguration.relativeHref(ExampleMessageExportConfiguration.pagePath(filePath));
+		return filePath != null ? filePath : "";
 	}
 }

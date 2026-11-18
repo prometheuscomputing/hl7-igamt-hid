@@ -1,5 +1,5 @@
 /**
- * 
+ *
  * This software was developed at the National Institute of Standards and Technology by employees of
  * the Federal Government in the course of their official duties. Pursuant to title 17 Section 105
  * of the United States Code this software is not subject to copyright protection and is in the
@@ -9,381 +9,946 @@
  * used. This software can be redistributed and/or modified freely provided that any derivative
  * works bear some notice that they are derived from it, and any modified versions bear some notice
  * that they have been modified.
- * 
+ *
  */
 package gov.nist.hit.hl7.igamt.export.util;
 
-
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.text.SimpleDateFormat;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Properties;
 import java.util.UUID;
 
 import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
-import javax.xml.namespace.QName;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.docx4j.XmlUtils;
+import org.docx4j.convert.in.xhtml.FormattingOption;
 import org.docx4j.convert.in.xhtml.XHTMLImporterImpl;
 import org.docx4j.dml.CTPositiveSize2D;
+import org.docx4j.dml.wordprocessingDrawing.Anchor;
 import org.docx4j.dml.wordprocessingDrawing.Inline;
 import org.docx4j.jaxb.Context;
-import org.docx4j.model.fields.FieldUpdater;
-import org.docx4j.openpackaging.contenttype.CTOverride;
-import org.docx4j.openpackaging.contenttype.ContentTypeManager;
+import org.docx4j.model.structure.PageSizePaper;
 import org.docx4j.openpackaging.exceptions.Docx4JException;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
-import org.docx4j.openpackaging.parts.Part;
-import org.docx4j.openpackaging.parts.WordprocessingML.BinaryPartAbstractImage;
 import org.docx4j.openpackaging.parts.WordprocessingML.DocumentSettingsPart;
 import org.docx4j.openpackaging.parts.WordprocessingML.FooterPart;
-import org.docx4j.openpackaging.parts.relationships.Namespaces;
-import org.docx4j.openpackaging.parts.relationships.RelationshipsPart;
+import org.docx4j.openpackaging.parts.WordprocessingML.HeaderPart;
+import org.docx4j.openpackaging.parts.WordprocessingML.MainDocumentPart;
+import org.docx4j.openpackaging.parts.WordprocessingML.NumberingDefinitionsPart;
 import org.docx4j.relationships.Relationship;
 import org.docx4j.wml.BooleanDefaultTrue;
 import org.docx4j.wml.Br;
-import org.docx4j.wml.CTRel;
+import org.docx4j.wml.CTBookmark;
+import org.docx4j.wml.CTCompatSetting;
 import org.docx4j.wml.CTSettings;
+import org.docx4j.wml.CTShd;
+import org.docx4j.wml.CTTblLayoutType;
+import org.docx4j.wml.CTTblLook;
+import org.docx4j.wml.CTTblPrBase.TblStyle;
+import org.docx4j.wml.CTTrPrBase;
 import org.docx4j.wml.ContentAccessor;
 import org.docx4j.wml.Drawing;
-import org.docx4j.wml.FldChar;
-import org.docx4j.wml.Jc;
+import org.docx4j.wml.FooterReference;
+import org.docx4j.wml.Ftr;
+import org.docx4j.wml.Hdr;
+import org.docx4j.wml.HdrFtrRef;
+import org.docx4j.wml.HeaderReference;
 import org.docx4j.wml.JcEnumeration;
+import org.docx4j.wml.Numbering;
 import org.docx4j.wml.ObjectFactory;
 import org.docx4j.wml.P;
 import org.docx4j.wml.PPr;
 import org.docx4j.wml.R;
-import org.docx4j.wml.STBrType;
-import org.docx4j.wml.STFldCharType;
+import org.docx4j.wml.RPr;
+import org.docx4j.wml.STShd;
+import org.docx4j.wml.STTblLayoutType;
+import org.docx4j.wml.SdtBlock;
+import org.docx4j.wml.SectPr;
+import org.docx4j.wml.Styles;
 import org.docx4j.wml.Tbl;
+import org.docx4j.wml.TblGridCol;
+import org.docx4j.wml.TblPr;
+import org.docx4j.wml.TblWidth;
+import org.docx4j.wml.Tc;
+import org.docx4j.wml.TcPrInner;
 import org.docx4j.wml.Text;
 import org.docx4j.wml.Tr;
+import org.docx4j.wml.TrPr;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.tidy.Tidy;
 
 import gov.nist.hit.hl7.igamt.common.base.domain.DocumentMetadata;
 import gov.nist.hit.hl7.igamt.export.domain.ExportedFile;
 import gov.nist.hit.hl7.igamt.export.exception.ExportException;
 
-
 /**
- *
- * @author Maxence Lefort on May 17, 2018.
+ * Builds the Word export out of the XHTML prepared by {@link ExportHtmlEnhancer}.
+ * <p>
+ * The document is created from scratch: its styles and heading numbering come from
+ * {@code templates/assets/word-styles.xml} and {@code word-numbering.xml}, the content from the
+ * XHTML importer. What the importer cannot express is finished here: page set-up, running header
+ * and footer, table of contents, table layout.
  */
 public class WordUtil {
 
-  private static Logger logger = LoggerFactory.getLogger(WordUtil.class);
-  private static final int MAX_IMAGE_WIDTH_EMU = 6000000;
+  private static final Logger logger = LoggerFactory.getLogger(WordUtil.class);
+
+  private static final String ASSETS = "/templates/assets/";
+  /** Paragraph {@link ExportHtmlEnhancer} leaves where the table of contents goes. */
+  public static final String TOC_MARKER = "IG-TABLE-OF-CONTENTS";
+  private static final int TOC_DEPTH = 3;
+  private static final String COMPATIBILITY_MODE = "compatibilityMode";
+  /** Word 2013 and later: the layout rules every current version of Word uses. */
+  private static final String WORD_LAYOUT_VERSION = "15";
+  private static final String TOC_INSTRUCTION = "TOC \\o \"1-" + TOC_DEPTH + "\" \\h \\z \\u ";
+
+  private static final String REFERENCE_TABLE_STYLE = "IgTable";
+  private static final String GRID_TABLE_STYLE = "IgGridTable";
+  private static final String FACTS_TABLE_STYLE = "IgFacts";
+  /** Facts of an example message: a narrow column of labels, then what they name. */
+  private static final String EXAMPLE_FACTS_TABLE_STYLE = "IgExampleFacts";
+  private static final int EXAMPLE_LABEL_WIDTH = 1000;
+  private static final int EXAMPLE_FACTS_SPACE_AFTER = 100;
+
+  // US Letter, in twentieths of a point
+  private static final int PAGE_WIDTH = 12240;
+  private static final int MARGIN_SIDE = 1301;
+  private static final int MARGIN_TOP = 1440;
+  private static final int MARGIN_BOTTOM = 1300;
+  private static final int MARGIN_HEADER = 680;
+  private static final int TEXT_WIDTH = PAGE_WIDTH - 2 * MARGIN_SIDE;
+  private static final long EMU_PER_TWIP = 635L;
+  private static final long MAX_IMAGE_WIDTH_EMU = TEXT_WIDTH * EMU_PER_TWIP;
+  /** Room, in twips, of one character of table text and of the side padding of a cell. */
+  private static final int TWIPS_PER_CHARACTER = 105;
+  private static final int CELL_PADDING = 240;
+  private static final int MINIMUM_NESTED_TABLE_WIDTH = 1200;
+  /** Longer words (paths, long identifiers) may break; they do not get a column to themselves. */
+  private static final int LONGEST_UNBROKEN_WORD = 16;
+  private static final long MAX_COVER_PICTURE_HEIGHT_EMU = 1524000L; // 1.67 in
+
+  // Document defaults of word-styles.xml
+  private static final String DEFAULT_FONT = "Calibri";
+  private static final String DEFAULT_COLOR = "15212b";
+  private static final BigInteger DEFAULT_FONT_SIZE = BigInteger.valueOf(21);
+
+  private static final String WORD_NAMESPACE = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"";
 
   public static ExportedFile convertHtmlToWord(ExportedFile exportedFile, DocumentMetadata metadata,
       Date dateUpdated, String hl7Version) throws ExportException {
     try {
-      WordprocessingMLPackage wordMLPackage =
-          WordprocessingMLPackage.load(WordUtil.class.getResourceAsStream("/lri_template.docx"));
-      ObjectFactory factory = Context.getWmlObjectFactory();
-      SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm");
-      String formattedDateUpdated = dateUpdated != null ? simpleDateFormat.format(dateUpdated) : "" ;
-      createCoverPageForDocx4j(wordMLPackage, factory, metadata, formattedDateUpdated,
-         metadata != null && metadata.getCoverPicture() != null ? metadata.getCoverPicture() : "", hl7Version);
-      createTableOfContentForDocx4j(wordMLPackage, factory);
-      FieldUpdater updater = new FieldUpdater(wordMLPackage);
-      updater.update(true);
-      // TODO add appInfo version
-      // replaceVersionInFooter(wordMLPackage,appInfo.getVersion());
-      String html = cleanHtml(exportedFile.getContent()).toString();
-      XHTMLImporterImpl xHTMLImporter = new XHTMLImporterImpl(wordMLPackage);
-      wordMLPackage.getMainDocumentPart().getContent().addAll(xHTMLImporter.convert(html, null));
-      List<Object> nodes =
-          getAllElementFromObject(wordMLPackage.getMainDocumentPart(), org.docx4j.wml.Tbl.class);
-      BooleanDefaultTrue bdt = Context.getWmlObjectFactory().createBooleanDefaultTrue();
-      for (Object node : nodes) {
-        if (node instanceof Tbl) {
-          Tbl tbl = (Tbl) node;
-          if (tbl.getContent().get(0) instanceof Tr) {
-            Tr tr = (Tr) tbl.getContent().get(0);
-            tr.getTrPr().getCnfStyleOrDivIdOrGridBefore()
-                .add(Context.getWmlObjectFactory().createCTTrPrBaseTblHeader(bdt));
-          }
-        }
+      // The content is the XHTML ExportHtmlEnhancer prepared for the importer
+      String html = IOUtils.toString(exportedFile.getContent(), StandardCharsets.UTF_8.name());
+
+      WordprocessingMLPackage wordMLPackage = WordprocessingMLPackage.createPackage(PageSizePaper.LETTER, false);
+      MainDocumentPart document = wordMLPackage.getMainDocumentPart();
+      document.getStyleDefinitionsPart().setJaxbElement((Styles) XmlUtils.unmarshalString(asset("word-styles.xml")));
+      NumberingDefinitionsPart numbering = new NumberingDefinitionsPart();
+      document.addTargetPart(numbering);
+      numbering.setJaxbElement((Numbering) XmlUtils.unmarshalString(asset("word-numbering.xml")));
+
+      String title = metadata != null && metadata.getTitle() != null ? metadata.getTitle().trim() : "";
+      String organization = metadata != null && metadata.getOrgName() != null ? metadata.getOrgName().trim() : "";
+      setUpPage(wordMLPackage, title, organization);
+
+      XHTMLImporterImpl importer = new XHTMLImporterImpl(wordMLPackage);
+      importer.setHyperlinkStyle("Hyperlink");
+      importer.setParagraphFormatting(FormattingOption.CLASS_PLUS_OTHER);
+      importer.setRunFormatting(FormattingOption.CLASS_PLUS_OTHER);
+      importer.setTableFormatting(FormattingOption.CLASS_PLUS_OTHER);
+      // A base URL is required even though nothing is resolved against it: without one the importer
+      // prints a stack trace for every document
+      document.getContent().addAll(importer.convert(html, "file:///"));
+
+      cleanFormatting(document);
+      formatTables(document);
+      fitImages(document);
+      completeShading(document);
+      keepCaptionsWithTables(document);
+      insertTableOfContents(wordMLPackage);
+      openWithoutQuestions(wordMLPackage);
+
+      File tmpFile = File.createTempFile("IgDocument" + UUID.randomUUID().toString(), ".docx");
+      try {
+        wordMLPackage.save(tmpFile);
+        exportedFile.setContent(new java.io.ByteArrayInputStream(FileUtils.readFileToByteArray(tmpFile)));
+      } finally {
+        FileUtils.deleteQuietly(tmpFile);
       }
-      nodes = getAllElementFromObject(wordMLPackage.getMainDocumentPart(),
-          org.docx4j.wml.Drawing.class);
-      for (Object node : nodes) {
-        if (node instanceof Drawing) {
-          Drawing drawing = (Drawing) node;
-          CTPositiveSize2D currentSize = ((Inline) drawing.getAnchorOrInline().get(0)).getExtent();
-          if (currentSize.getCx() > MAX_IMAGE_WIDTH_EMU) {
-            CTPositiveSize2D size = new CTPositiveSize2D();
-            size.setCy(currentSize.getCy() * MAX_IMAGE_WIDTH_EMU / currentSize.getCx());
-            size.setCx(MAX_IMAGE_WIDTH_EMU);
-            ((Inline) drawing.getAnchorOrInline().get(0)).setExtent(size);
-          }
-        }
-      }
-      loadTemplateForDocx4j(wordMLPackage);
-      File tmpFile;
-      tmpFile = File.createTempFile("IgDocument" + UUID.randomUUID().toString(), ".docx");
-      wordMLPackage.save(tmpFile);
-      exportedFile.setContent(FileUtils.openInputStream(tmpFile));
       return exportedFile;
-    } catch (Docx4JException | IOException e) {
+    } catch (Docx4JException | IOException | JAXBException e) {
       throw new ExportException(e);
     }
   }
 
-  private static void createCoverPageForDocx4j(WordprocessingMLPackage wordMLPackage,
-      ObjectFactory factory, DocumentMetadata metadata, String dateUpdated, String coverPicturePath,
-      String hl7Version) {
+  // ---------------------------------------------------------------- page
 
-    BufferedImage image = null;
-    try {
-      if (coverPicturePath != null && !coverPicturePath.isEmpty()) {
-        InputStream imgis;
-        byte[] bytes = null;
-        String filename = parseFileName(coverPicturePath);
-        // TODO add cover image
-        // GridFSDBFile dbFile = fileStorageService.findOneByFilename(filename);
-        // if (dbFile != null) {
-        // imgis = dbFile.getInputStream();
-        // bytes = IOUtils.toByteArray(imgis);
-        // }
-        // if (bytes != null && bytes.length > 0) {
-        // addImageToPackage(wordMLPackage, bytes);
-        // }
+  /** Margins, and a header and footer on every page but the cover. */
+  private static void setUpPage(WordprocessingMLPackage wordMLPackage, String title, String organization)
+      throws Docx4JException, JAXBException {
+    ObjectFactory factory = Context.getWmlObjectFactory();
+    MainDocumentPart document = wordMLPackage.getMainDocumentPart();
+    SectPr sectPr = document.getJaxbElement().getBody().getSectPr();
+    if (sectPr == null) {
+      sectPr = factory.createSectPr();
+      document.getJaxbElement().getBody().setSectPr(sectPr);
+    }
+    SectPr.PgMar margins = sectPr.getPgMar() != null ? sectPr.getPgMar() : factory.createSectPrPgMar();
+    margins.setLeft(BigInteger.valueOf(MARGIN_SIDE));
+    margins.setRight(BigInteger.valueOf(MARGIN_SIDE));
+    margins.setTop(BigInteger.valueOf(MARGIN_TOP));
+    margins.setBottom(BigInteger.valueOf(MARGIN_BOTTOM));
+    margins.setHeader(BigInteger.valueOf(MARGIN_HEADER));
+    margins.setFooter(BigInteger.valueOf(MARGIN_HEADER));
+    sectPr.setPgMar(margins);
+    sectPr.setTitlePg(new BooleanDefaultTrue());
+
+    HeaderPart headerPart = new HeaderPart();
+    headerPart.setPackage(wordMLPackage);
+    headerPart.setJaxbElement((Hdr) XmlUtils.unmarshalString("<w:hdr " + WORD_NAMESPACE + "><w:p><w:pPr><w:pStyle w:val=\"Header\"/></w:pPr>"
+        + "<w:r><w:t xml:space=\"preserve\">" + escape(shorten(title, 110)) + "</w:t></w:r></w:p></w:hdr>"));
+    Relationship headerRelationship = document.addTargetPart(headerPart);
+    HeaderReference headerReference = factory.createHeaderReference();
+    headerReference.setId(headerRelationship.getId());
+    headerReference.setType(HdrFtrRef.DEFAULT);
+    sectPr.getEGHdrFtrReferences().add(headerReference);
+
+    FooterPart footerPart = new FooterPart();
+    footerPart.setPackage(wordMLPackage);
+    footerPart.setJaxbElement((Ftr) XmlUtils.unmarshalString("<w:ftr " + WORD_NAMESPACE + "><w:p><w:pPr><w:pStyle w:val=\"Footer\"/></w:pPr>"
+        + "<w:r><w:t xml:space=\"preserve\">" + escape(shorten(organization, 90)) + "</w:t></w:r><w:r><w:tab/></w:r>"
+        + "<w:r><w:t xml:space=\"preserve\">Page </w:t></w:r>" + field("PAGE")
+        + "<w:r><w:t xml:space=\"preserve\"> of </w:t></w:r>" + field("NUMPAGES") + "</w:p></w:ftr>"));
+    Relationship footerRelationship = document.addTargetPart(footerPart);
+    FooterReference footerReference = factory.createFooterReference();
+    footerReference.setId(footerRelationship.getId());
+    footerReference.setType(HdrFtrRef.DEFAULT);
+    sectPr.getEGHdrFtrReferences().add(footerReference);
+  }
+
+  private static String field(String instruction) {
+    return "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> " + instruction
+        + " </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>1</w:t></w:r>"
+        + "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>";
+  }
+
+  static String shorten(String text, int max) {
+    if (text.length() <= max) {
+      return text;
+    }
+    // not between the two halves of a character outside the basic plane
+    int end = Character.isHighSurrogate(text.charAt(max - 2)) ? max - 2 : max - 1;
+    return text.substring(0, end).trim() + "\u2026";
+  }
+
+  /** Text for the XML of the document: without the characters XML cannot carry, with its markup characters escaped. */
+  static String escape(String text) {
+    return gov.nist.hit.hl7.igamt.serialization.util.XmlCharacters.keepValid(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+  }
+
+  // ---------------------------------------------------------------- table of contents
+
+  /**
+   * Replaces the marker paragraph with a table of contents. Its entries are written here, as links
+   * to the headings, so the contents are complete and can be followed as soon as the document
+   * opens, in Word and in any other viewer. They carry no page numbers: only Word can compute
+   * those, and asking it to do so on opening makes it stop on a question (see
+   * {@link #openWithoutQuestions}). The entries sit in a regular TOC field inside the content
+   * control Word uses for its own tables of contents, so a reader who wants page numbers gets them
+   * with "Update Table".
+   */
+  private static void insertTableOfContents(WordprocessingMLPackage wordMLPackage) throws JAXBException {
+    List<Object> content = wordMLPackage.getMainDocumentPart().getContent();
+    int index = -1;
+    for (int i = 0; i < content.size() && index < 0; i++) {
+      Object item = unwrap(content.get(i));
+      if (item instanceof P && TOC_MARKER.equals(textOf((P) item).trim())) {
+        index = i;
       }
-    } catch (Exception e) {
-      logger.warn("Unable to add image");
-      e.printStackTrace();
     }
+    if (index < 0) {
+      return;
+    }
+    content.remove(index);
 
-    if (null != metadata) {
-      if (null != metadata.getTitle()) {
-        wordMLPackage.getMainDocumentPart().addStyledParagraphOfText("Title", metadata.getTitle());
-        addLineBreak(wordMLPackage, factory);
+    List<String[]> entries = new ArrayList<String[]>();
+    int[] counters = new int[TOC_DEPTH + 1];
+    int generated = 0;
+    for (Object item : content) {
+      Object object = unwrap(item);
+      if (!(object instanceof P)) {
+        continue;
       }
-      if (null != metadata.getSubTitle() && !metadata.getSubTitle().isEmpty()) {
-        wordMLPackage.getMainDocumentPart().addStyledParagraphOfText("Subtitle",
-            metadata.getSubTitle());
+      P heading = (P) object;
+      int level = headingLevel(heading);
+      if (level < 1) {
+        continue;
+      }
+      if (level <= TOC_DEPTH) {
+        counters[level]++;
+        for (int i = level + 1; i < counters.length; i++) {
+          counters[i] = 0;
+        }
+      }
+      String text = textOf(heading).trim();
+      if (level > TOC_DEPTH || text.isEmpty()) {
+        continue;
+      }
+      String bookmark = bookmarkOf(heading);
+      if (bookmark == null) {
+        bookmark = "_IgToc" + (++generated);
+        heading.getContent().add(0, XmlUtils.unmarshalString("<w:bookmarkStart " + WORD_NAMESPACE + " w:id=\"" + (900000 + generated)
+            + "\" w:name=\"" + bookmark + "\"/>"));
+        heading.getContent().add(XmlUtils.unmarshalString("<w:bookmarkEnd " + WORD_NAMESPACE + " w:id=\"" + (900000 + generated) + "\"/>"));
+      }
+      StringBuilder number = new StringBuilder();
+      for (int i = 1; i <= level; i++) {
+        number.append(i > 1 ? "." : "").append(Math.max(counters[i], 1));
+      }
+      // [paragraph properties, runs]: the field opening goes between the two on the first entry
+      entries.add(new String[] {"<w:pPr><w:pStyle w:val=\"TOC" + level + "\"/></w:pPr>", "<w:hyperlink w:anchor=\"" + bookmark + "\" w:history=\"1\">"
+          + "<w:r><w:t xml:space=\"preserve\">" + number + "</w:t></w:r><w:r><w:tab/></w:r>"
+          + "<w:r><w:t xml:space=\"preserve\">" + escape(text) + "</w:t></w:r></w:hyperlink>"});
+    }
+    if (entries.isEmpty()) {
+      return;
+    }
+    StringBuilder toc = new StringBuilder("<w:sdt " + WORD_NAMESPACE + "><w:sdtPr><w:docPartObj>"
+        + "<w:docPartGallery w:val=\"Table of Contents\"/><w:docPartUnique/></w:docPartObj></w:sdtPr><w:sdtContent>");
+    toc.append("<w:p><w:pPr><w:pStyle w:val=\"TOCHeading\"/></w:pPr><w:r><w:t>Contents</w:t></w:r></w:p>");
+    for (int i = 0; i < entries.size(); i++) {
+      String fieldStart = i > 0 ? "" : "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> "
+          + TOC_INSTRUCTION + "</w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>";
+      toc.append("<w:p>").append(entries.get(i)[0]).append(fieldStart).append(entries.get(i)[1]).append("</w:p>");
+    }
+    toc.append("<w:p><w:pPr><w:spacing w:after=\"0\"/></w:pPr><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>");
+    toc.append("</w:sdtContent></w:sdt>");
+    // a content control is no root element of the schema, so its type has to be given
+    content.add(index, XmlUtils.unmarshalString(toc.toString(), Context.jc, SdtBlock.class));
+  }
+
+  /** 1 to 6 for a paragraph in a heading style, 0 otherwise. */
+  private static int headingLevel(P paragraph) {
+    PPr properties = paragraph.getPPr();
+    if (properties == null || properties.getPStyle() == null || properties.getPStyle().getVal() == null) {
+      return 0;
+    }
+    String style = properties.getPStyle().getVal();
+    if (style.length() == 8 && style.startsWith("Heading") && Character.isDigit(style.charAt(7))) {
+      return style.charAt(7) - '0';
+    }
+    return 0;
+  }
+
+  private static String bookmarkOf(P paragraph) {
+    for (Object node : paragraph.getContent()) {
+      Object object = unwrap(node);
+      if (object instanceof CTBookmark && ((CTBookmark) object).getName() != null && !((CTBookmark) object).getName().isEmpty()) {
+        return ((CTBookmark) object).getName();
       }
     }
-    if (null != dateUpdated && !dateUpdated.isEmpty()) {
-      wordMLPackage.getMainDocumentPart().addStyledParagraphOfText("Style1", dateUpdated);
+    return null;
+  }
+
+  /**
+   * Settings for a document that opens in Word as it is, with nothing to answer and no notice in
+   * the title bar. Nothing asks Word to update the fields: that request, like a field marked as
+   * out of date, makes Word open on "This document contains fields that may refer to other files.
+   * Do you want to update the fields in this document?". The document also declares the current
+   * layout rules; without that Word opens it in "Compatibility Mode", as a file of Word 2007.
+   */
+  private static void openWithoutQuestions(WordprocessingMLPackage wordMLPackage) throws Docx4JException {
+    MainDocumentPart document = wordMLPackage.getMainDocumentPart();
+    DocumentSettingsPart settingsPart = document.getDocumentSettingsPart();
+    if (settingsPart == null) {
+      settingsPart = new DocumentSettingsPart();
+      settingsPart.setJaxbElement(Context.getWmlObjectFactory().createCTSettings());
+      document.addTargetPart(settingsPart);
     }
-    addLineBreak(wordMLPackage, factory);
-    addLineBreak(wordMLPackage, factory);
-    if (null != hl7Version && !"".equals(hl7Version)) {
-      wordMLPackage.getMainDocumentPart().addStyledParagraphOfText("Style1",
-          "HL7 Version " + hl7Version);
+    CTSettings settings = settingsPart.getJaxbElement();
+    settings.setUpdateFields(null);
+    if (settings.getCompat() == null) {
+      settings.setCompat(Context.getWmlObjectFactory().createCTCompat());
     }
-    if (null != metadata && null != metadata.getOrgName() && !"".equals(metadata.getOrgName())) {
-      wordMLPackage.getMainDocumentPart().addStyledParagraphOfText("Style1", metadata.getOrgName());
+    List<CTCompatSetting> compatibility = settings.getCompat().getCompatSetting();
+    for (Iterator<CTCompatSetting> it = compatibility.iterator(); it.hasNext();) {
+      if (COMPATIBILITY_MODE.equals(it.next().getName())) {
+        it.remove();
+      }
     }
-
-    addPageBreak(wordMLPackage, factory);
+    CTCompatSetting mode = Context.getWmlObjectFactory().createCTCompatSetting();
+    mode.setName(COMPATIBILITY_MODE);
+    mode.setUri("http://schemas.microsoft.com/office/word");
+    mode.setVal(WORD_LAYOUT_VERSION);
+    compatibility.add(0, mode);
   }
 
-  protected static String parseFileName(String coverPicture) {
-    if (coverPicture.startsWith("name=")) {
-      return coverPicture.substring(coverPicture.indexOf("name=") + "name=".length());
+  // ---------------------------------------------------------------- formatting
+
+  /**
+   * The importer writes the computed CSS of every paragraph and run as direct formatting, which
+   * overrides the Word styles and repeats the document defaults thousands of times. Drop what
+   * merely restates the defaults, and everything on paragraphs that have a style of their own.
+   */
+  private static void cleanFormatting(MainDocumentPart document) {
+    for (Object node : getAllElementFromObject(document, P.class)) {
+      P paragraph = (P) node;
+      PPr properties = paragraph.getPPr();
+      boolean styled = false;
+      if (properties != null) {
+        styled = properties.getPStyle() != null && isExportStyle(properties.getPStyle().getVal());
+        if (properties.getJc() != null && properties.getJc().getVal() == JcEnumeration.LEFT) {
+          properties.setJc(null);
+        }
+        if (properties.getInd() != null && isZero(properties.getInd().getLeft()) && isZero(properties.getInd().getRight())
+            && isZero(properties.getInd().getFirstLine()) && isZero(properties.getInd().getHanging())) {
+          properties.setInd(null);
+        }
+        if (styled) {
+          properties.setSpacing(null);
+          properties.setInd(null);
+          properties.setJc(null);
+        }
+      }
+      for (Object runNode : getAllElementFromObject(paragraph, R.class)) {
+        RPr run = ((R) runNode).getRPr();
+        if (run == null) {
+          continue;
+        }
+        if (run.getRFonts() != null && (styled || DEFAULT_FONT.equalsIgnoreCase(run.getRFonts().getAscii()))) {
+          run.setRFonts(null);
+        }
+        if (run.getColor() != null && (styled || DEFAULT_COLOR.equalsIgnoreCase(run.getColor().getVal()))) {
+          run.setColor(null);
+        }
+        if (run.getB() != null && (styled || !run.getB().isVal())) {
+          run.setB(null);
+        }
+        if (run.getSz() != null && (styled || DEFAULT_FONT_SIZE.equals(run.getSz().getVal()))) {
+          run.setSz(null);
+        }
+        if (styled) {
+          run.setSzCs(null);
+        }
+      }
     }
-    return "";
   }
 
-  private static void addImageToPackage(WordprocessingMLPackage wordMLPackage, byte[] bytes)
-      throws Exception {
-    BinaryPartAbstractImage imagePart =
-        BinaryPartAbstractImage.createImagePart(wordMLPackage, bytes);
-    int docPrId = 1;
-    int cNvPrId = 2;
-    Inline inline =
-        imagePart.createImageInline("Filename hint", "Alternative text", docPrId, cNvPrId, false);
-    P paragraph = addInlineImageToParagraph(inline);
-    setHorizontalAlignment(paragraph, JcEnumeration.CENTER);
-    wordMLPackage.getMainDocumentPart().addObject(paragraph);
+  private static boolean isZero(BigInteger value) {
+    return value == null || value.signum() == 0;
   }
 
-  private static P addInlineImageToParagraph(Inline inline) {
-    // Now add the in-line image to a paragraph
-    ObjectFactory factory = new ObjectFactory();
-    P paragraph = factory.createP();
-    R run = factory.createR();
-    paragraph.getContent().add(run);
-    Drawing drawing = factory.createDrawing();
-    run.getContent().add(drawing);
-    drawing.getAnchorOrInline().add(inline);
-    return paragraph;
+  /** Styles defined in word-styles.xml that fully describe their paragraphs. */
+  private static boolean isExportStyle(String style) {
+    return style != null && (style.startsWith("Heading") || style.startsWith("Ig") || style.equals("Title") || style.equals("Subtitle"));
   }
 
-  private static void addLineBreak(WordprocessingMLPackage wordMLPackage, ObjectFactory factory) {
-    Br breakObj = new Br();
-    breakObj.setType(STBrType.TEXT_WRAPPING);
+  // ---------------------------------------------------------------- tables
 
-    P paragraph = factory.createP();
-    paragraph.getContent().add(breakObj);
-    wordMLPackage.getMainDocumentPart().getContent().add(paragraph);
-  }
-
-  private static void addPageBreak(WordprocessingMLPackage wordMLPackage, ObjectFactory factory) {
-    Br breakObj = new Br();
-    breakObj.setType(STBrType.PAGE);
-
-    P paragraph = factory.createP();
-    paragraph.getContent().add(breakObj);
-    wordMLPackage.getMainDocumentPart().getContent().add(paragraph);
-  }
-
-  @SuppressWarnings({"rawtypes", "unchecked"})
-  public static JAXBElement getWrappedFldChar(FldChar fldchar) {
-    return new JAXBElement(new QName(Namespaces.NS_WORD12, "fldChar"), FldChar.class, fldchar);
-  }
-
-  private static void setHorizontalAlignment(P paragraph, JcEnumeration hAlign) {
-    if (hAlign != null) {
-      PPr pprop = new PPr();
-      Jc align = new Jc();
-      align.setVal(hAlign);
-      pprop.setJc(align);
-      paragraph.setPPr(pprop);
+  /**
+   * Hands the look of the tables over to their Word style: full width, borders and header from the
+   * style, header row repeated on each page, rows kept whole.
+   */
+  private static void formatTables(MainDocumentPart document) {
+    ObjectFactory factory = Context.getWmlObjectFactory();
+    for (Object node : getAllElementFromObject(document, Tbl.class)) {
+      formatTable((Tbl) node, factory, TEXT_WIDTH);
     }
+    spaceAfterExampleFacts(document, factory);
+  }
+
+  /**
+   * @param available the width the table has, in twips: the text width, or the width of the cell it
+   *                  is in. The tables inside its cells are formatted in turn.
+   */
+  private static void formatTable(Tbl table, ObjectFactory factory, int available) {
+    TblPr properties = table.getTblPr();
+    if (properties == null) {
+      properties = factory.createTblPr();
+      table.setTblPr(properties);
+    }
+    String style = properties.getTblStyle() != null ? properties.getTblStyle().getVal() : null;
+    if (style == null || !(style.equals(REFERENCE_TABLE_STYLE) || style.equals(GRID_TABLE_STYLE) || style.equals(FACTS_TABLE_STYLE)
+        || style.equals(EXAMPLE_FACTS_TABLE_STYLE))) {
+      style = GRID_TABLE_STYLE;
+      TblStyle tableStyle = factory.createCTTblPrBaseTblStyle();
+      tableStyle.setVal(style);
+      properties.setTblStyle(tableStyle);
+    }
+    boolean reference = style.equals(REFERENCE_TABLE_STYLE);
+
+    TblWidth width = factory.createTblWidth();
+    width.setType("pct");
+    width.setW(BigInteger.valueOf(5000));
+    properties.setTblW(width);
+    properties.setTblInd(null);
+    properties.setTblBorders(null);
+    properties.setTblCellMar(null);
+    CTTblLayoutType layout = factory.createCTTblLayoutType();
+    layout.setType(STTblLayoutType.AUTOFIT);
+    properties.setTblLayout(layout);
+    CTTblLook look = factory.createCTTblLook();
+    look.setVal(reference ? "0620" : "0600");
+    properties.setTblLook(look);
+
+    boolean first = true;
+    for (Tr row : rowsOf(table)) {
+      TrPr rowProperties = row.getTrPr();
+      if (rowProperties == null) {
+        rowProperties = factory.createTrPr();
+        row.setTrPr(rowProperties);
+      }
+      rowProperties.getCnfStyleOrDivIdOrGridBefore().add(factory.createCTTrPrBaseCantSplit(new BooleanDefaultTrue()));
+      if (first && reference) {
+        rowProperties.getCnfStyleOrDivIdOrGridBefore().add(factory.createCTTrPrBaseTblHeader(new BooleanDefaultTrue()));
+      }
+      first = false;
+      for (Tc cell : cellsOf(row)) {
+        if (cell.getTcPr() != null) {
+          cell.getTcPr().setTcBorders(null);
+          cell.getTcPr().setTcMar(null);
+        }
+      }
+    }
+    squareUp(table, factory);
+    if (style.equals(EXAMPLE_FACTS_TABLE_STYLE)) {
+      int label = Math.min(EXAMPLE_LABEL_WIDTH, available / 3);
+      setColumnWidths(table, factory, new int[] {label, available - label});
+    } else {
+      fitColumns(table, factory, available);
+    }
+    for (Tr row : rowsOf(table)) {
+      for (Tc cell : cellsOf(row)) {
+        // the search stops at a table, so this finds the tables of this cell and not those inside them
+        List<Object> nested = getAllElementFromObject(cell, Tbl.class);
+        if (nested.isEmpty()) {
+          continue;
+        }
+        int room = available;
+        if (cell.getTcPr() != null && cell.getTcPr().getTcW() != null && cell.getTcPr().getTcW().getW() != null) {
+          room = cell.getTcPr().getTcW().getW().intValue();
+        }
+        // inside the padding of the cell; in a cell too narrow for that, as wide as the cell and never wider
+        room = Math.max(Math.min(MINIMUM_NESTED_TABLE_WIDTH, room), room - CELL_PADDING);
+        for (Object inner : nested) {
+          formatTable((Tbl) inner, factory, room);
+        }
+      }
+    }
+  }
+
+  /**
+   * A table has no space after it, and the importer drops the top margin of a paragraph: the text
+   * that follows the facts of an example message (its description) gets its distance here. The lines
+   * of the message have theirs from their style.
+   */
+  private static void spaceAfterExampleFacts(MainDocumentPart document, ObjectFactory factory) {
+    List<Object> content = document.getContent();
+    for (int i = 0; i + 1 < content.size(); i++) {
+      Object table = unwrap(content.get(i));
+      Object next = unwrap(content.get(i + 1));
+      if (!(table instanceof Tbl) || !(next instanceof P)) {
+        continue;
+      }
+      TblPr properties = ((Tbl) table).getTblPr();
+      if (properties == null || properties.getTblStyle() == null || !EXAMPLE_FACTS_TABLE_STYLE.equals(properties.getTblStyle().getVal())) {
+        continue;
+      }
+      P paragraph = (P) next;
+      if (paragraph.getPPr() == null) {
+        paragraph.setPPr(factory.createPPr());
+      }
+      if (paragraph.getPPr().getPStyle() != null) {
+        continue;
+      }
+      if (paragraph.getPPr().getSpacing() == null) {
+        paragraph.getPPr().setSpacing(factory.createPPrBaseSpacing());
+      }
+      paragraph.getPPr().getSpacing().setBefore(BigInteger.valueOf(EXAMPLE_FACTS_SPACE_AFTER));
+    }
+  }
+
+  /**
+   * The importer sizes the columns in proportion to their longest content, so one long description
+   * leaves "Value" or "HL70085" too little room to stay on one line. Every column gets at least the
+   * room of its longest word; the others give that room up.
+   */
+  static void fitColumns(Tbl table, ObjectFactory factory) {
+    fitColumns(table, factory, TEXT_WIDTH);
+  }
+
+  /** @param available the width the table has, in twips: the text width, or less inside a cell */
+  static void fitColumns(Tbl table, ObjectFactory factory, int available) {
+    if (table.getTblGrid() == null || table.getTblGrid().getGridCol().isEmpty()) {
+      return;
+    }
+    if (table.getTblGrid().getGridCol().size() == 1) {
+      setColumnWidths(table, factory, new int[] {available});
+      return;
+    }
+    List<TblGridCol> grid = table.getTblGrid().getGridCol();
+    int[] natural = new int[grid.size()];
+    int[] longestWord = new int[grid.size()];
+    for (int i = 0; i < natural.length; i++) {
+      natural[i] = grid.get(i).getW() != null ? Math.max(1, grid.get(i).getW().intValue()) : 1;
+    }
+    for (Tr row : rowsOf(table)) {
+      int column = gridBeforeOf(row);
+      for (Tc cell : cellsOf(row)) {
+        int span = spanOf(cell);
+        if (span == 1 && column < longestWord.length) {
+          for (Object paragraph : getAllElementFromObject(cell, P.class)) {
+            longestWord[column] = Math.max(longestWord[column], longestWordOf((P) paragraph));
+          }
+        }
+        column += span;
+      }
+    }
+    setColumnWidths(table, factory, columnWidths(natural, longestWord, available));
+  }
+
+  /** Gives the columns of the table these widths, in twips, on the grid and on every cell. */
+  private static void setColumnWidths(Tbl table, ObjectFactory factory, int[] widths) {
+    if (table.getTblGrid() == null) {
+      return;
+    }
+    List<TblGridCol> grid = table.getTblGrid().getGridCol();
+    for (int i = 0; i < widths.length && i < grid.size(); i++) {
+      grid.get(i).setW(BigInteger.valueOf(widths[i]));
+    }
+    for (Tr row : rowsOf(table)) {
+      int column = gridBeforeOf(row);
+      for (Tc cell : cellsOf(row)) {
+        int span = spanOf(cell);
+        int total = 0;
+        for (int i = column; i < column + span && i < widths.length; i++) {
+          total += widths[i];
+        }
+        if (total > 0) {
+          if (cell.getTcPr() == null) {
+            cell.setTcPr(factory.createTcPr());
+          }
+          TblWidth cellWidth = factory.createTblWidth();
+          cellWidth.setType("dxa");
+          cellWidth.setW(BigInteger.valueOf(total));
+          cell.getTcPr().setTcW(cellWidth);
+        }
+        column += span;
+      }
+    }
+  }
+
+  /**
+   * Shares {@code available} twips between columns in proportion to their natural widths, after
+   * giving each one the room of its longest word (in characters).
+   */
+  static int[] columnWidths(int[] natural, int[] longestWord, int available) {
+    int count = natural.length;
+    double[] minimum = new double[count];
+    double minimumTotal = 0;
+    double naturalTotal = 0;
+    for (int i = 0; i < count; i++) {
+      minimum[i] = Math.min(longestWord[i], LONGEST_UNBROKEN_WORD) * TWIPS_PER_CHARACTER + CELL_PADDING;
+      minimumTotal += minimum[i];
+      naturalTotal += Math.max(1, natural[i]);
+    }
+    if (minimumTotal > available) {
+      for (int i = 0; i < count; i++) {
+        minimum[i] = minimum[i] * available / minimumTotal;
+      }
+    }
+    double[] width = new double[count];
+    double missing = 0;
+    double spare = 0;
+    for (int i = 0; i < count; i++) {
+      width[i] = Math.max(1, natural[i]) * available / naturalTotal;
+      if (width[i] < minimum[i]) {
+        missing += minimum[i] - width[i];
+        width[i] = minimum[i];
+      } else {
+        spare += width[i] - minimum[i];
+      }
+    }
+    int[] result = new int[count];
+    int used = 0;
+    for (int i = 0; i < count; i++) {
+      if (missing > 0 && spare > 0 && width[i] > minimum[i]) {
+        width[i] -= (width[i] - minimum[i]) * Math.min(1, missing / spare);
+      }
+      result[i] = (int) Math.round(width[i]);
+      used += result[i];
+    }
+    int widest = 0;
+    for (int i = 1; i < count; i++) {
+      widest = result[i] > result[widest] ? i : widest;
+    }
+    result[widest] += available - used;
+    return result;
+  }
+
+  private static List<Tr> rowsOf(Tbl table) {
+    List<Tr> rows = new ArrayList<Tr>();
+    for (Object node : table.getContent()) {
+      if (unwrap(node) instanceof Tr) {
+        rows.add((Tr) unwrap(node));
+      }
+    }
+    return rows;
+  }
+
+  private static List<Tc> cellsOf(Tr row) {
+    List<Tc> cells = new ArrayList<Tc>();
+    for (Object node : row.getContent()) {
+      if (unwrap(node) instanceof Tc) {
+        cells.add((Tc) unwrap(node));
+      }
+    }
+    return cells;
+  }
+
+  /**
+   * Makes the grid of a table and its rows agree. The importer counts a column too many for some
+   * tables whose cells span columns, and a row can come with fewer cells than the others; Word draws
+   * such a row short of the right edge. The grid loses the columns no row uses, and the last cell of
+   * a short row is widened to the edge.
+   */
+  static void squareUp(Tbl table, ObjectFactory factory) {
+    if (table.getTblGrid() == null) {
+      return;
+    }
+    List<TblGridCol> grid = table.getTblGrid().getGridCol();
+    List<Tr> rows = rowsOf(table);
+    int[] used = new int[rows.size()];
+    int widest = 0;
+    for (int i = 0; i < rows.size(); i++) {
+      used[i] = gridBeforeOf(rows.get(i)) + gridAfterOf(rows.get(i));
+      for (Tc cell : cellsOf(rows.get(i))) {
+        used[i] += spanOf(cell);
+      }
+      widest = Math.max(widest, used[i]);
+    }
+    if (widest == 0) {
+      return;
+    }
+    while (grid.size() > widest) {
+      grid.remove(grid.size() - 1);
+    }
+    for (int i = 0; i < rows.size(); i++) {
+      List<Tc> cells = cellsOf(rows.get(i));
+      int missing = grid.size() - used[i];
+      if (missing <= 0 || cells.isEmpty()) {
+        continue;
+      }
+      Tc last = cells.get(cells.size() - 1);
+      if (last.getTcPr() == null) {
+        last.setTcPr(factory.createTcPr());
+      }
+      TcPrInner.GridSpan span = factory.createTcPrInnerGridSpan();
+      span.setVal(BigInteger.valueOf(spanOf(last) + missing));
+      last.getTcPr().setGridSpan(span);
+    }
+  }
+
+  /** Grid columns a row leaves empty after its last cell. */
+  private static int gridAfterOf(Tr row) {
+    if (row.getTrPr() != null) {
+      for (Object property : row.getTrPr().getCnfStyleOrDivIdOrGridBefore()) {
+        Object value = unwrap(property);
+        if (value instanceof CTTrPrBase.GridAfter && ((CTTrPrBase.GridAfter) value).getVal() != null) {
+          return Math.max(0, ((CTTrPrBase.GridAfter) value).getVal().intValue());
+        }
+      }
+    }
+    return 0;
+  }
+
+  /** Grid columns a row leaves empty before its first cell. */
+  private static int gridBeforeOf(Tr row) {
+    if (row.getTrPr() != null) {
+      for (Object property : row.getTrPr().getCnfStyleOrDivIdOrGridBefore()) {
+        Object value = unwrap(property);
+        if (value instanceof CTTrPrBase.GridBefore && ((CTTrPrBase.GridBefore) value).getVal() != null) {
+          return Math.max(0, ((CTTrPrBase.GridBefore) value).getVal().intValue());
+        }
+      }
+    }
+    return 0;
+  }
+
+  /** Length of the longest word of a paragraph; a line break ends a word like a space does. */
+  private static int longestWordOf(P paragraph) {
+    StringBuilder text = new StringBuilder();
+    for (Object run : getAllElementFromObject(paragraph, R.class)) {
+      for (Object node : ((R) run).getContent()) {
+        Object value = unwrap(node);
+        if (value instanceof Text) {
+          text.append(((Text) value).getValue());
+        } else if (value instanceof Br || value instanceof R.Tab) {
+          text.append(' ');
+        }
+      }
+    }
+    int longest = 0;
+    for (String word : text.toString().trim().split("\\s+")) {
+      longest = Math.max(longest, word.length());
+    }
+    return longest;
+  }
+
+  private static int spanOf(Tc cell) {
+    return cell.getTcPr() != null && cell.getTcPr().getGridSpan() != null && cell.getTcPr().getGridSpan().getVal() != null
+        ? Math.max(1, cell.getTcPr().getGridSpan().getVal().intValue()) : 1;
+  }
+
+  /** A title or a line of facts right above a table stays on the page of the table. */
+  private static void keepCaptionsWithTables(MainDocumentPart document) {
+    List<Object> content = document.getContent();
+    for (int i = 1; i < content.size(); i++) {
+      if (unwrap(content.get(i)) instanceof Tbl && unwrap(content.get(i - 1)) instanceof P) {
+        P paragraph = (P) unwrap(content.get(i - 1));
+        PPr properties = paragraph.getPPr();
+        if (properties == null) {
+          properties = Context.getWmlObjectFactory().createPPr();
+          paragraph.setPPr(properties);
+        }
+        properties.setKeepNext(new BooleanDefaultTrue());
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- images
+
+  /**
+   * The importer writes cell backgrounds as a shading with a fill and no pattern, which the format
+   * requires ("clear": the fill alone). Strict readers reject the document without it.
+   */
+  private static void completeShading(Object node) {
+    node = unwrap(node);
+    if (node instanceof Tc && ((Tc) node).getTcPr() != null) {
+      completeShading(((Tc) node).getTcPr().getShd());
+    } else if (node instanceof P && ((P) node).getPPr() != null) {
+      completeShading(((P) node).getPPr().getShd());
+    } else if (node instanceof R && ((R) node).getRPr() != null) {
+      completeShading(((R) node).getRPr().getShd());
+    } else if (node instanceof Tbl && ((Tbl) node).getTblPr() != null) {
+      completeShading(((Tbl) node).getTblPr().getShd());
+    }
+    if (node instanceof ContentAccessor) {
+      for (Object child : ((ContentAccessor) node).getContent()) {
+        completeShading(child);
+      }
+    }
+  }
+
+  private static void completeShading(CTShd shading) {
+    if (shading != null && shading.getVal() == null) {
+      shading.setVal(STShd.CLEAR);
+    }
+  }
+
+  /** Pictures wider than the text area are scaled down; the cover picture is kept to logo size. */
+  private static void fitImages(MainDocumentPart document) {
+    boolean cover = true;
+    long pictureId = 1;
+    for (Object node : getAllElementFromObject(document, Drawing.class)) {
+      Drawing drawing = (Drawing) node;
+      // every picture of the document needs an id of its own (the importer gives them all the same)
+      for (Object placed : drawing.getAnchorOrInline()) {
+        if (placed instanceof Inline && ((Inline) placed).getDocPr() != null) {
+          ((Inline) placed).getDocPr().setId(pictureId++);
+        } else if (placed instanceof Anchor && ((Anchor) placed).getDocPr() != null) {
+          ((Anchor) placed).getDocPr().setId(pictureId++);
+        }
+      }
+      if (drawing.getAnchorOrInline().isEmpty() || !(drawing.getAnchorOrInline().get(0) instanceof Inline)) {
+        continue;
+      }
+      Inline inline = (Inline) drawing.getAnchorOrInline().get(0);
+      CTPositiveSize2D size = inline.getExtent();
+      if (size == null || size.getCx() <= 0 || size.getCy() <= 0) {
+        continue;
+      }
+      double scale = 1d;
+      if (size.getCx() > MAX_IMAGE_WIDTH_EMU) {
+        scale = (double) MAX_IMAGE_WIDTH_EMU / size.getCx();
+      }
+      if (cover && isCoverPicture(document, drawing) && size.getCy() * scale > MAX_COVER_PICTURE_HEIGHT_EMU) {
+        scale = (double) MAX_COVER_PICTURE_HEIGHT_EMU / size.getCy();
+      }
+      cover = false;
+      if (scale < 1d) {
+        long width = Math.round(size.getCx() * scale);
+        long height = Math.round(size.getCy() * scale);
+        size.setCx(width);
+        size.setCy(height);
+        if (inline.getGraphic() != null && inline.getGraphic().getGraphicData() != null
+            && inline.getGraphic().getGraphicData().getPic() != null
+            && inline.getGraphic().getGraphicData().getPic().getSpPr() != null
+            && inline.getGraphic().getGraphicData().getPic().getSpPr().getXfrm() != null
+            && inline.getGraphic().getGraphicData().getPic().getSpPr().getXfrm().getExt() != null) {
+          inline.getGraphic().getGraphicData().getPic().getSpPr().getXfrm().getExt().setCx(width);
+          inline.getGraphic().getGraphicData().getPic().getSpPr().getXfrm().getExt().setCy(height);
+        }
+      }
+    }
+  }
+
+  private static boolean isCoverPicture(MainDocumentPart document, Drawing drawing) {
+    for (Object item : document.getContent()) {
+      Object paragraph = unwrap(item);
+      if (paragraph instanceof P && getAllElementFromObject(paragraph, Drawing.class).contains(drawing)) {
+        PPr properties = ((P) paragraph).getPPr();
+        return properties != null && properties.getPStyle() != null && "IgCoverPicture".equals(properties.getPStyle().getVal());
+      }
+    }
+    return false;
+  }
+
+  // ---------------------------------------------------------------- helpers
+
+  private static Object unwrap(Object object) {
+    return object instanceof JAXBElement ? ((JAXBElement<?>) object).getValue() : object;
+  }
+
+  private static String textOf(P paragraph) {
+    StringBuilder text = new StringBuilder();
+    for (Object node : getAllElementFromObject(paragraph, Text.class)) {
+      text.append(((Text) node).getValue());
+    }
+    return text.toString();
   }
 
   public static List<Object> getAllElementFromObject(Object obj, Class<?> toSearch) {
     List<Object> result = new ArrayList<Object>();
-    if (obj instanceof JAXBElement)
-      obj = ((JAXBElement<?>) obj).getValue();
-
-    if (obj.getClass().equals(toSearch))
+    obj = unwrap(obj);
+    if (obj == null) {
+      return result;
+    }
+    if (obj.getClass().equals(toSearch)) {
       result.add(obj);
-    else if (obj instanceof ContentAccessor) {
-      List<?> children = ((ContentAccessor) obj).getContent();
-      for (Object child : children) {
+    } else if (obj instanceof ContentAccessor) {
+      for (Object child : ((ContentAccessor) obj).getContent()) {
         result.addAll(getAllElementFromObject(child, toSearch));
       }
     }
     return result;
   }
 
-  public void replaceVersionInFooter(WordprocessingMLPackage wordMLPackage, String version) {
-    RelationshipsPart rp = wordMLPackage.getMainDocumentPart().getRelationshipsPart();
-    List<Relationship> rels = rp.getRelationshipsByType(Namespaces.FOOTER);
-    for (Relationship rel : rels) {
-      Part p = rp.getPart(rel);
-      if (p instanceof FooterPart) {
-        FooterPart footerPart = (FooterPart) p;
-        // footerPart.getJaxbElement().getContent()
-        List<Object> textNodes = getAllElementFromObject(footerPart, Text.class);
-        for (Object node : textNodes) {
-          if (node instanceof Text) {
-            Text text = (Text) node;
-            if (text.getValue().contains("[IG_VERSION]")) {
-              text.setValue(text.getValue().replace("[IG_VERSION]", version));
-            }
-          }
-        }
-        p.getContentLengthAsLoaded();
+  private static String asset(String name) throws IOException {
+    try (InputStream stream = WordUtil.class.getResourceAsStream(ASSETS + name)) {
+      if (stream == null) {
+        throw new IOException("Missing export asset " + ASSETS + name);
       }
-    }
-
-  }
-
-  public static void createTableOfContentForDocx4j(WordprocessingMLPackage wordMLPackage,
-      ObjectFactory factory) {
-    P paragraphForTOC = factory.createP();
-    R r = factory.createR();
-
-    FldChar fldchar = factory.createFldChar();
-    fldchar.setFldCharType(STFldCharType.BEGIN);
-    fldchar.setDirty(true);
-    r.getContent().add(getWrappedFldChar(fldchar));
-    paragraphForTOC.getContent().add(r);
-
-    R r1 = factory.createR();
-    Text txt = new Text();
-    txt.setSpace("preserve");
-    txt.setValue("TOC \\o \"1-5\" \\h \\z \\u \\h");
-    r.getContent().add(factory.createRInstrText(txt));
-    paragraphForTOC.getContent().add(r1);
-
-    FldChar fldcharend = factory.createFldChar();
-    fldcharend.setFldCharType(STFldCharType.END);
-    R r2 = factory.createR();
-    r2.getContent().add(getWrappedFldChar(fldcharend));
-    paragraphForTOC.getContent().add(r2);
-
-    wordMLPackage.getMainDocumentPart().getContent().add(paragraphForTOC);
-  }
-
-  public static void loadTemplateForDocx4j(WordprocessingMLPackage wordMLPackage) {
-    try {
-      // Replace dotx content type with docx
-      ContentTypeManager ctm = wordMLPackage.getContentTypeManager();
-
-      // Get <Override PartName="/word/document.xml"
-      // ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml"/>
-      CTOverride override;
-      override = ctm.getOverrideContentType().get(new URI("/word/document.xml"));
-      override.setContentType(
-          org.docx4j.openpackaging.contenttype.ContentTypes.WORDPROCESSINGML_DOCUMENT);
-
-      // Create settings part, and init content
-      DocumentSettingsPart dsp = new DocumentSettingsPart();
-      CTSettings settings = Context.getWmlObjectFactory().createCTSettings();
-      dsp.setJaxbElement(settings);
-      wordMLPackage.getMainDocumentPart().addTargetPart(dsp);
-
-      // Create external rel
-      RelationshipsPart rp = RelationshipsPart.createRelationshipsPartForPart(dsp);
-      org.docx4j.relationships.Relationship rel =
-          new org.docx4j.relationships.ObjectFactory().createRelationship();
-      rel.setType(Namespaces.ATTACHED_TEMPLATE);
-      // String templatePath = "/rendering/lri_template.dotx";
-      URL templateData = WordUtil.class.getResource("/lri_template.docx");
-      rel.setTarget(templateData.getPath());
-      rel.setTargetMode("External");
-      rp.addRelationship(rel); // addRelationship sets the rel's @Id
-
-      settings.setAttachedTemplate((CTRel) XmlUtils.unmarshalString(
-          "<w:attachedTemplate xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\""
-              + rel.getId() + "\"/>",
-          Context.jc, CTRel.class));
-
-    } catch (URISyntaxException | JAXBException | Docx4JException e1) {
-      e1.printStackTrace();
+      return IOUtils.toString(stream, StandardCharsets.UTF_8.name());
     }
   }
-
-  private static ByteArrayOutputStream cleanHtml(InputStream html) {
-    Properties oProps = new Properties();
-    oProps.setProperty("new-blocklevel-tags", "figcaption");
-    oProps.setProperty("char-encoding", "utf8");
-    Tidy tidy = new Tidy();
-    tidy.setConfigurationFromProps(oProps);
-    tidy.setWraplen(Integer.MAX_VALUE);
-    tidy.setDropEmptyParas(true);
-    tidy.setXHTML(true);
-    tidy.setShowWarnings(false); // to hide errors
-    tidy.setQuiet(true); // to hide warning
-    tidy.setMakeClean(true);
-    tidy.setTidyMark(false);
-    // tidy.setBreakBeforeBR(true);
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    tidy.parseDOM(html, outputStream);
-    return outputStream;
-  }
-
-
-
-
 }

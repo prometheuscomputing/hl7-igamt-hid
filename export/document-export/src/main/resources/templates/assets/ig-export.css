@@ -1,0 +1,891 @@
+/*
+ * Stylesheet of the HTML export. It is inlined in the exported file, which has to work offline
+ * and from a file:// URL, so there is no web font and no external request: system font stacks only.
+ *
+ * Structure of the page (built by ExportHtmlEnhancer):
+ *   .ig-topbar   title, search, actions
+ *   .ig-sidebar  table of contents
+ *   .ig-main     #ig-cover, then #ig-content made of nested section.ig-section
+ */
+
+:root {
+  --ig-font-body: "Inter", "Avenir Next", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --ig-font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Cambria, Georgia, serif;
+  --ig-font-code: "SF Mono", "JetBrains Mono", "Cascadia Mono", "Segoe UI Mono", Consolas, Menlo, monospace;
+
+  --ig-paper: #ffffff;
+  --ig-canvas: #f4f6f8;
+  --ig-ink: #15212b;
+  --ig-ink-2: #45535f;
+  --ig-ink-3: #5f6d79;
+  --ig-rule: #dde3e8;
+  --ig-rule-strong: #b8c2cb;
+  --ig-accent: #0a5c78;
+  --ig-accent-strong: #07475d;
+  --ig-accent-wash: #e7f1f4;
+  --ig-hover: #f1f6f8;
+  --ig-target: #fff6d6;
+  --ig-mark: #ffef9e;
+  --ig-mark-rule: #d49b00;
+
+  --ig-u-r-bg: #0a5c78;
+  --ig-u-r-ink: #ffffff;
+  --ig-u-re-ink: #0a5c78;
+  --ig-u-c-bg: #fcefcf;
+  --ig-u-c-ink: #7a4a00;
+  --ig-u-c-rule: #e6c56f;
+  --ig-u-o-bg: #edf0f3;
+  --ig-u-o-ink: #45535f;
+  --ig-u-x-bg: #fbe9e7;
+  --ig-u-x-ink: #9b2c2c;
+  --ig-u-b-ink: #5f6d79;
+
+  --ig-topbar-height: 52px;
+  --ig-sidebar-width: 328px;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --ig-paper: #10181f;
+  --ig-canvas: #172129;
+  --ig-ink: #e6ecf0;
+  --ig-ink-2: #b3bfc9;
+  --ig-ink-3: #8795a1;
+  --ig-rule: #27343f;
+  --ig-rule-strong: #3b4a57;
+  --ig-accent: #6cc4de;
+  --ig-accent-strong: #9bd8ea;
+  --ig-accent-wash: #16303a;
+  --ig-hover: #18252e;
+  --ig-target: #3a3212;
+  --ig-mark: #574a0c;
+  --ig-mark-rule: #d1a520;
+
+  --ig-u-r-bg: #2d93b3;
+  --ig-u-r-ink: #06141a;
+  --ig-u-re-ink: #6cc4de;
+  --ig-u-c-bg: #3b2f10;
+  --ig-u-c-ink: #f1cf7a;
+  --ig-u-c-rule: #6f5a1f;
+  --ig-u-o-bg: #222f39;
+  --ig-u-o-ink: #b3bfc9;
+  --ig-u-x-bg: #3a1c1b;
+  --ig-u-x-ink: #f0a39c;
+  --ig-u-b-ink: #8795a1;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body.ig-doc {
+  margin: 0;
+  background: var(--ig-paper);
+  color: var(--ig-ink);
+  font-family: var(--ig-font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.ig-doc a { color: var(--ig-accent); text-decoration: none; }
+.ig-doc a:hover { text-decoration: underline; }
+.ig-doc :focus-visible { outline: 2px solid var(--ig-accent); outline-offset: 2px; border-radius: 2px; }
+
+/* ------------------------------------------------------------------ top bar */
+
+.ig-topbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 30;
+  height: var(--ig-topbar-height);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--ig-paper);
+  border-bottom: 1px solid var(--ig-rule);
+}
+
+.ig-topbar-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 38vw;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ig-ink) !important;
+}
+
+.ig-icon-button, .ig-text-button {
+  font: inherit;
+  color: var(--ig-ink-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ig-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; }
+.ig-text-button { padding: 5px 10px; font-size: 13px; }
+.ig-icon-button:hover, .ig-text-button:hover { background: var(--ig-canvas); color: var(--ig-ink); }
+
+.ig-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+
+.ig-search { position: relative; flex: 1 1 320px; max-width: 520px; margin-left: 12px; }
+.ig-search input {
+  width: 100%;
+  height: 34px;
+  padding: 0 34px 0 12px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ig-ink);
+  background: var(--ig-canvas);
+  border: 1px solid var(--ig-rule);
+  border-radius: 6px;
+}
+.ig-search input::placeholder { color: var(--ig-ink-3); }
+.ig-search input:focus { outline: none; border-color: var(--ig-accent); background: var(--ig-paper); }
+.ig-search kbd {
+  position: absolute;
+  right: 8px;
+  top: 7px;
+  padding: 0 6px;
+  font: 11px/18px var(--ig-font-code);
+  color: var(--ig-ink-3);
+  border: 1px solid var(--ig-rule-strong);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.ig-search input:focus + kbd { display: none; }
+
+.ig-search-results {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  right: 0;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--ig-paper);
+  border: 1px solid var(--ig-rule-strong);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(15, 30, 40, 0.18);
+}
+.ig-search-results[hidden] { display: none; }
+.ig-result {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 2px 12px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--ig-ink) !important;
+  text-decoration: none !important;
+}
+.ig-result.is-active, .ig-result:hover { background: var(--ig-accent-wash); }
+.ig-result-kind { grid-row: span 2; align-self: center; font-size: 12px; color: var(--ig-ink-3); }
+.ig-result-title { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ig-result-title code { font-family: var(--ig-font-code); font-size: 12.5px; }
+.ig-result-context { font-size: 12px; color: var(--ig-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ig-result mark { background: transparent; color: var(--ig-accent); font-weight: 700; }
+.ig-search-empty { padding: 14px 10px; font-size: 13.5px; color: var(--ig-ink-3); }
+
+/* ------------------------------------------------------------------ sidebar */
+
+.ig-sidebar {
+  position: fixed;
+  top: var(--ig-topbar-height);
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  width: var(--ig-sidebar-width);
+  display: flex;
+  flex-direction: column;
+  background: var(--ig-canvas);
+  border-right: 1px solid var(--ig-rule);
+}
+.ig-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 10px 8px 18px;
+}
+.ig-sidebar-title { font-size: 13px; font-weight: 600; color: var(--ig-ink-2); }
+.ig-sidebar nav { flex: 1 1 auto; overflow-y: auto; padding: 0 8px 32px 8px; overscroll-behavior: contain; }
+
+.ig-toc, .ig-toc ul { list-style: none; margin: 0; padding: 0; }
+.ig-toc .ig-toc { margin-left: 13px; padding-left: 6px; border-left: 1px solid var(--ig-rule); }
+.ig-toc li.is-collapsed > .ig-toc { display: none; }
+.ig-toc-row { display: flex; align-items: flex-start; }
+.ig-toc-row > a {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--ig-ink-2);
+  text-decoration: none;
+}
+.ig-toc > li > .ig-toc-row > a { color: var(--ig-ink); }
+.ig-sidebar nav > .ig-toc > li > .ig-toc-row > a { font-weight: 600; padding-top: 6px; padding-bottom: 6px; }
+.ig-toc-row > a:hover { background: var(--ig-rule); text-decoration: none; }
+.ig-toc-row > a.is-active { background: var(--ig-accent-wash); color: var(--ig-accent-strong); font-weight: 600; }
+.ig-toc-num { flex: 0 0 auto; color: var(--ig-ink-3); font-variant-numeric: tabular-nums; font-weight: 400; }
+.ig-toc-code { flex: 0 0 auto; font-family: var(--ig-font-code); font-size: 12.5px; color: var(--ig-ink); }
+.ig-toc-name, .ig-toc-title { min-width: 0; overflow-wrap: anywhere; }
+.ig-toc-name { color: var(--ig-ink-3); }
+.ig-toc-row > a.is-active .ig-toc-code, .ig-toc-row > a.is-active .ig-toc-name { color: inherit; }
+
+.ig-toc-toggle {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 26px;
+  margin-right: -2px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--ig-ink-3);
+}
+.ig-toc-toggle::before {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin: 0 auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform 0.12s ease;
+}
+li.is-collapsed > .ig-toc-row > .ig-toc-toggle::before { transform: rotate(-45deg); }
+.ig-toc li:not(.ig-toc-parent) > .ig-toc-row { padding-left: 18px; }
+
+/* ------------------------------------------------------------------ main */
+
+.ig-main {
+  margin-left: var(--ig-sidebar-width);
+  padding: calc(var(--ig-topbar-height) + 8px) 56px 96px 56px;
+  min-width: 0;
+}
+.ig-main > * { max-width: 1160px; }
+body.ig-nav-hidden .ig-sidebar { display: none; }
+body.ig-nav-hidden .ig-main { margin-left: 0; }
+body.ig-nav-hidden .ig-main > * { margin-left: auto; margin-right: auto; }
+
+#ig-top { display: block; height: 0; }
+
+/* cover */
+
+.ig-cover { padding: 56px 0 40px 0; border-bottom: 1px solid var(--ig-rule-strong); }
+.ig-cover-picture { display: block; max-width: 260px; max-height: 120px; margin: 0 0 32px 0; }
+.ig-title {
+  margin: 0;
+  max-width: 22em;
+  font-family: var(--ig-font-display);
+  font-size: clamp(30px, 3.4vw, 46px);
+  line-height: 1.12;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ig-ink);
+  text-wrap: balance;
+}
+.ig-subtitle { margin: 16px 0 0 0; max-width: 46em; font-size: 19px; line-height: 1.4; color: var(--ig-ink-2); }
+
+.ig-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0 32px;
+  margin: 36px 0 0 0;
+}
+.ig-fact { padding: 10px 0; border-top: 1px solid var(--ig-rule); }
+.ig-fact dt { font-size: 12.5px; color: var(--ig-ink-3); }
+.ig-fact dd { margin: 2px 0 0 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+
+.ig-inventory { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 28px 0 0 0; padding: 0; list-style: none; }
+.ig-inventory a, .ig-inventory li > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--ig-rule-strong);
+  border-radius: 999px;
+  color: var(--ig-ink);
+  text-decoration: none;
+}
+.ig-inventory a:hover { border-color: var(--ig-accent); background: var(--ig-accent-wash); text-decoration: none; }
+.ig-inventory-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ig-inventory-label { font-size: 13.5px; color: var(--ig-ink-2); }
+
+/* sections and headings */
+
+.ig-section { scroll-margin-top: calc(var(--ig-topbar-height) + 12px); }
+.ig-heading {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+  color: var(--ig-ink);
+  scroll-margin-top: calc(var(--ig-topbar-height) + 12px);
+}
+.ig-num { color: var(--ig-ink-3); font-variant-numeric: tabular-nums; font-weight: 400; }
+.ig-anchor {
+  font-family: var(--ig-font-code);
+  font-size: 0.7em;
+  font-weight: 400;
+  color: var(--ig-ink-3) !important;
+  opacity: 0;
+  padding: 0 4px;
+}
+.ig-heading:hover .ig-anchor, .ig-anchor:focus-visible { opacity: 1; }
+.ig-anchor.is-copied::after { content: " copied"; font-family: var(--ig-font-body); }
+
+h1.ig-heading {
+  margin-top: 72px;
+  padding-top: 28px;
+  border-top: 2px solid var(--ig-ink);
+  font-family: var(--ig-font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+h1.ig-heading .ig-num { font-family: var(--ig-font-body); font-size: 0.62em; }
+#ig-content > .ig-section:first-child > h1.ig-heading { margin-top: 48px; }
+h2.ig-heading { margin-top: 52px; font-size: 23px; line-height: 1.3; font-weight: 650; }
+h3.ig-heading { margin-top: 40px; font-size: 18.5px; line-height: 1.35; font-weight: 650; }
+h4.ig-heading { margin-top: 32px; font-size: 16.5px; font-weight: 650; }
+h5.ig-heading, h6.ig-heading { margin-top: 28px; font-size: 15px; font-weight: 650; }
+h2.ig-heading .ig-num, h3.ig-heading .ig-num, h4.ig-heading .ig-num, h5.ig-heading .ig-num, h6.ig-heading .ig-num { font-size: 0.86em; }
+
+/* a resource: conformance profile, segment, data type, value set... */
+
+.ig-resource {
+  margin-top: 44px;
+  padding-top: 22px;
+  border-top: 1px solid var(--ig-rule-strong);
+  /* guides run to hundreds of resources: let the browser skip the ones that are off screen */
+  content-visibility: auto;
+  contain-intrinsic-height: auto 640px;
+}
+.ig-resource > .ig-resource-heading { margin-top: 0; font-size: 20px; line-height: 1.3; }
+.ig-code { font-family: var(--ig-font-code); font-size: 0.95em; font-weight: 700; letter-spacing: -0.01em; }
+.ig-rname { font-weight: 600; }
+.ig-kind {
+  margin-left: auto;
+  order: 5;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ig-ink-3);
+  white-space: nowrap;
+}
+.ig-resource-heading .ig-anchor { order: 4; }
+.ig-master {
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ig-u-x-ink);
+  background: var(--ig-u-x-bg);
+  border-radius: 4px;
+}
+
+.ig-subhead { margin: 28px 0 10px 0; font-size: 14.5px; font-weight: 650; color: var(--ig-ink); }
+.ig-heading + .ig-subhead { margin-top: 20px; }
+.ig-meta + .ig-subhead { margin-top: 22px; }
+
+.ig-empty { margin: 10px 0 0 0; font-size: 13.5px; color: var(--ig-ink-3); font-style: italic; }
+
+.ig-meta { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 12px 0 0 0; }
+.ig-meta-item { display: flex; gap: 7px; align-items: baseline; font-size: 13.5px; }
+.ig-meta dt { color: var(--ig-ink-3); }
+.ig-meta dd { margin: 0; font-weight: 600; color: var(--ig-ink); overflow-wrap: anywhere; }
+
+.ig-note { margin: 20px 0 0 0; padding: 2px 0 2px 18px; border-left: 3px solid var(--ig-rule-strong); max-width: 82ch; }
+.ig-note > .ig-subhead { margin: 0 0 4px 0; font-size: 13px; color: var(--ig-ink-2); }
+.ig-note-body > :first-child, .ig-note-body > .fr-view > :first-child { margin-top: 0; }
+.ig-note-body > :last-child, .ig-note-body > .fr-view > :last-child { margin-bottom: 0; }
+
+#ig-content p { margin: 12px 0; max-width: 82ch; }
+#ig-content ul, #ig-content ol { max-width: 82ch; }
+
+/* ------------------------------------------------------------------ tables */
+
+.ig-table-wrap { margin: 10px 0 0 0; }
+.ig-table-tools { display: flex; align-items: center; gap: 12px; margin: 0 0 6px 0; }
+.ig-table-filter {
+  width: 240px;
+  height: 30px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ig-ink);
+  background: var(--ig-paper);
+  border: 1px solid var(--ig-rule-strong);
+  border-radius: 6px;
+}
+.ig-table-filter:focus { outline: none; border-color: var(--ig-accent); }
+.ig-table-count { font-size: 12.5px; color: var(--ig-ink-3); font-variant-numeric: tabular-nums; }
+
+table.ig-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  border-top: 1px solid var(--ig-rule-strong);
+  border-bottom: 1px solid var(--ig-rule-strong);
+}
+.ig-table th, .ig-table td {
+  padding: 6px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--ig-rule);
+  overflow-wrap: anywhere;
+}
+.ig-table thead th, .ig-table thead td {
+  position: sticky;
+  top: var(--ig-topbar-height);
+  z-index: 2;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ig-ink-2);
+  background: var(--ig-canvas);
+  border-bottom: 1px solid var(--ig-rule-strong);
+  white-space: nowrap;
+}
+.ig-table tbody th { font-weight: 500; }
+.ig-table tbody tr:last-child > * { border-bottom: 0; }
+.ig-table tbody tr:hover > * { background: var(--ig-hover); }
+.ig-table tbody tr:target > *, .ig-table tbody tr.is-target > * { background: var(--ig-target); }
+.ig-table tr[hidden] { display: none; }
+
+.ig-table .c-seq, .ig-table .c-path { width: 1%; white-space: nowrap; font-family: var(--ig-font-code); font-size: 12.5px; color: var(--ig-ink-2); font-variant-numeric: tabular-nums; }
+.ig-table .c-usage { width: 1%; white-space: nowrap; }
+.ig-table .c-card { width: 1%; white-space: nowrap; font-family: var(--ig-font-code); font-size: 12.5px; }
+.ig-table .c-length { white-space: nowrap; font-family: var(--ig-font-code); font-size: 12.5px; }
+.ig-table .c-datatype, .ig-table .c-valueset, .ig-table .c-flavor, .ig-table .c-code, .ig-table .c-codesystem { font-family: var(--ig-font-code); font-size: 12.5px; }
+.ig-table td.c-code { font-weight: 600; white-space: nowrap; }
+.ig-table thead .c-seq, .ig-table thead .c-path, .ig-table thead .c-card, .ig-table thead .c-length, .ig-table thead .c-datatype,
+.ig-table thead .c-valueset, .ig-table thead .c-flavor, .ig-table thead .c-code, .ig-table thead .c-codesystem {
+  font-family: var(--ig-font-body);
+  font-size: 12.5px;
+  color: var(--ig-ink-2);
+  font-weight: 650;
+}
+.ig-table td.c-name { font-weight: 500; min-width: 180px; }
+.ig-table td.c-text { min-width: 220px; }
+.ig-ref { border-bottom: 1px dotted currentColor; }
+.ig-ref:hover { text-decoration: none !important; border-bottom-style: solid; }
+
+/* cells that do not apply (end of a group, binding without a location...) */
+.ig-table td.ig-na, .ig-table th.ig-na {
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, var(--ig-rule) 5px 6px);
+  background-color: transparent;
+}
+
+/* usage codes */
+.ig-usage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 21px;
+  padding: 0 7px;
+  font-family: var(--ig-font-code);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  white-space: nowrap;
+  cursor: default;
+}
+.ig-usage.u-r { background: var(--ig-u-r-bg); color: var(--ig-u-r-ink); }
+.ig-usage.u-re { background: transparent; color: var(--ig-u-re-ink); border-color: currentColor; }
+.ig-usage.u-c, .ig-usage.u-ce, .ig-usage.u-cab { background: var(--ig-u-c-bg); color: var(--ig-u-c-ink); border-color: var(--ig-u-c-rule); }
+.ig-usage.u-o, .ig-usage.u-p { background: var(--ig-u-o-bg); color: var(--ig-u-o-ink); }
+.ig-usage.u-x, .ig-usage.u-e { background: var(--ig-u-x-bg); color: var(--ig-u-x-ink); }
+.ig-usage.u-b, .ig-usage.u-w, .ig-usage.u-ix, .ig-usage.u-d { background: transparent; color: var(--ig-u-b-ink); border: 1px dashed currentColor; }
+.ig-usage-conditional { gap: 5px; }
+.ig-usage-branches { font-weight: 500; opacity: 0.9; }
+
+.ig-strength { font-size: 12.5px; font-weight: 600; }
+.ig-strength.s-required { color: var(--ig-accent-strong); }
+.ig-strength.s-suggested, .ig-strength.s-unspecified, .ig-strength.s-undetermined { color: var(--ig-ink-2); font-weight: 500; }
+
+/* message structure: indentation shows the nesting of the groups */
+.ig-structure td.c-segment {
+  --ig-step: 22px;
+  padding-left: calc(12px + var(--ig-depth, 0) * var(--ig-step));
+  background-image: repeating-linear-gradient(to right, var(--ig-rule-strong) 0 1px, transparent 1px var(--ig-step));
+  background-size: calc(var(--ig-depth, 0) * var(--ig-step)) 100%;
+  background-position: 17px 0;
+  background-repeat: no-repeat;
+  white-space: nowrap;
+}
+.ig-structure tbody tr:hover > td.c-segment { background-color: var(--ig-hover); }
+.ig-seg { font-family: var(--ig-font-code); font-size: 12.5px; font-weight: 700; }
+.ig-bracket { font-family: var(--ig-font-code); font-weight: 700; color: var(--ig-accent); }
+#ig-content a.ig-seg-link { color: inherit; text-decoration: none; border-bottom: 0; background: none; }
+#ig-content a.ig-seg-link:hover .ig-seg, #ig-content a.ig-seg-link:focus-visible .ig-seg { color: var(--ig-accent); text-decoration: underline dotted; text-underline-offset: 3px; }
+.ig-structure tr.ig-group-begin > td { font-weight: 600; }
+/* a group folds into its first row */
+.ig-structure tr.ig-group-begin { cursor: pointer; }
+.ig-group-toggle {
+  appearance: none; border: 0; background: none; padding: 2px 6px 2px 0; margin: -2px 0; font: inherit; color: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px; border-radius: 3px;
+}
+.ig-group-toggle:focus-visible { outline: 2px solid var(--ig-accent); outline-offset: 2px; }
+.ig-group-arrow { width: 0; height: 0; border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; border-top: 6px solid var(--ig-ink-3); }
+.ig-group-toggle[aria-expanded="false"] .ig-group-arrow { transform: rotate(-90deg); }
+.ig-structure tr.ig-group-begin:hover .ig-group-arrow { border-top-color: var(--ig-accent); }
+.ig-group-summary { display: none; margin-left: 12px; font-size: 12px; font-weight: 400; color: var(--ig-ink-3); }
+.ig-group-summary .ig-bracket { margin-left: 4px; }
+tr.ig-group-folded .ig-group-summary { display: inline; }
+.ig-table-button {
+  appearance: none; font: inherit; font-size: 12.5px; color: var(--ig-ink-2); background: none; cursor: pointer;
+  border: 1px solid var(--ig-rule-strong); border-radius: 4px; padding: 3px 10px;
+}
+.ig-table-button:hover { color: var(--ig-accent); border-color: var(--ig-accent); }
+.ig-table-button:focus-visible { outline: 2px solid var(--ig-accent); outline-offset: 2px; }
+.ig-group-word { font-weight: 500; color: var(--ig-ink-3); }
+.ig-group-name { font-family: var(--ig-font-code); font-size: 12.5px; font-weight: 700; letter-spacing: 0.01em; }
+.ig-structure tr.ig-group-end > td { padding-top: 3px; padding-bottom: 3px; font-size: 12px; color: var(--ig-ink-3); }
+.ig-structure tr.ig-group-end .ig-group-name { font-weight: 500; }
+.ig-structure tr.ig-group-end > td.ig-na { background-image: none; }
+
+/* tables with merged cells (co-constraints, slicing...) keep full borders */
+table.ig-grid th, table.ig-grid td { border: 1px solid var(--ig-rule); }
+table.ig-grid thead th { position: static; }
+
+/* change highlighting is written inline by the templates; the export gives each of these backgrounds
+   black or white text, this is for a background it could not read */
+#ig-content [style*="background-color"] { color: #000; }
+#ig-content td > div[style*="display: flex"] { gap: 2px; }
+#ig-content td > div[style*="display: flex"] > div { padding: 1px 6px; border-radius: 3px; }
+
+.ig-table-wrap.ig-wide { overflow-x: auto; }
+.ig-table-wrap.ig-wide thead th { position: static; }
+table.ig-sparse .ig-na { background: none; }
+
+/* captions that introduce a slicing, dynamic mapping or co-constraint table */
+#ig-content p.ig-caption { margin: 14px 0 0 0; font-size: 13.5px; color: var(--ig-ink-2); max-width: none; }
+.ig-caption-code { font-family: var(--ig-font-code); font-size: 12.5px; font-weight: 600; color: var(--ig-ink); }
+#ig-content p.ig-condition { margin: 6px 0 0 0; font-size: 13.5px; color: var(--ig-ink-2); max-width: none; }
+.ig-condition b { font-weight: 600; color: var(--ig-ink); }
+.ig-coconstraint { margin: 0 0 22px 0; padding: 0 0 2px 0; border-radius: 4px; }
+.ig-coconstraint[style] { padding: 4px 10px 10px 10px; }
+
+/* co-constraint cells: a value, then its qualifiers in a quieter voice */
+.cc-item { margin: 0; line-height: 1.45; }
+.cc-item + .cc-item { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--ig-rule); }
+.cc-code, .cc-valueset, .cc-datatype { font-family: var(--ig-font-code); font-size: 12.5px; font-weight: 600; color: var(--ig-ink); }
+.cc-sub { display: block; font-size: 11.5px; color: var(--ig-ink-3); }
+td > .cc-sub:only-of-type { display: inline; }
+table.ig-grid tbody th { background: var(--ig-canvas); text-align: left; font-weight: 600; color: var(--ig-ink-2); }
+table.ig-grid tr.cc-group th, table.ig-grid tr.cc-group td { border-top: 2px solid var(--ig-rule-strong); color: var(--ig-ink); }
+table.ig-grid td, table.ig-grid th { vertical-align: top; overflow-wrap: break-word; word-break: normal; }
+.ig-coconstraint .ig-table-wrap { overflow-x: auto; }
+
+/* comments and definition texts: element on the left, prose on the right */
+table.ig-annotations td:first-child { white-space: nowrap; font-weight: 600; }
+#ig-content table.ig-annotations td > :first-child, #ig-content table.ig-annotations td .fr-view > :first-child { margin-top: 0; }
+#ig-content table.ig-annotations td > :last-child, #ig-content table.ig-annotations td .fr-view > :last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ where used */
+
+details.ig-used { margin: 14px 0 0 0; font-size: 13.5px; color: var(--ig-ink-2); }
+details.ig-used > summary { cursor: pointer; list-style: none; display: inline-flex; align-items: baseline; gap: 8px; padding: 3px 0; border-radius: 4px; }
+details.ig-used > summary::-webkit-details-marker { display: none; }
+details.ig-used > summary::before { content: ""; width: 6px; height: 6px; margin-right: 2px; border-right: 1.6px solid var(--ig-ink-3); border-bottom: 1.6px solid var(--ig-ink-3); transform: rotate(-45deg) translateY(-2px); }
+details.ig-used[open] > summary::before { transform: rotate(45deg) translateY(-2px); }
+details.ig-used > summary:focus-visible { outline: 2px solid var(--ig-accent); outline-offset: 2px; }
+.ig-used-label { font-weight: 650; color: var(--ig-ink); }
+.ig-used-summary { color: var(--ig-ink-3); }
+#ig-content ul.ig-used-list { list-style: none; margin: 6px 0 4px 0; padding: 10px 14px; max-width: none; border-left: 3px solid var(--ig-rule-strong); background: var(--ig-canvas); border-radius: 0 6px 6px 0; }
+.ig-used-list li { margin: 0; padding: 3px 0; line-height: 1.7; }
+.ig-used-kind { display: inline-block; min-width: 150px; font-weight: 600; color: var(--ig-ink); }
+.ig-used-entry { white-space: normal; }
+.ig-used-rows { font-size: 12px; color: var(--ig-ink-3); }
+.ig-used-rows a.ig-ref-row { font-size: 11.5px; }
+
+/* ------------------------------------------------------------------ previews on links */
+
+.ig-preview {
+  position: fixed; z-index: 60; width: max-content; min-width: min(320px, calc(100vw - 24px)); max-width: min(980px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - 24px)); overflow: hidden; display: flex; flex-direction: column;
+  padding: 12px 14px 12px 14px; background: var(--ig-paper); color: var(--ig-ink);
+  border: 1px solid var(--ig-rule-strong); border-radius: 8px; box-shadow: 0 12px 32px rgba(10, 30, 45, 0.18), 0 2px 6px rgba(10, 30, 45, 0.10);
+  font-size: 13px;
+}
+.ig-preview[hidden] { display: none; }
+.ig-preview-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 8px 0; }
+.ig-preview-kind { order: 3; margin-left: auto; font-size: 11.5px; color: var(--ig-ink-3); }
+.ig-preview-code { font-family: var(--ig-font-code); font-weight: 700; font-size: 14px; }
+.ig-preview-name { font-weight: 600; font-size: 14px; }
+.ig-preview-empty { margin: 0; color: var(--ig-ink-2); line-height: 1.5; }
+.ig-excerpt-more { margin: 6px 0 0 0; font-size: 11.5px; color: var(--ig-ink-3); }
+/* the card shows the whole table: what does not fit scrolls inside it, under headings that stay */
+.ig-preview-body { display: flex; flex-direction: column; min-height: 0; }
+.ig-preview-head { flex: none; }
+.ig-preview .ig-excerpt, .ig-preview-body > table.ig-mini { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.ig-preview-body > table.ig-mini { display: block; }
+.ig-preview table.ig-mini thead th { position: sticky; top: 0; z-index: 1; background: var(--ig-paper); box-shadow: 0 1px 0 var(--ig-rule-strong); }
+.ig-preview table.ig-mini td.c-text, .ig-preview table.ig-mini td.c-name { min-width: 150px; }
+table.ig-mini { width: 100%; margin: 0; font-size: 12px; }
+table.ig-mini th, table.ig-mini td { padding: 4px 8px; }
+table.ig-mini thead th { position: static; font-size: 11px; }
+table.ig-mini .ig-usage { height: 17px; min-width: 24px; font-size: 10.5px; }
+.ig-ref-plain { font-family: var(--ig-font-code); font-size: 0.95em; }
+
+/* ------------------------------------------------------------------ field detail panel */
+
+/* a link to a row does not leave it under the bar (and under the sticky header of its table) */
+.ig-table tbody tr[id] { scroll-margin-top: calc(var(--ig-topbar-height) + 56px); }
+tr.ig-field-row { cursor: pointer; }
+tr.ig-field-row:hover > td { background-color: var(--ig-hover); }
+tr.ig-field-row:focus-visible { outline: 2px solid var(--ig-accent); outline-offset: -2px; }
+tr.ig-field-row.is-selected > td { background-color: var(--ig-accent-wash); }
+tr.ig-field-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--ig-accent); }
+
+.ig-panel {
+  position: fixed; z-index: 40; top: var(--ig-topbar-height); right: 0; bottom: 0; width: min(520px, 100vw);
+  display: flex; flex-direction: column; background: var(--ig-paper); color: var(--ig-ink);
+  border-left: 1px solid var(--ig-rule-strong); box-shadow: -14px 0 32px rgba(10, 30, 45, 0.14);
+}
+.ig-panel[hidden] { display: none; }
+.ig-panel-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 14px 22px; border-bottom: 1px solid var(--ig-rule); }
+.ig-panel-title { flex: 1; min-width: 0; }
+.ig-panel-kind { display: block; font-size: 12px; color: var(--ig-ink-3); }
+.ig-panel-name { margin: 3px 0 0 0; font-family: var(--ig-font-body); font-size: 18px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.ig-panel-code { font-family: var(--ig-font-code); font-weight: 700; margin-right: 4px; }
+.ig-panel-close { flex: none; font-size: 22px; line-height: 1; }
+.ig-panel-body { flex: 1; overflow-y: auto; padding: 4px 22px 28px 22px; overscroll-behavior: contain; }
+.ig-panel-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px 16px; margin: 14px 0 4px 0; }
+.ig-panel-fact dt { font-size: 11.5px; color: var(--ig-ink-3); }
+.ig-panel-fact dd { margin: 3px 0 0 0; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.ig-panel-none { font-weight: 400; color: var(--ig-ink-3); }
+.ig-panel-section { margin: 20px 0 0 0; padding: 14px 0 0 0; border-top: 1px solid var(--ig-rule); }
+.ig-panel-subhead { margin: 0 0 8px 0; font-family: var(--ig-font-body); font-size: 13px; font-weight: 650; color: var(--ig-ink); }
+.ig-panel-prose { font-size: 14px; line-height: 1.55; color: var(--ig-ink); overflow-wrap: anywhere; }
+.ig-panel-prose + .ig-panel-prose { margin-top: 10px; }
+.ig-panel-prose > :first-child, .ig-panel-prose .fr-view > :first-child { margin-top: 0; }
+.ig-panel-prose > :last-child, .ig-panel-prose .fr-view > :last-child { margin-bottom: 0; }
+.ig-panel-where { display: inline-block; margin: 0 8px 2px 0; padding: 0 6px; border-radius: 4px; background: var(--ig-canvas); font-family: var(--ig-font-code); font-size: 11.5px; color: var(--ig-ink-2); }
+.ig-panel-table { overflow-x: auto; }
+.ig-panel .ig-caption { margin: 0 0 6px 0; font-size: 12.5px; color: var(--ig-ink-2); }
+.ig-panel-note { margin: 0 0 8px 0; font-size: 13px; color: var(--ig-ink-2); }
+.ig-panel-list { margin: 0; padding: 0 0 0 18px; font-size: 13.5px; line-height: 1.6; }
+.ig-panel-note { display: block; font-size: 12.5px; color: var(--ig-ink-3); }
+.ig-panel-more { display: inline-block; margin-top: 8px; font-size: 12.5px; }
+.ig-panel-empty { margin: 22px 0 0 0; font-size: 13.5px; color: var(--ig-ink-3); }
+.ig-coconstraint { scroll-margin-top: calc(var(--ig-topbar-height) + 12px); }
+@media (pointer: coarse) {
+  /* a finger needs more room than a pointer */
+  .ig-panel-close { min-width: 44px; min-height: 44px; }
+}
+@media (min-width: 1500px) {
+  /* enough room: the document moves aside instead of being covered */
+  body.ig-panel-open .ig-main { padding-right: 540px; }
+}
+
+/* ------------------------------------------------------------------ narrative */
+
+.ig-narrative, .fr-view { max-width: 82ch; overflow-wrap: anywhere; }
+.ig-narrative { margin-top: 14px; font-size: 15.5px; line-height: 1.65; }
+.ig-table .fr-view, .ig-meta .fr-view { max-width: none; }
+.fr-view > div, .fr-view > p { margin: 0 0 12px 0; }
+.fr-view > :last-child { margin-bottom: 0; }
+.fr-view ul, .fr-view ol { margin: 0 0 12px 0; padding-left: 26px; }
+.fr-view li { margin: 3px 0; }
+.fr-view li > div { margin: 0; }
+.fr-view img { max-width: 100%; height: auto; }
+.fr-view a { text-decoration: underline; text-underline-offset: 2px; }
+.fr-view blockquote { margin: 14px 0; padding: 2px 0 2px 18px; border-left: 3px solid var(--ig-rule-strong); color: var(--ig-ink-2); }
+.fr-view hr { border: 0; border-top: 1px solid var(--ig-rule); margin: 20px 0; }
+.fr-view .ig-nh { margin: 22px 0 8px 0; font-weight: 650; line-height: 1.3; }
+.fr-view .ig-nh1 { font-size: 19px; }
+.fr-view .ig-nh2 { font-size: 17px; }
+.fr-view .ig-nh3 { font-size: 15.5px; }
+.fr-view .ig-nh4 { font-size: 14.5px; color: var(--ig-ink-2); }
+.fr-view table { width: 100%; margin: 14px 0; border-collapse: collapse; font-size: 13.5px; line-height: 1.45; }
+.fr-view table th, .fr-view table td { padding: 7px 10px; text-align: left; vertical-align: top; border: 1px solid var(--ig-rule); }
+.fr-view table th, .fr-view table thead td { font-weight: 650; background: var(--ig-canvas); }
+.fr-view code, .fr-view kbd, .fr-view samp { font-family: var(--ig-font-code); font-size: 0.9em; padding: 1px 5px; background: var(--ig-canvas); border-radius: 4px; }
+.fr-view pre, .codeParagraph, .fr-exmsg-body {
+  display: block;
+  margin: 14px 0;
+  padding: 12px 14px;
+  font-family: var(--ig-font-code);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--ig-ink);
+  background: var(--ig-canvas);
+  border: 1px solid var(--ig-rule);
+  border-radius: 6px;
+}
+.fr-view .fr-fil, .fr-view img.fr-fil { float: left; margin: 4px 16px 8px 0; }
+.fr-view .fr-fir, .fr-view img.fr-fir { float: right; margin: 4px 0 8px 16px; }
+.fr-view img.fr-dib { display: block; margin: 12px auto; float: none; }
+.fr-view img.fr-dib.fr-fil { margin-left: 0; }
+.fr-view img.fr-dib.fr-fir { margin-right: 0; }
+.fr-view .fr-text-gray { color: var(--ig-ink-3); }
+.fr-view .fr-text-bordered { padding: 8px 0; border-top: 1px solid var(--ig-rule); border-bottom: 1px solid var(--ig-rule); }
+.fr-view .fr-text-uppercase { text-transform: uppercase; }
+.fr-view::after { content: ""; display: block; clear: both; }
+
+/*
+ * Example messages. A message section and a widget pasted in rich text write the same block: the
+ * facts (message, snippet, link to IGAMT), a description, notes, then the message one line per
+ * segment. A line that wraps continues indented, so the start of every segment stays visible.
+ */
+.fr-exmsg, .fr-view > .fr-exmsg { display: block; margin: 20px 0; }
+.ig-narrative + .fr-exmsg { margin-top: 14px; }
+.fr-exmsg .fr-exmsg-info { width: auto; margin: 0 0 8px 0; border-collapse: collapse; font-size: 13.5px; line-height: 1.5; }
+.fr-exmsg .fr-exmsg-info th, .fr-exmsg .fr-exmsg-info td { padding: 0; border: 0; background: none; text-align: left; vertical-align: baseline; }
+.fr-exmsg .fr-exmsg-info th { padding-right: 16px; font-weight: 400; color: var(--ig-ink-3); white-space: nowrap; }
+.fr-exmsg .fr-exmsg-info td { font-weight: 600; color: var(--ig-ink); overflow-wrap: anywhere; }
+.fr-exmsg .fr-exmsg-info a { text-decoration: none; }
+.fr-exmsg .fr-exmsg-info a:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* rich text is kept to a reading width; a message in it takes the width of the page, like one of a message section */
+.ig-has-example { max-width: none; }
+.ig-has-example > :not(.fr-exmsg):not(.ig-has-example) { max-width: min(82ch, 100%); }
+.fr-exmsg .fr-exmsg-description { margin: 0 0 8px 0; max-width: 74ch; font-size: 14.5px; color: var(--ig-ink-2); }
+.fr-exmsg .fr-exmsg-description > :first-child { margin-top: 0; }
+.fr-exmsg .fr-exmsg-description > :last-child { margin-bottom: 0; }
+.fr-exmsg .fr-exmsg-warning { margin: 0 0 8px 0; font-size: 13.5px; color: var(--ig-u-x-ink); }
+.fr-exmsg .fr-exmsg-body { margin: 0; word-break: normal; }
+.fr-exmsg .fr-exmsg-line { padding-left: 2ch; text-indent: -2ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fr-exmsg .fr-exmsg-mark {
+  padding: 1px 0;
+  color: inherit;
+  background: var(--ig-mark);
+  box-shadow: inset 0 -2px 0 var(--ig-mark-rule);
+  border-radius: 2px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.fr-exmsg.fr-exmsg-missing { padding: 10px 14px; border: 1px dashed var(--ig-rule-strong); border-radius: 6px; }
+.fr-exmsg.fr-exmsg-missing .fr-exmsg-warning { margin: 0; }
+
+.masterDatatypeLabel { color: var(--ig-u-x-ink); font-weight: 700; }
+.requiredDTM { background-color: var(--ig-accent-wash) !important; }
+.lightGreyCell { background-color: var(--ig-canvas); }
+.alignCenter { text-align: center; }
+
+/* ------------------------------------------------------------------ misc */
+
+.ig-footer { margin-top: 96px; padding-top: 16px; border-top: 1px solid var(--ig-rule); font-size: 12.5px; color: var(--ig-ink-3); }
+
+.ig-to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 25;
+  width: 38px;
+  height: 38px;
+  font-size: 17px;
+  color: var(--ig-ink-2);
+  background: var(--ig-paper);
+  border: 1px solid var(--ig-rule-strong);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.ig-to-top[hidden] { display: none; }
+.ig-to-top:hover { color: var(--ig-accent); border-color: var(--ig-accent); }
+
+.ig-usage-key { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--ig-ink-2); }
+.ig-usage-key span.ig-key-item { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ------------------------------------------------------------------ small screens */
+
+@media (max-width: 1000px) {
+  .ig-sidebar { display: none; width: min(88vw, 360px); box-shadow: 0 0 0 100vmax rgba(10, 20, 28, 0.35); }
+  body.ig-nav-open .ig-sidebar { display: flex; }
+  .ig-main { margin-left: 0; padding-left: 20px; padding-right: 20px; }
+  .ig-topbar-title { max-width: 30vw; }
+  .ig-search kbd, #ig-print { display: none; }
+  .ig-table-wrap { overflow-x: auto; }
+  .ig-table thead th, .ig-table thead td { position: static; }
+  .ig-cover { padding-top: 32px; }
+  .ig-kind { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ig-toc-toggle::before { transition: none; }
+}
+
+/* ------------------------------------------------------------------ print */
+
+@page { margin: 16mm 14mm 18mm 14mm; }
+
+/* the contents of the printed document; on screen the sidebar has them */
+.ig-print-toc { display: none; }
+
+@media print {
+  .ig-print-toc { display: block; break-after: page; page-break-after: always; }
+  .ig-print-toc-title { font-family: var(--ig-font-display); font-size: 20pt; margin: 0 0 14pt 0; padding-top: 10pt; border-top: 1.5pt solid var(--ig-ink); }
+  .ig-print-toc ol { list-style: none; margin: 0; padding: 0; }
+  .ig-print-toc ol ol { padding-left: 16pt; }
+  .ig-print-toc li { margin: 0; padding: 0; }
+  .ig-print-toc > ol > li { margin-top: 9pt; font-weight: 600; font-size: 10.5pt; }
+  .ig-print-toc > ol > li li { font-weight: 400; font-size: 9.5pt; }
+  .ig-print-toc a { display: block; padding: 1.5pt 0; text-decoration: none; color: inherit; }
+  .ig-print-toc .ig-toc-num { display: inline-block; min-width: 34pt; color: var(--ig-ink-3); font-variant-numeric: tabular-nums; }
+  .ig-print-toc .ig-toc-code { font-family: var(--ig-font-code); font-size: 0.92em; margin-right: 6pt; }
+  .ig-panel, .ig-preview { display: none !important; }
+  tr.ig-field-row.is-selected > td { background: none; box-shadow: none; }
+  details.ig-used > summary::before { display: none; }
+  body.ig-panel-open .ig-main { padding-right: 0; }
+  :root, :root[data-theme="dark"] {
+    --ig-paper: #ffffff; --ig-canvas: #f4f6f8; --ig-ink: #000000; --ig-ink-2: #333d45; --ig-ink-3: #5c6770;
+    --ig-rule: #cfd6dc; --ig-rule-strong: #9aa5ae; --ig-accent: #0a5c78; --ig-accent-strong: #07475d; --ig-accent-wash: #e7f1f4;
+    --ig-u-r-bg: #0a5c78; --ig-u-r-ink: #ffffff; --ig-u-re-ink: #0a5c78; --ig-u-c-bg: #fcefcf; --ig-u-c-ink: #7a4a00; --ig-u-c-rule: #e6c56f;
+    --ig-u-o-bg: #edf0f3; --ig-u-o-ink: #45535f; --ig-u-x-bg: #fbe9e7; --ig-u-x-ink: #9b2c2c; --ig-u-b-ink: #5c6770;
+    --ig-mark: #ffef9e; --ig-mark-rule: #d49b00;
+    color-scheme: light;
+  }
+  body.ig-doc { font-size: 10pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ig-topbar, .ig-sidebar, .ig-to-top, .ig-anchor, .ig-table-tools { display: none !important; }
+  /* paper shows every group in full, whatever was folded on screen */
+  .ig-structure tr[hidden] { display: table-row !important; }
+  .ig-group-arrow, tr.ig-group-folded .ig-group-summary { display: none !important; }
+  .ig-main { margin: 0; padding: 0; }
+  .ig-main > * { max-width: none; }
+  .ig-cover { padding: 30mm 0 0 0; border-bottom: 0; break-after: page; page-break-after: always; min-height: 60vh; }
+  .ig-title { font-size: 30pt; }
+  .ig-inventory a, .ig-inventory li > span { border-color: var(--ig-rule-strong); }
+  h1.ig-heading { margin-top: 0; break-before: page; page-break-before: always; font-size: 20pt; }
+  #ig-content > .ig-section:first-child > h1.ig-heading { break-before: auto; page-break-before: auto; margin-top: 0; }
+  h2.ig-heading { font-size: 15pt; margin-top: 22pt; }
+  h3.ig-heading, .ig-resource > .ig-resource-heading { font-size: 12.5pt; }
+  .ig-heading, .ig-subhead { break-after: avoid; page-break-after: avoid; }
+  .ig-resource { margin-top: 20pt; padding-top: 12pt; content-visibility: visible; }
+  .ig-narrative, .fr-view, #ig-content p, #ig-content ul, #ig-content ol, .ig-note { max-width: none; }
+  .ig-narrative { font-size: 10pt; }
+  table.ig-table { font-size: 8.5pt; }
+  .ig-table th, .ig-table td { padding: 3.5pt 6pt; }
+  .ig-table thead { display: table-header-group; }
+  .ig-table thead th, .ig-table thead td { position: static; font-size: 8pt; }
+  .ig-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .ig-table .c-seq, .ig-table .c-path, .ig-table .c-card, .ig-table .c-length, .ig-table .c-datatype, .ig-table .c-valueset,
+  .ig-table .c-flavor, .ig-table .c-code, .ig-table .c-codesystem, .ig-seg, .ig-group-name { font-size: 8pt; }
+  .ig-usage { height: 13pt; min-width: 20pt; font-size: 7.5pt; padding: 0 4pt; }
+  .ig-table tr[hidden] { display: table-row; }
+  .ig-doc a { color: inherit; }
+  .ig-ref { border-bottom: 0; }
+  .fr-view pre, .codeParagraph, .fr-exmsg-body { font-size: 8pt; }
+  .fr-exmsg .fr-exmsg-info, .fr-exmsg .fr-exmsg-description { break-after: avoid; }
+  .ig-footer { margin-top: 24pt; }
+}

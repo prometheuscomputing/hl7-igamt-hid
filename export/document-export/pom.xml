@@ -17,11 +17,6 @@
 	</properties>
 	<dependencies>
 		<dependency>
-			<groupId>net.sf.jtidy</groupId>
-			<artifactId>jtidy</artifactId>
-			<version>r938</version>
-		</dependency>
-		<dependency>
 			<groupId>org.apache.poi</groupId>
 			<artifactId>poi-ooxml</artifactId>
 			<version>3.15</version>
@@ -54,6 +49,11 @@
 			<version>3.3.1</version>
 
 			<exclusions>
+				<!-- logback is the logging backend; this second SLF4J binding breaks without log4j -->
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-log4j12</artifactId>
+				</exclusion>
 				<exclusion>
 					<groupId>log4j</groupId>
 					<artifactId>log4j</artifactId>

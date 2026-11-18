@@ -57,7 +57,6 @@ import gov.nist.hit.hl7.igamt.export.domain.ExportedFile;
 import gov.nist.hit.hl7.igamt.export.exception.ExportException;
 import gov.nist.hit.hl7.igamt.export.service.ExportService;
 import gov.nist.hit.hl7.igamt.export.service.IgNewExportService;
-import gov.nist.hit.hl7.igamt.export.util.FileWritter;
 import gov.nist.hit.hl7.igamt.export.util.WordUtil;
 import gov.nist.hit.hl7.igamt.ig.domain.Ig;
 import gov.nist.hit.hl7.igamt.ig.domain.datamodel.IgDataModel;
@@ -191,8 +190,6 @@ public class IgNewExportServiceImpl implements IgNewExportService {
 					exportConfiguration.getIgGeneralConfiguration().getExampleMessages());
 			String xmlContent =
 					igDataModelSerializationService.serializeDocument(igDataModel, exportConfiguration,decision).toXML();
-//			FileWritter fw = new FileWritter();
-//			fw.createAndWriteToFile(xmlContent);
 
 			// TODO add app infoservice to get app version
 			ExportParameters exportParameters = new ExportParameters(false, true, exportFormat.getValue(),
