@@ -335,6 +335,19 @@ var IgExportText = (function () {
     });
   });
 
+  /* ---------------------------------------------------------------- segments of a message structure */
+
+  // The name of a segment leads to its definition like the flavor beside it does, with the same card.
+  each(main.querySelectorAll('table.ig-structure tbody tr'), function (row) {
+    var name = row.querySelector('td.c-segment .ig-seg');
+    var flavor = row.querySelector('td.c-flavor a.ig-ref');
+    if (!name || !flavor || name.closest('a')) { return; }
+    var link = make('a', 'ig-ref ig-seg-link');
+    link.setAttribute('href', flavor.getAttribute('href'));
+    name.parentNode.replaceChild(link, name);
+    link.appendChild(name);
+  });
+
   /* ---------------------------------------------------------------- groups of a message structure */
 
   // A group of segments folds into its first row: a long message reads as its outline, and one
@@ -452,8 +465,9 @@ var IgExportText = (function () {
       copy.classList.remove('ig-field-row', 'is-selected', 'is-target');
     }
     each(copy.querySelectorAll('[id]'), function (child) { child.removeAttribute('id'); });
-    each(copy.querySelectorAll('.ig-table-tools'), function (child) { child.parentNode.removeChild(child); });
+    each(copy.querySelectorAll('.ig-table-tools, .ig-group-arrow, .ig-group-summary'), function (child) { child.parentNode.removeChild(child); });
     each(copy.querySelectorAll('[hidden]'), function (child) { child.hidden = false; });
+    if (copy.classList) { copy.classList.remove('ig-group-folded'); }
     return copy;
   }
   /** A small copy of a table: its header and the given rows. */
@@ -468,6 +482,26 @@ var IgExportText = (function () {
       each(copy.querySelectorAll('a'), function (link) { link.parentNode.replaceChild(make('span', 'ig-ref-plain', link.textContent), link); });
     }
     return copy;
+  }
+  /**
+   * Takes out of a small copy the columns that hold nothing in any of its rows, so that the ones
+   * that say something fit. Tables with merged cells are left as they are.
+   */
+  function dropEmptyColumns(copy) {
+    if (copy.querySelector('[colspan], [rowspan]') || !copy.tBodies.length || !copy.tBodies[0].rows.length) { return; }
+    var rows = copy.tBodies[0].rows;
+    var width = rows[0].cells.length;
+    for (var column = width - 1; column >= 0; column--) {
+      var empty = true;
+      for (var r = 0; r < rows.length && empty; r++) {
+        var cell = rows[r].cells[column];
+        empty = !cell || (rows[r].cells.length === width && text(cell) === '' && !cell.querySelector('img'));
+      }
+      if (empty && width > 1) {
+        each(copy.rows, function (row) { if (row.cells.length === width) { row.deleteCell(column); } });
+        width -= 1;
+      }
+    }
   }
   /** The first rows of a table, with a note when there are more. */
   function excerpt(table, limit, keepLinks) {
@@ -539,7 +573,10 @@ var IgExportText = (function () {
     if (info.name) { head.appendChild(make('span', 'ig-preview-name', info.name)); }
     var definition = definitionTable(section);
     if (definition && definition.tBodies.length && definition.tBodies[0].rows.length) {
-      card.appendChild(excerpt(definition, 8, false));
+      // the whole definition: the card scrolls, and the pointer can go into it
+      var whole = excerpt(definition, 200, false);
+      dropEmptyColumns(whole.querySelector('table'));
+      card.appendChild(whole);
     } else {
       var narrative = section.querySelector(':scope > .ig-narrative, :scope > .ig-note .ig-note-body');
       var summary = text(narrative);
@@ -567,6 +604,7 @@ var IgExportText = (function () {
     if (previewLink) { previewLink.removeAttribute('aria-describedby'); }
     previewLink = null;
     preview.hidden = true;
+    preview.style.maxHeight = '';
     preview.innerHTML = '';
   }
   function showPreview(link) {
@@ -584,11 +622,14 @@ var IgExportText = (function () {
     var box = preview.getBoundingClientRect();
     var margin = 12;
     var left = Math.min(Math.max(margin, anchor.left), Math.max(margin, window.innerWidth - box.width - margin));
-    var below = anchor.bottom + 8;
-    var top = below + box.height + margin <= window.innerHeight ? below
-      : (anchor.top - 8 - box.height >= margin ? anchor.top - 8 - box.height : Math.max(margin, window.innerHeight - box.height - margin));
+    var roomBelow = window.innerHeight - anchor.bottom - 8 - margin;
+    var roomAbove = anchor.top - 8 - margin;
+    var below = box.height <= roomBelow || roomBelow >= roomAbove;
+    // a card taller than the room on its side is as tall as that room, and scrolls
+    var height = Math.min(box.height, Math.max(160, below ? roomBelow : roomAbove));
+    preview.style.maxHeight = Math.round(height) + 'px';
     preview.style.left = Math.round(left) + 'px';
-    preview.style.top = Math.round(top) + 'px';
+    preview.style.top = Math.round(below ? anchor.bottom + 8 : Math.max(margin, anchor.top - 8 - height)) + 'px';
   }
   function referenceOf(event) {
     var link = event.target.closest ? event.target.closest('a.ig-ref') : null;
@@ -631,7 +672,10 @@ var IgExportText = (function () {
   });
   document.addEventListener('focusout', function (event) { if (referenceOf(event)) { hidePreview(); } });
   document.addEventListener('click', function (event) { if (referenceOf(event)) { hidePreview(); } }, true);
-  window.addEventListener('scroll', function () { if (!preview.hidden) { hidePreview(); } }, { passive: true, capture: true });
+  window.addEventListener('scroll', function (event) {
+    // the card itself scrolls: only the page moving under it closes it
+    if (!preview.hidden && !(event.target && event.target.nodeType === 1 && preview.contains(event.target))) { hidePreview(); }
+  }, { passive: true, capture: true });
 
   /* ---------------------------------------------------------------- field detail panel */
 

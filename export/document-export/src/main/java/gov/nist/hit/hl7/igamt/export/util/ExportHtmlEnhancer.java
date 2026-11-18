@@ -108,6 +108,7 @@ public class ExportHtmlEnhancer {
     COLUMN_TYPES.put("value set", "valueset");
     COLUMN_TYPES.put("value sets", "valueset");
     COLUMN_TYPES.put("value set id", "valueset");
+    COLUMN_TYPES.put("value set/single code", "valueset");
     COLUMN_TYPES.put("path", "path");
     COLUMN_TYPES.put("seq", "seq");
     COLUMN_TYPES.put("#", "seq");
@@ -1255,7 +1256,9 @@ public class ExportHtmlEnhancer {
     } else if ("segment".equals(type) && structure) {
       decorateStructureCell(cell, text, row);
     } else if ("flavor".equals(type)) {
+      // of a segment in a message, of a data type where a field is sliced
       link(cell, "Segment");
+      link(cell, "Datatype");
     } else if ("datatype".equals(type)) {
       link(cell, "Datatype");
     } else if ("valueset".equals(type)) {

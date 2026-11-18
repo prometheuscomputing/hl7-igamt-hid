@@ -535,6 +535,8 @@ table.ig-table {
 .ig-structure tbody tr:hover > td.c-segment { background-color: var(--ig-hover); }
 .ig-seg { font-family: var(--ig-font-code); font-size: 12.5px; font-weight: 700; }
 .ig-bracket { font-family: var(--ig-font-code); font-weight: 700; color: var(--ig-accent); }
+#ig-content a.ig-seg-link { color: inherit; text-decoration: none; border-bottom: 0; background: none; }
+#ig-content a.ig-seg-link:hover .ig-seg, #ig-content a.ig-seg-link:focus-visible .ig-seg { color: var(--ig-accent); text-decoration: underline dotted; text-underline-offset: 3px; }
 .ig-structure tr.ig-group-begin > td { font-weight: 600; }
 /* a group folds into its first row */
 .ig-structure tr.ig-group-begin { cursor: pointer; }
@@ -619,7 +621,8 @@ details.ig-used > summary:focus-visible { outline: 2px solid var(--ig-accent); o
 /* ------------------------------------------------------------------ previews on links */
 
 .ig-preview {
-  position: fixed; z-index: 60; width: min(520px, calc(100vw - 24px)); max-height: min(420px, calc(100vh - 24px)); overflow: hidden;
+  position: fixed; z-index: 60; width: max-content; min-width: min(320px, calc(100vw - 24px)); max-width: min(980px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - 24px)); overflow: hidden; display: flex; flex-direction: column;
   padding: 12px 14px 12px 14px; background: var(--ig-paper); color: var(--ig-ink);
   border: 1px solid var(--ig-rule-strong); border-radius: 8px; box-shadow: 0 12px 32px rgba(10, 30, 45, 0.18), 0 2px 6px rgba(10, 30, 45, 0.10);
   font-size: 13px;
@@ -631,6 +634,13 @@ details.ig-used > summary:focus-visible { outline: 2px solid var(--ig-accent); o
 .ig-preview-name { font-weight: 600; font-size: 14px; }
 .ig-preview-empty { margin: 0; color: var(--ig-ink-2); line-height: 1.5; }
 .ig-excerpt-more { margin: 6px 0 0 0; font-size: 11.5px; color: var(--ig-ink-3); }
+/* the card shows the whole table: what does not fit scrolls inside it, under headings that stay */
+.ig-preview-body { display: flex; flex-direction: column; min-height: 0; }
+.ig-preview-head { flex: none; }
+.ig-preview .ig-excerpt, .ig-preview-body > table.ig-mini { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.ig-preview-body > table.ig-mini { display: block; }
+.ig-preview table.ig-mini thead th { position: sticky; top: 0; z-index: 1; background: var(--ig-paper); box-shadow: 0 1px 0 var(--ig-rule-strong); }
+.ig-preview table.ig-mini td.c-text, .ig-preview table.ig-mini td.c-name { min-width: 150px; }
 table.ig-mini { width: 100%; margin: 0; font-size: 12px; }
 table.ig-mini th, table.ig-mini td { padding: 4px 8px; }
 table.ig-mini thead th { position: static; font-size: 11px; }
