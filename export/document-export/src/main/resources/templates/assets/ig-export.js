@@ -335,6 +335,92 @@ var IgExportText = (function () {
     });
   });
 
+  /* ---------------------------------------------------------------- groups of a message structure */
+
+  // A group of segments folds into its first row: a long message reads as its outline, and one
+  // group at a time is opened. Paper always shows everything (the style sheet sees to it).
+  each(main.querySelectorAll('table.ig-structure'), function (table) {
+    if (!table.tBodies.length) { return; }
+    var rows = table.tBodies[0].rows;
+    var groups = [];
+    var byStart = {};
+    var open = [];
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].classList.contains('ig-group-begin')) {
+        open.push({ row: rows[i], start: i, segments: 0, groups: 0, folded: false });
+      } else if (rows[i].classList.contains('ig-group-end')) {
+        var closed = open.pop();
+        if (closed) {
+          closed.end = i;
+          groups.push(closed);
+          byStart[closed.start] = closed;
+          if (open.length) { open[open.length - 1].groups += 1; }
+        }
+      } else {
+        each(open, function (group) { group.segments += 1; });
+      }
+    }
+    if (!groups.length) { return; }
+
+    var all = document.createElement('button');
+    all.type = 'button';
+    all.className = 'ig-table-button';
+    function refresh() {
+      var hiddenUntil = -1;
+      var folded = 0;
+      for (var i = 0; i < rows.length; i++) {
+        rows[i].hidden = i <= hiddenUntil;
+        var group = byStart[i];
+        if (group) {
+          folded += group.folded ? 1 : 0;
+          group.button.setAttribute('aria-expanded', group.folded ? 'false' : 'true');
+          group.row.classList.toggle('ig-group-folded', group.folded);
+          if (group.folded && i > hiddenUntil) { hiddenUntil = group.end; }
+        }
+      }
+      all.textContent = folded === groups.length ? 'Expand all groups' : 'Collapse all groups';
+    }
+    function plural(count, word) { return count + ' ' + word + (count === 1 ? '' : 's'); }
+
+    each(groups, function (group) {
+      var bracket = group.row.querySelector('.ig-bracket');
+      var name = group.row.querySelector('.ig-group-name');
+      if (!bracket) { return; }
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ig-group-toggle';
+      button.setAttribute('aria-label', 'Group ' + (name ? name.textContent : ''));
+      bracket.parentNode.replaceChild(button, bracket);
+      button.appendChild(bracket);
+      button.appendChild(make('span', 'ig-group-arrow'));
+      group.button = button;
+      if (name) {
+        var inside = plural(group.segments, 'segment') + (group.groups ? ', ' + plural(group.groups, 'group') : '');
+        var summary = make('span', 'ig-group-summary', inside + ' ');
+        summary.appendChild(make('span', 'ig-bracket', ']'));
+        name.parentNode.appendChild(summary);
+      }
+      // the whole row answers, links and selected text excepted
+      group.row.addEventListener('click', function (event) {
+        if (event.target.closest('a') || String(window.getSelection()) !== '') { return; }
+        group.folded = !group.folded;
+        refresh();
+      });
+    });
+    groups = groups.filter(function (group) { return group.button; });
+    if (!groups.length) { return; }
+
+    all.addEventListener('click', function () {
+      var fold = !groups.every(function (group) { return group.folded; });
+      each(groups, function (group) { group.folded = fold; });
+      refresh();
+    });
+    var tools = make('div', 'ig-table-tools');
+    tools.appendChild(all);
+    table.parentNode.insertBefore(tools, table);
+    refresh();
+  });
+
   /* ---------------------------------------------------------------- shared lookups */
 
   function text(node) { return node ? node.textContent.replace(/\s+/g, ' ').trim() : ''; }

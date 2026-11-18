@@ -536,6 +536,25 @@ table.ig-table {
 .ig-seg { font-family: var(--ig-font-code); font-size: 12.5px; font-weight: 700; }
 .ig-bracket { font-family: var(--ig-font-code); font-weight: 700; color: var(--ig-accent); }
 .ig-structure tr.ig-group-begin > td { font-weight: 600; }
+/* a group folds into its first row */
+.ig-structure tr.ig-group-begin { cursor: pointer; }
+.ig-group-toggle {
+  appearance: none; border: 0; background: none; padding: 2px 6px 2px 0; margin: -2px 0; font: inherit; color: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px; border-radius: 3px;
+}
+.ig-group-toggle:focus-visible { outline: 2px solid var(--ig-accent); outline-offset: 2px; }
+.ig-group-arrow { width: 0; height: 0; border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; border-top: 6px solid var(--ig-ink-3); }
+.ig-group-toggle[aria-expanded="false"] .ig-group-arrow { transform: rotate(-90deg); }
+.ig-structure tr.ig-group-begin:hover .ig-group-arrow { border-top-color: var(--ig-accent); }
+.ig-group-summary { display: none; margin-left: 12px; font-size: 12px; font-weight: 400; color: var(--ig-ink-3); }
+.ig-group-summary .ig-bracket { margin-left: 4px; }
+tr.ig-group-folded .ig-group-summary { display: inline; }
+.ig-table-button {
+  appearance: none; font: inherit; font-size: 12.5px; color: var(--ig-ink-2); background: none; cursor: pointer;
+  border: 1px solid var(--ig-rule-strong); border-radius: 4px; padding: 3px 10px;
+}
+.ig-table-button:hover { color: var(--ig-accent); border-color: var(--ig-accent); }
+.ig-table-button:focus-visible { outline: 2px solid var(--ig-accent); outline-offset: 2px; }
 .ig-group-word { font-weight: 500; color: var(--ig-ink-3); }
 .ig-group-name { font-family: var(--ig-font-code); font-size: 12.5px; font-weight: 700; letter-spacing: 0.01em; }
 .ig-structure tr.ig-group-end > td { padding-top: 3px; padding-bottom: 3px; font-size: 12px; color: var(--ig-ink-3); }
@@ -829,6 +848,9 @@ tr.ig-field-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--i
   }
   body.ig-doc { font-size: 10pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .ig-topbar, .ig-sidebar, .ig-to-top, .ig-anchor, .ig-table-tools { display: none !important; }
+  /* paper shows every group in full, whatever was folded on screen */
+  .ig-structure tr[hidden] { display: table-row !important; }
+  .ig-group-arrow, tr.ig-group-folded .ig-group-summary { display: none !important; }
   .ig-main { margin: 0; padding: 0; }
   .ig-main > * { max-width: none; }
   .ig-cover { padding: 30mm 0 0 0; border-bottom: 0; break-after: page; page-break-after: always; min-height: 60vh; }

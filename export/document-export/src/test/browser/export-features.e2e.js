@@ -557,6 +557,36 @@ module.exports = async (page, options) => {
   }, sectionOf);
   if (part !== null && part.indexOf('Part of') !== 0) fail('known', 'a date format row is titled "' + part + '"');
 
+  // a group of a message structure folds into its first row and opens again; all of them at once too
+  const folding = await page.evaluate(() => {
+    const table = Array.prototype.find.call(document.querySelectorAll('#ig-content table.ig-structure'), (t) => t.querySelector('tr.ig-group-begin'));
+    if (!table) return null;
+    const rows = table.tBodies[0].rows;
+    const hidden = () => Array.prototype.filter.call(rows, (row) => row.hidden).length;
+    const first = table.querySelector('tr.ig-group-begin');
+    const button = first.querySelector('button.ig-group-toggle');
+    const all = table.parentNode.querySelector('.ig-table-tools button');
+    if (!button || !all) return { missing: true };
+    const result = { before: hidden() };
+    button.click();
+    result.folded = hidden();
+    result.expanded = button.getAttribute('aria-expanded');
+    result.summary = getComputedStyle(first.querySelector('.ig-group-summary')).display;
+    button.click();
+    result.reopened = hidden();
+    all.click();
+    result.allFolded = hidden();
+    result.visibleGroupRows = Array.prototype.filter.call(rows, (row) => !row.hidden && /ig-group-(begin|end)/.test(row.className) && !row.classList.contains('ig-group-folded')).length;
+    result.label = all.textContent;
+    all.click();
+    result.allOpen = hidden();
+    return result;
+  });
+  if (folding && (folding.missing || folding.before !== 0 || folding.folded < 2 || folding.expanded !== 'false' || folding.summary === 'none'
+      || folding.reopened !== 0 || folding.allFolded <= folding.folded - 1 || folding.visibleGroupRows !== 0 || folding.label !== 'Expand all groups' || folding.allOpen !== 0)) {
+    fail('folding', 'groups of a message structure do not fold as expected: ' + JSON.stringify(folding));
+  }
+
   // a table filtered down to its last row is still shown from its first rows in a preview
   const filtered = await page.evaluate(() => {
     const input = Array.prototype.find.call(document.querySelectorAll('.ig-table-filter'), (box) => {
