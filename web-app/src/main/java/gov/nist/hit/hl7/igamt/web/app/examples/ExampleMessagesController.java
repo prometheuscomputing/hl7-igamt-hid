@@ -284,8 +284,9 @@ public class ExampleMessagesController {
     }
 
     /**
-     * The same folder the guide links to. Dropping it into a guide export keeps the
-     * relative links working, including the link back to index.html.
+     * A package that opens on its own: a root index plus the examples folder. Copy that
+     * folder, not index.html, into a guide export. The relative links still resolve and
+     * the guide index stays where it is.
      */
     @RequestMapping(value = "/api/example-messages/{id}/export", method = RequestMethod.GET)
     @PreAuthorize("AccessResource('IGDOCUMENT', #id, READ)")
@@ -304,7 +305,7 @@ public class ExampleMessagesController {
             dataExtensionTokens.addAll(igDataModel.getDataExtensionTokens());
             ExampleMessageExportConfiguration configuration = ExampleMessageExportDataService.replacementFolder(guideExampleMessages());
             exampleMessageExportDataService.populate(igDataModel, configuration);
-            Map<String, byte[]> files = exampleMessageExportDataService.collectStaticPages(igDataModel, configuration, true);
+            Map<String, byte[]> files = exampleMessageExportDataService.collectStandalonePackage(igDataModel, configuration);
             byte[] zip = exampleMessageExportDataService.zipFiles(files);
             response.setContentType("application/zip");
             response.setHeader("Content-disposition", "attachment;filename=ExampleMessages-" + id + ".zip");

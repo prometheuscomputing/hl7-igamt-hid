@@ -25,6 +25,7 @@ export class ActorsEditorComponent implements OnInit, OnDestroy {
   dirty = false;
   iconPickerFor: string = null;
   confirmRemove: string = null;
+  nameTouched: { [id: string]: boolean } = {};
   readonly icons = ACTOR_ICONS;
   readonly capabilities: { value: ActorCapability, label: string, icon: string }[] = [
     { value: 'SENDER', label: 'Sends', icon: 'fa-upload' },
@@ -75,6 +76,14 @@ export class ActorsEditorComponent implements OnInit, OnDestroy {
     }
     return this.actors.filter((item) => (item.name || '').trim().toLowerCase() === name).length > 1
       ? 'Name is already used' : '';
+  }
+
+  showNameError(actor: IExampleActor): string {
+    const error = this.nameError(actor);
+    if (error === 'Name is required' && !this.nameTouched[actor.id]) {
+      return '';
+    }
+    return error;
   }
 
   initials(actor: IExampleActor): string {
@@ -139,6 +148,7 @@ export class ActorsEditorComponent implements OnInit, OnDestroy {
     this.dirty = false;
     this.confirmRemove = null;
     this.iconPickerFor = null;
+    this.nameTouched = {};
   }
 
   save() {

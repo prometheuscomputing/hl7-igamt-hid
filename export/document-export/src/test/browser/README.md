@@ -21,6 +21,16 @@ It is a Playwright function, `async (page, options) => { ... }`, that returns a 
   window, `aria-describedby`, hiding.
 - No console error on any page.
 
+## Safety
+
+Export reads a guide and writes a file. It must not save the guide or change its section tree.
+The browser test is read-only: it opens HTML files that were already exported. Do not point it at
+a live guide, and do not update MongoDB, the table of contents, or Message Infrastructure while
+checking an export.
+
+A structural test that needs to change a section tree uses a disposable copy created for that test.
+It does not write an existing guide, including a QA clone.
+
 ## Running it
 
 1. Export four guides from a running IGAMT and serve them from one folder as

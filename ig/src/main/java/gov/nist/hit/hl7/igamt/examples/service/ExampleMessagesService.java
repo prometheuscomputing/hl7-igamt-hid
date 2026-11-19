@@ -620,6 +620,110 @@ public class ExampleMessagesService {
         return name == null ? "" : name.trim().toLowerCase();
     }
 
+    /**
+     * A clone keeps the narrative widgets, which point at example-message and snippet ids.
+     * Those messages live in their own document, so the clone needs its own copy or the
+     * widgets resolve as missing. Message and snippet ids stay the same. Profile ids move
+     * to the cloned profile when the clone created one.
+     */
+    public void copyForClone(String sourceIgId, String targetIgId, Map<String, String> profileIds) {
+        if (sourceIgId == null || targetIgId == null || sourceIgId.equals(targetIgId)) {
+            return;
+        }
+        IgExampleMessages source = exampleMessagesRepository.findById(sourceIgId).orElse(null);
+        if (source == null || source.getExampleMessages().isEmpty() && source.getActors().isEmpty() && source.getScenarios().isEmpty()) {
+            return;
+        }
+        IgExampleMessages copy = new IgExampleMessages();
+        copy.setId(targetIgId);
+        for (ExampleMessage message : source.getExampleMessages()) {
+            if (message == null) {
+                continue;
+            }
+            copy.getExampleMessages().add(copyMessage(message, profileIds));
+        }
+        for (ExampleActor actor : source.getActors()) {
+            if (actor == null) {
+                continue;
+            }
+            copy.getActors().add(copyActor(actor));
+        }
+        for (ExampleScenario scenario : source.getScenarios()) {
+            if (scenario == null) {
+                continue;
+            }
+            copy.getScenarios().add(copyScenario(scenario, profileIds));
+        }
+        exampleMessagesRepository.save(copy);
+    }
+
+    private ExampleMessage copyMessage(ExampleMessage message, Map<String, String> profileIds) {
+        ExampleMessage copy = new ExampleMessage();
+        copy.setId(message.getId());
+        copy.setName(message.getName());
+        copy.setDescription(message.getDescription());
+        copy.setMessage(message.getMessage());
+        copy.setNarrativeHTML(message.getNarrativeHTML());
+        copy.setProfileId(mapped(profileIds, message.getProfileId()));
+        for (MessageSnippet snippet : message.getSnippets()) {
+            if (snippet == null) {
+                continue;
+            }
+            MessageSnippet snippetCopy = new MessageSnippet();
+            snippetCopy.setId(snippet.getId());
+            snippetCopy.setName(snippet.getName());
+            snippetCopy.setDescription(snippet.getDescription());
+            snippetCopy.setNarrativeHTML(snippet.getNarrativeHTML());
+            snippetCopy.setMessageReferences(new HashSet<String>(snippet.getMessageReferences()));
+            copy.getSnippets().add(snippetCopy);
+        }
+        return copy;
+    }
+
+    private ExampleActor copyActor(ExampleActor actor) {
+        ExampleActor copy = new ExampleActor();
+        copy.setId(actor.getId());
+        copy.setName(actor.getName());
+        copy.setSystem(actor.getSystem());
+        copy.setOrganization(actor.getOrganization());
+        copy.setIcon(actor.getIcon());
+        copy.setCapability(actor.getCapability());
+        return copy;
+    }
+
+    private ExampleScenario copyScenario(ExampleScenario scenario, Map<String, String> profileIds) {
+        ExampleScenario copy = new ExampleScenario();
+        copy.setId(scenario.getId());
+        copy.setName(scenario.getName());
+        copy.setSummary(scenario.getSummary());
+        copy.setLeftActorId(scenario.getLeftActorId());
+        copy.setRightActorId(scenario.getRightActorId());
+        for (ScenarioStep step : scenario.getSteps()) {
+            if (step == null) {
+                continue;
+            }
+            ScenarioStep stepCopy = new ScenarioStep();
+            stepCopy.setId(step.getId());
+            stepCopy.setFromActorId(step.getFromActorId());
+            stepCopy.setToActorId(step.getToActorId());
+            stepCopy.setProfileId(mapped(profileIds, step.getProfileId()));
+            stepCopy.setExampleMessageIds(new ArrayList<String>(step.getExampleMessageIds()));
+            stepCopy.setTitle(step.getTitle());
+            stepCopy.setDescription(step.getDescription());
+            stepCopy.setTrigger(step.getTrigger());
+            stepCopy.setPinnedSnippetIds(new ArrayList<String>(step.getPinnedSnippetIds()));
+            copy.getSteps().add(stepCopy);
+        }
+        return copy;
+    }
+
+    private static String mapped(Map<String, String> profileIds, String profileId) {
+        if (profileId == null || profileIds == null || !profileIds.containsKey(profileId)) {
+            return profileId;
+        }
+        return profileIds.get(profileId);
+    }
+
     private ProfileInfo getProfileInfo(String profileId) {
         ProfileInfo profileInfo = new ProfileInfo();
         ConformanceProfile conformanceProfile = this.conformanceProfileRepository.findById(profileId).orElse(null);

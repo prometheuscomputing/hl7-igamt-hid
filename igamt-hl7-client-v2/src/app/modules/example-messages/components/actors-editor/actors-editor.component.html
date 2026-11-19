@@ -8,7 +8,7 @@
   </header>
 
   <div class="grid">
-    <div class="card" *ngFor="let actor of actors" [class.invalid]="nameError(actor)">
+    <div class="card" *ngFor="let actor of actors" [class.invalid]="showNameError(actor)">
       <div class="card-top">
         <button type="button" class="avatar" (click)="toggleIconPicker(actor)" [disabled]="viewOnly" title="Choose an icon">
           <i *ngIf="actor.icon" class="fa" [ngClass]="actor.icon"></i>
@@ -16,9 +16,9 @@
           <span class="avatar-edit" *ngIf="!viewOnly"><i class="fa fa-pencil"></i></span>
         </button>
         <div class="name-block">
-          <input class="name" type="text" placeholder="Actor name" [(ngModel)]="actor.name" (ngModelChange)="touch()" [disabled]="viewOnly">
-          <small class="error" *ngIf="nameError(actor)">{{ nameError(actor) }}</small>
-          <small class="usage" *ngIf="!nameError(actor) && usageCount(actor)">
+          <input class="name" type="text" placeholder="Actor name" [(ngModel)]="actor.name" (ngModelChange)="touch()" (blur)="nameTouched[actor.id] = true" [disabled]="viewOnly">
+          <small class="error" *ngIf="showNameError(actor)">{{ showNameError(actor) }}</small>
+          <small class="usage" *ngIf="!showNameError(actor) && usageCount(actor)">
             Used in {{ usageCount(actor) }} {{ usageCount(actor) === 1 ? 'scenario' : 'scenarios' }}
           </small>
         </div>

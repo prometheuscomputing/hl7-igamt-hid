@@ -118,20 +118,30 @@ $blue-soft: #e8f0fb;
   flex-direction: column;
 
   .name {
-    border: 0;
-    border-bottom: 1px solid transparent;
-    padding: 4px 0;
-    font-size: 16px;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid $line;
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 14px;
     font-weight: 600;
+    color: $ink;
     outline: none;
-    background: transparent;
+    background: #fff;
 
-    &:hover:not(:disabled), &:focus {
-      border-bottom-color: $line;
+    &::placeholder,
+    &::-webkit-input-placeholder {
+      color: #9aa7b5;
+      font-weight: 400;
     }
 
     &:focus {
-      border-bottom-color: $blue;
+      border-color: $blue;
+      box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.12);
+    }
+
+    &:disabled {
+      background: $soft;
     }
   }
 
@@ -220,6 +230,12 @@ $blue-soft: #e8f0fb;
     padding: 6px 9px;
     font-size: 13px;
     outline: none;
+
+    &::placeholder,
+    &::-webkit-input-placeholder {
+      color: #9aa7b5;
+      font-weight: 400;
+    }
 
     &:focus {
       border-color: $blue;

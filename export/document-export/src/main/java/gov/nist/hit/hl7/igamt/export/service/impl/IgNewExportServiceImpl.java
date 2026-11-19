@@ -179,6 +179,10 @@ public class IgNewExportServiceImpl implements IgNewExportService {
 	}
 
 	@Override
+	/**
+	 * Reads the guide and returns a file. This method must not save the guide or replace its
+	 * section tree. A missing Profile section is a stored-document problem, not an export one.
+	 */
 	public ExportedFile serializeIgDocumentToHtml(String username,IgDataModel igDataModel, ExportFormat exportFormat,
 												  ExportFilterDecision decision, ExportConfiguration exportConfiguration) throws Exception {
 		Ig igDocument = igDataModel.getModel();
