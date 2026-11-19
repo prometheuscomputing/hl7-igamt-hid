@@ -1,4 +1,4 @@
-import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { Subscription } from 'rxjs';
@@ -58,6 +58,26 @@ interface IPinMark {
 
 const COLLAPSED_LINES = 4;
 const VIEW_STORAGE_KEY = 'igamt.scenario-board.view';
+const ZOOM_STORAGE_KEY = 'igamt.scenario-board.zoom';
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 1.5;
+const ZOOM_STEP = 0.1;
+
+function clampZoom(value: number): number {
+  if (!isFinite(value)) {
+    return 1;
+  }
+  return Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value)) * 100) / 100;
+}
+
+function readStoredZoom(): number {
+  try {
+    const stored = parseFloat(localStorage.getItem(ZOOM_STORAGE_KEY));
+    return isNaN(stored) ? 1 : clampZoom(stored);
+  } catch (e) {
+    return 1;
+  }
+}
 
 export type BoardView = 'compact' | 'detailed';
 
@@ -75,6 +95,11 @@ export class ScenarioBoardComponent implements OnInit, OnDestroy {
   saving = false;
   notice = '';
   view: BoardView = localStorage.getItem(VIEW_STORAGE_KEY) === 'detailed' ? 'detailed' : 'compact';
+  /** Board scale. Uses CSS zoom so layout, scrolling and clicks follow the smaller size. */
+  zoom = readStoredZoom();
+  readonly minZoom = MIN_ZOOM;
+  readonly maxZoom = MAX_ZOOM;
+  @ViewChild('stage') stageRef: ElementRef;
   shown: { [key: string]: boolean } = {};
   expanded: { [key: string]: boolean } = {};
   renders: { [key: string]: ISnippetRenderResult } = {};
@@ -229,6 +254,53 @@ export class ScenarioBoardComponent implements OnInit, OnDestroy {
   setView(view: BoardView) {
     this.view = view;
     localStorage.setItem(VIEW_STORAGE_KEY, view);
+  }
+
+  setZoom(value: number) {
+    this.zoom = clampZoom(value);
+    try {
+      localStorage.setItem(ZOOM_STORAGE_KEY, String(this.zoom));
+    } catch (e) { }
+  }
+
+  zoomIn() {
+    this.setZoom(this.zoom + ZOOM_STEP);
+  }
+
+  zoomOut() {
+    this.setZoom(this.zoom - ZOOM_STEP);
+  }
+
+  zoomReset() {
+    this.setZoom(1);
+  }
+
+  /** Scale the board so the whole exchange, down to the last step, fits in the window. */
+  zoomFit() {
+    const stage: HTMLElement = this.stageRef && this.stageRef.nativeElement;
+    if (!stage) {
+      return;
+    }
+    const rect = stage.getBoundingClientRect();
+    const naturalHeight = rect.height / (this.zoom || 1);
+    const available = window.innerHeight - Math.max(rect.top, 0) - 16;
+    if (naturalHeight <= 0 || available <= 0) {
+      return;
+    }
+    this.setZoom(Math.min(1, Math.floor((available / naturalHeight) * 20) / 20));
+  }
+
+  zoomLabel(): string {
+    return Math.round(this.zoom * 100) + '%';
+  }
+
+  /** Ctrl or Cmd with the mouse wheel zooms the board, like a map. */
+  onStageWheel(event: WheelEvent) {
+    if (!(event.ctrlKey || event.metaKey)) {
+      return;
+    }
+    event.preventDefault();
+    this.setZoom(this.zoom + (event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP));
   }
 
   stepName(step: IScenarioStep): string {

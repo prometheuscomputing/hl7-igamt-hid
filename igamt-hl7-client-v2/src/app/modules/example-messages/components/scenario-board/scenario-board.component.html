@@ -8,6 +8,18 @@
     <div class="sb-meta">
       <span class="saving" *ngIf="saving"><i class="fa fa-circle-o-notch fa-spin"></i> Saving</span>
       <span class="count">{{ scenario.steps.length }} {{ scenario.steps.length === 1 ? 'message' : 'messages' }}</span>
+      <div class="zoom-switch" role="group" aria-label="Zoom">
+        <button type="button" (click)="zoomOut()" [disabled]="zoom <= minZoom" title="Zoom out">
+          <i class="fa fa-search-minus"></i>
+        </button>
+        <button type="button" class="zoom-level" (click)="zoomReset()" title="Back to 100%">{{ zoomLabel() }}</button>
+        <button type="button" (click)="zoomIn()" [disabled]="zoom >= maxZoom" title="Zoom in">
+          <i class="fa fa-search-plus"></i>
+        </button>
+        <button type="button" (click)="zoomFit()" title="Fit the whole exchange in the window">
+          <i class="fa fa-compress"></i> Fit
+        </button>
+      </div>
       <div class="view-switch" role="group" aria-label="View">
         <button type="button" [class.active]="view === 'compact'" (click)="setView('compact')" title="Names, profiles and examples only">
           <i class="fa fa-list"></i> Compact
@@ -24,7 +36,7 @@
 
   <div class="notice" *ngIf="notice"><i class="fa fa-info-circle"></i> {{ notice }}</div>
 
-  <div class="stage">
+  <div class="stage" #stage [style.zoom]="zoom" (wheel)="onStageWheel($event)">
     <div class="lifeline left" [class.ghost]="!left"></div>
     <div class="lifeline right" [class.ghost]="!right"></div>
 
