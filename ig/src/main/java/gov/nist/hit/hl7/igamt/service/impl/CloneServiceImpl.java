@@ -39,6 +39,7 @@ import gov.nist.hit.hl7.igamt.conformanceprofile.service.ConformanceProfileServi
 import gov.nist.hit.hl7.igamt.constraints.repository.ConformanceStatementRepository;
 import gov.nist.hit.hl7.igamt.constraints.repository.PredicateRepository;
 import gov.nist.hit.hl7.igamt.datatype.domain.Datatype;
+import gov.nist.hit.hl7.igamt.examples.service.ExampleMessagesService;
 import gov.nist.hit.hl7.igamt.datatype.service.DatatypeDependencyService;
 import gov.nist.hit.hl7.igamt.datatype.service.DatatypeService;
 import gov.nist.hit.hl7.igamt.display.model.CopyInfo;
@@ -147,8 +148,11 @@ public class CloneServiceImpl implements  CloneService {
 	CoConstraintDependencyService CoConstraintDependencyService;
 	@Autowired
 	ModifyingService modifyingService;
+	@Autowired
+	ExampleMessagesService exampleMessagesService;
 	@Override
 	public Ig clone(Ig ig, String username, CopyInfo copyInfo) throws ForbiddenOperationException, EntityNotFound {
+		String sourceIgId = ig.getId();
 
 		updateIGAttributes(ig, username, copyInfo);
 		HashMap<RealKey, String> newKeys = generateNewIds(ig);
@@ -212,13 +216,49 @@ public class CloneServiceImpl implements  CloneService {
 			}
 
 			ig.setId(documentInfo.getDocumentId());
+			retargetExampleMessageLinks(ig.getContent(), sourceIgId, documentInfo.getDocumentId());
 			Ig ret  = this.igRepository.save(ig);
+			exampleMessagesService.copyForClone(sourceIgId, documentInfo.getDocumentId(), clonedProfileIds(newKeys));
 
 			return ret;
 		} catch(Exception e) {
 			igService.removeChildren(documentInfo.getDocumentId());
 			this.igRepository.deleteById(documentInfo.getDocumentId());
 			throw e;
+		}
+	}
+
+	private Map<String, String> clonedProfileIds(HashMap<RealKey, String> newKeys) {
+		Map<String, String> profileIds = new HashMap<String, String>();
+		if (newKeys == null) {
+			return profileIds;
+		}
+		for (Map.Entry<RealKey, String> entry : newKeys.entrySet()) {
+			RealKey key = entry.getKey();
+			if (key == null || key.getType() == null) {
+				continue;
+			}
+			if (key.getType().equals(Type.CONFORMANCEPROFILE) || key.getType().equals(Type.COMPOSITEPROFILE)) {
+				profileIds.put(key.getId(), entry.getValue());
+			}
+		}
+		return profileIds;
+	}
+
+	private void retargetExampleMessageLinks(Set<TextSection> sections, String sourceIgId, String targetIgId) {
+		if (sections == null || sourceIgId == null || targetIgId == null) {
+			return;
+		}
+		String from = "/example-messages/" + sourceIgId + "/";
+		String to = "/example-messages/" + targetIgId + "/";
+		for (TextSection section : sections) {
+			if (section == null) {
+				continue;
+			}
+			if (section.getDescription() != null && section.getDescription().contains(from)) {
+				section.setDescription(section.getDescription().replace(from, to));
+			}
+			retargetExampleMessageLinks(section.getChildren(), sourceIgId, targetIgId);
 		}
 	}
 

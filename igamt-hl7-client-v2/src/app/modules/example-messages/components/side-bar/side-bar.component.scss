@@ -37,6 +37,31 @@
   padding: 10px;
 }
 
+.exchange-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.exchange-nav a {
+  flex: 1;
+  text-align: center;
+  padding: 6px 8px;
+  border: 1px solid #cfd8dc;
+  background: #fff;
+  color: #1565c0;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.messages-heading {
+  margin: 8px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #607d8b;
+}
+
 .btn-text {
   color: white;
   border: 1px solid #e3e3e3;

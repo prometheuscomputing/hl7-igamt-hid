@@ -74,6 +74,18 @@ public class ExportPipelineTest {
   }
 
   @Test
+  public void exportLeavesTheSerializedGuideUnchanged() throws Exception {
+    String before = xml;
+    String htmlOut = export("html");
+    String docxHtml = export("docx");
+    assertThat(xml).isEqualTo(before);
+    assertThat(before).contains("type=\"PROFILE\"");
+    assertThat(before).contains("title=\"Message Infrastructure\"");
+    assertThat(htmlOut).contains("Message Infrastructure");
+    assertThat(docxHtml).contains("Message Infrastructure");
+  }
+
+  @Test
   public void htmlIsOneSelfContainedFile() {
     assertThat(html.select("link[rel=stylesheet], script[src], img[src^=http]")).isEmpty();
     assertThat(html.select("head style").html()).contains("--ig-accent");

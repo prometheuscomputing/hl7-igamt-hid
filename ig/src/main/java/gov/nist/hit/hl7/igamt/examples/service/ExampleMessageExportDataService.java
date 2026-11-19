@@ -100,19 +100,38 @@ public class ExampleMessageExportDataService {
 	}
 
 	/**
-	 * HTML pages for the static export folder. index.html links to these with a relative
-	 * href, so opening the folder does not depend on the application.
+	 * HTML pages for the static export folder. A complete guide export links each page back
+	 * to the guide index. This map does not contain that index.
 	 */
 	public Map<String, byte[]> collectStaticPages(IgDataModel igDataModel, ExampleMessageExportConfiguration configuration) {
-		return collectStaticPages(igDataModel, configuration, true);
+		return collectStaticPages(igDataModel, configuration, "Back to the guide");
 	}
 
 	/**
-	 * @param linkToGuide when false the page stands alone (the example-messages download has
-	 *                    no guide index to return to)
+	 * @param linkToGuide when false the page stands alone (one message downloaded by itself
+	 *                    has no index to return to)
 	 */
 	public Map<String, byte[]> collectStaticPages(IgDataModel igDataModel, ExampleMessageExportConfiguration configuration,
 			boolean linkToGuide) {
+		return collectStaticPages(igDataModel, configuration, linkToGuide ? "Back to the guide" : null);
+	}
+
+	/**
+	 * The Example Messages export opened on its own. A root index lists every message and
+	 * snippet page, and those pages say Back to index. The examples folder has no index of
+	 * its own, so copying that folder into a guide export leaves the guide index in place
+	 * and the relative links still resolve.
+	 */
+	public Map<String, byte[]> collectStandalonePackage(IgDataModel igDataModel, ExampleMessageExportConfiguration configuration) {
+		Map<String, byte[]> pages = collectStaticPages(igDataModel, configuration, "Back to index");
+		Map<String, byte[]> packaged = new LinkedHashMap<String, byte[]>();
+		packaged.put("index.html", catalogIndex(pages));
+		packaged.putAll(pages);
+		return packaged;
+	}
+
+	private Map<String, byte[]> collectStaticPages(IgDataModel igDataModel, ExampleMessageExportConfiguration configuration,
+			String backLabel) {
 		Map<String, byte[]> pages = new LinkedHashMap<>();
 		if (configuration == null || !configuration.isInclude() || !configuration.producesFiles()
 				|| igDataModel.getExampleMessages() == null) {
@@ -124,9 +143,9 @@ public class ExampleMessageExportDataService {
 			if (message == null) {
 				continue;
 			}
-			if (all || dataModel.isMessageReferenced()) {
+			if (includeMessage(dataModel, all)) {
 				String path = ExampleMessageExportConfiguration.pagePath(dataModel.getFilePath());
-				pages.put(path, staticPage(dataModel.getLabel(null), message.getMessage(), path, linkToGuide,
+				pages.put(path, staticPage(dataModel.getLabel(null), message.getMessage(), path, backLabel,
 						configuredDescription(configuration, message.getDescription())));
 			}
 			for (Map.Entry<String, String> snippetPath : dataModel.getSnippetFilePaths().entrySet()) {
@@ -134,7 +153,7 @@ public class ExampleMessageExportDataService {
 				if (all || dataModel.getReferencedSnippetIds().contains(snippetId)) {
 					SnippetRenderResult render = dataModel.getSnippetRender(snippetId);
 					String path = ExampleMessageExportConfiguration.pagePath(snippetPath.getValue());
-					pages.put(path, snippetPage(dataModel.getLabel(snippetId), message, render, configuration, path, linkToGuide,
+					pages.put(path, snippetPage(dataModel.getLabel(snippetId), message, render, configuration, path, backLabel,
 							configuredDescription(configuration, snippetDescription(message, snippetId))));
 				}
 			}
@@ -154,7 +173,7 @@ public class ExampleMessageExportDataService {
 		boolean all = configuration.isExportAllMessages();
 		for (ExampleMessageDataModel dataModel : igDataModel.getExampleMessages().values()) {
 			ExampleMessage message = dataModel.getModel();
-			if (all || dataModel.isMessageReferenced()) {
+			if (includeMessage(dataModel, all)) {
 				files.put(dataModel.getFilePath(), bytes(message.getMessage()));
 			}
 			for (Map.Entry<String, String> snippetPath : dataModel.getSnippetFilePaths().entrySet()) {
@@ -183,6 +202,34 @@ public class ExampleMessageExportDataService {
 			configuration.setIncludeDescription(guide.isIncludeDescription());
 		}
 		return configuration;
+	}
+
+	/**
+	 * A listing the standalone export can open. Message pages link back to this file.
+	 */
+	public byte[] catalogIndex(Map<String, byte[]> pages) {
+		StringBuilder list = new StringBuilder();
+		if (pages != null) {
+			for (String path : pages.keySet()) {
+				if (path == null || !path.endsWith(".html") || "index.html".equals(path)) {
+					continue;
+				}
+				list.append("<li><a href=\"")
+						.append(ExampleMessageExportConfiguration.relativeHref(path))
+						.append("\">")
+						.append(escapeHtml(path))
+						.append("</a></li>");
+			}
+		}
+		String html = "<!DOCTYPE html>\n<html><head><meta charset=\"UTF-8\"/><title>Example messages</title>"
+				+ "<style>body{font-family:Georgia,serif;margin:24px;}a{color:#1565c0;}</style></head><body>"
+				+ "<h1>Example messages</h1><ul>" + list + "</ul></body></html>";
+		return bytes(html);
+	}
+
+	private static boolean includeMessage(ExampleMessageDataModel dataModel, boolean all) {
+		return all || dataModel.isMessageReferenced()
+				|| (dataModel.getReferencedSnippetIds() != null && !dataModel.getReferencedSnippetIds().isEmpty());
 	}
 
 	public byte[] zipFiles(Map<String, byte[]> files) throws IOException {
@@ -247,16 +294,16 @@ public class ExampleMessageExportDataService {
 	}
 
 	private static byte[] snippetPage(String title, ExampleMessage message, SnippetRenderResult render,
-			ExampleMessageExportConfiguration configuration, String archivePath, boolean linkToGuide, String descriptionHtml) {
+			ExampleMessageExportConfiguration configuration, String archivePath, String backLabel, String descriptionHtml) {
 		if (configuration != null && configuration.isHighlightSnippet()) {
 			String full = render != null && render.getFullMessage() != null ? render.getFullMessage()
 					: (message != null ? message.getMessage() : "");
-			return staticPageHtml(title, highlightEr7(full, render != null ? render.getParts() : null), archivePath, linkToGuide, descriptionHtml);
+			return staticPageHtml(title, highlightEr7(full, render != null ? render.getParts() : null), archivePath, backLabel, descriptionHtml);
 		}
 		String content = render != null && render.getRenderedContent() != null
 				? render.getRenderedContent()
 				: (message != null ? message.getMessage() : "");
-		return staticPage(title, content, archivePath, linkToGuide, descriptionHtml);
+		return staticPage(title, content, archivePath, backLabel, descriptionHtml);
 	}
 
 	private static String snippetText(ExampleMessage message, SnippetRenderResult render,
@@ -278,20 +325,24 @@ public class ExampleMessageExportDataService {
 	}
 
 	private static byte[] staticPage(String title, String body, String archivePath, boolean linkToGuide, String descriptionHtml) {
-		return staticPageHtml(title, escapeHtml(body), archivePath, linkToGuide, descriptionHtml);
+		return staticPage(title, body, archivePath, linkToGuide ? "Back to the guide" : null, descriptionHtml);
 	}
 
-	private static byte[] staticPageHtml(String title, String bodyHtml, String archivePath, boolean linkToGuide, String descriptionHtml) {
+	private static byte[] staticPage(String title, String body, String archivePath, String backLabel, String descriptionHtml) {
+		return staticPageHtml(title, escapeHtml(body), archivePath, backLabel, descriptionHtml);
+	}
+
+	private static byte[] staticPageHtml(String title, String bodyHtml, String archivePath, String backLabel, String descriptionHtml) {
 		String safeTitle = escapeHtml(title != null ? title : "Example message");
 		String backLink = "";
-		if (linkToGuide) {
+		if (backLabel != null && !backLabel.isEmpty()) {
 			int depth = archivePath == null ? 0 : archivePath.split("/").length - 1;
 			StringBuilder back = new StringBuilder();
 			for (int i = 0; i < depth; i++) {
 				back.append("../");
 			}
 			back.append("index.html");
-			backLink = "<p><a href=\"" + back + "\">Back to the guide</a></p>";
+			backLink = "<p><a href=\"" + back + "\">" + escapeHtml(backLabel) + "</a></p>";
 		}
 		String html = "<!DOCTYPE html>\n<html><head><meta charset=\"UTF-8\"/>"
 				// the page has no script of its own, so none is allowed: a handler or a script link in a

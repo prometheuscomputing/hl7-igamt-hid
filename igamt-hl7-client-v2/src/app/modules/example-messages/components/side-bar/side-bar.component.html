@@ -17,6 +17,11 @@
   </div>
 </div>
 <div class="sidebar-content" id="sidebar-content">
+  <nav class="exchange-nav">
+    <a [routerLink]="['actors']" routerLinkActive="active-node"><i class="fa fa-users"></i> Actors</a>
+    <a [routerLink]="['scenarios']" routerLinkActive="active-node"><i class="fa fa-exchange"></i> Scenarios</a>
+  </nav>
+  <h4 class="messages-heading">Example messages</h4>
   <app-table-of-content
     [nodes]="nodes | async"
     [viewOnly]="viewOnly$ | async"

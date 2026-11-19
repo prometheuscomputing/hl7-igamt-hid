@@ -1,12 +1,90 @@
 import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 import { IDisplayElement } from "../../shared/models/display-element.interface";
 
+export type ActorCapability = 'SENDER' | 'RECEIVER' | 'BOTH';
+
+export interface IExampleActor {
+    id: string;
+    name: string;
+    system: string;
+    organization: string;
+    icon?: string;
+    capability: ActorCapability;
+}
+
+export const ACTOR_ICONS: { icon: string, label: string }[] = [
+    { icon: 'fa-hospital-o', label: 'Hospital' },
+    { icon: 'fa-user-md', label: 'Clinician' },
+    { icon: 'fa-stethoscope', label: 'Clinic' },
+    { icon: 'fa-medkit', label: 'Pharmacy' },
+    { icon: 'fa-heartbeat', label: 'Care' },
+    { icon: 'fa-flask', label: 'Laboratory' },
+    { icon: 'fa-database', label: 'Registry' },
+    { icon: 'fa-server', label: 'Server' },
+    { icon: 'fa-cloud', label: 'Cloud service' },
+    { icon: 'fa-exchange', label: 'Interface engine' },
+    { icon: 'fa-laptop', label: 'EHR' },
+    { icon: 'fa-desktop', label: 'Workstation' },
+    { icon: 'fa-mobile', label: 'Mobile app' },
+    { icon: 'fa-university', label: 'Public health agency' },
+    { icon: 'fa-building-o', label: 'Organization' },
+    { icon: 'fa-users', label: 'Group' },
+    { icon: 'fa-user', label: 'Person' },
+    { icon: 'fa-shield', label: 'Security' },
+    { icon: 'fa-globe', label: 'Network' },
+    { icon: 'fa-cogs', label: 'System' },
+];
+
+export function actorInitials(name: string): string {
+    const words = (name || '').trim().split(/\s+/).filter((word) => !!word);
+    if (!words.length) {
+        return '?';
+    }
+    if (words.length === 1) {
+        return words[0].substring(0, 2).toUpperCase();
+    }
+    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+}
+
+export function actorCapabilityLabel(capability: ActorCapability): string {
+    if (capability === 'SENDER') {
+        return 'Sends only';
+    }
+    if (capability === 'RECEIVER') {
+        return 'Receives only';
+    }
+    return 'Sends and receives';
+}
+
+export interface IScenarioStep {
+    id: string;
+    fromActorId: string;
+    toActorId: string;
+    profileId: string;
+    exampleMessageIds: string[];
+    title?: string;
+    description?: string;
+    trigger?: string;
+    pinnedSnippetIds?: string[];
+}
+
+export interface IExampleScenario {
+    id: string;
+    name: string;
+    summary: string;
+    leftActorId: string;
+    rightActorId: string;
+    steps: IScenarioStep[];
+}
+
 export interface IgExampleMessages {
     id: string;
     title: string;
     createdId?: string;
     viewOnly?: boolean;
     profileExampleMessages: IProfileExampleMessages[];
+    actors?: IExampleActor[];
+    scenarios?: IExampleScenario[];
 }
 
 export interface IExampleMessageUsage {

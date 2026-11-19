@@ -10,6 +10,7 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -127,6 +128,9 @@ public class ExportAndImportController {
   @Autowired
   ExampleMessageExportDataService exampleMessageExportDataService;
 
+  @Autowired
+  gov.nist.hit.hl7.igamt.serialization.newImplementation.service.ExampleMessageSerializationService exampleMessageSerializationService;
+
   Path source = new File(getClass()
 		  .getResource("/")
 		  .getFile()).toPath();
@@ -136,7 +140,7 @@ public class ExportAndImportController {
   public @ResponseBody void exportIgDocument(@PathVariable("igId") String igId,
       @PathVariable("format") String format,
       @RequestParam(required = false) String deltamode,
-      HttpServletResponse response, FormData formData) throws ExportException {
+      HttpServletRequest request, HttpServletResponse response, FormData formData) throws ExportException {
 	  Set<String> dataExtensionTokens = new HashSet<>();
 
 	  Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -179,11 +183,11 @@ public class ExportAndImportController {
         }
       }
       ExampleMessageExportConfiguration exampleMessages = config.getIgGeneralConfiguration().getExampleMessages();
+      exampleMessageSerializationService.usePublicBase(publicExportBase(request));
       if(format.equalsIgnoreCase(ExportDocType.HTML.toString())) {
         exportedFile = igExportService.exportIgDocumentToHtml(username, igDataModel, decision, config.getId());
         Map<String, byte[]> site = new LinkedHashMap<String, byte[]>();
         site.putAll(exampleMessageExportDataService.collectStaticPages(igDataModel, exampleMessages));
-        site.putAll(exampleMessageExportDataService.collectFiles(igDataModel, exampleMessages));
         writeExportedDocument(response, exportedFile, "text/html", null, site, true);
       }
       if(format.equalsIgnoreCase(ExportDocType.WORD.toString())) {
@@ -198,8 +202,73 @@ public class ExportAndImportController {
       e.printStackTrace();
       throw new ExportException(e, "Error while sending back exported IG Document with id " + igId);
     } finally {
+	    exampleMessageSerializationService.clearPublicBase();
 	    dataExtensionTokens.forEach(token -> inMemoryDomainExtensionService.clear(token));
     }
+  }
+
+  /**
+   * Prefer the address the browser used. A tunnel or reverse proxy otherwise leaves
+   * Open in IGAMT pointing at the server's own localhost.
+   */
+  private static String publicExportBase(HttpServletRequest request) {
+    if (request == null) {
+      return null;
+    }
+    String forwardedHost = firstHeader(request, "X-Forwarded-Host");
+    if (forwardedHost != null) {
+      String proto = firstHeader(request, "X-Forwarded-Proto");
+      if (proto == null) {
+        proto = request.getScheme();
+      }
+      return proto + "://" + forwardedHost;
+    }
+    String origin = request.getHeader("Origin");
+    if (isPublicBase(origin)) {
+      return origin;
+    }
+    String referer = authorityOf(request.getHeader("Referer"));
+    if (isPublicBase(referer)) {
+      return referer;
+    }
+    String port = request.getServerPort() == 80 || request.getServerPort() == 443 ? "" : ":" + request.getServerPort();
+    String fromRequest = request.getScheme() + "://" + request.getServerName() + port;
+    return isPublicBase(fromRequest) ? fromRequest : null;
+  }
+
+  private static String firstHeader(HttpServletRequest request, String name) {
+    String value = request.getHeader(name);
+    if (value == null) {
+      return null;
+    }
+    int comma = value.indexOf(',');
+    value = (comma >= 0 ? value.substring(0, comma) : value).trim();
+    return value.isEmpty() ? null : value;
+  }
+
+  private static String authorityOf(String url) {
+    if (url == null || url.isEmpty()) {
+      return null;
+    }
+    try {
+      java.net.URL parsed = new java.net.URL(url);
+      if (parsed.getProtocol() == null || parsed.getAuthority() == null) {
+        return null;
+      }
+      return parsed.getProtocol() + "://" + parsed.getAuthority();
+    } catch (java.net.MalformedURLException e) {
+      return null;
+    }
+  }
+
+  private static boolean isPublicBase(String base) {
+    if (base == null || base.isEmpty()) {
+      return false;
+    }
+    String lower = base.toLowerCase();
+    return lower.startsWith("http://") || lower.startsWith("https://")
+        ? !(lower.contains("://localhost") || lower.contains("://127.0.0.1"))
+        : false;
   }
 
   private List<ByteArrayOutputStream> generateExcelFilesForWord(IgDataModel igDataModel, ExportFilterDecision decision, String configId) throws ResourceNotFoundException, PathNotFoundException {

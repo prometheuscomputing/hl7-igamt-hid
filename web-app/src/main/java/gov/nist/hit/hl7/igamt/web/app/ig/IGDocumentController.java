@@ -455,6 +455,7 @@ public class IGDocumentController extends BaseController {
 	}
 
 	private void updateAndClean(Set<TextSection> content, Ig ig) throws Exception {
+		requireMessageInfrastructure(content, ig);
 		TextSection orderdMessages  = findRegistryByType(Type.CONFORMANCEPROFILEREGISTRY, content);
 		if(orderdMessages  != null ) {
 			updateRegistryPosition(orderdMessages,  ig.getConformanceProfileRegistry());
@@ -496,6 +497,67 @@ public class IGDocumentController extends BaseController {
 	/**
 	 * @return
 	 */
+	/**
+	 * Message Infrastructure is the PROFILE section. A table-of-contents save replaces the
+	 * whole tree, so a body that omits PROFILE, or drops a registry that is already under it,
+	 * would remove that structure. Refuse the save instead.
+	 */
+	private void requireMessageInfrastructure(Set<TextSection> content, Ig ig) throws IGUpdateException {
+		TextSection posted = findTopLevel(Type.PROFILE, content);
+		if (posted == null) {
+			throw new IGUpdateException("An implementation guide must keep its Profile section (Message Infrastructure).", true);
+		}
+		TextSection current = ig.getContent() == null ? null : findTopLevel(Type.PROFILE, ig.getContent());
+		if (current == null || current.getChildren() == null) {
+			return;
+		}
+		for (TextSection child : current.getChildren()) {
+			if (child == null || child.getId() == null || !isInfrastructureRegistry(child.getType())) {
+				continue;
+			}
+			if (findChild(posted, child.getId()) == null) {
+				String label = child.getLabel() == null || child.getLabel().trim().isEmpty()
+						? child.getType().name() : child.getLabel();
+				throw new IGUpdateException("The Profile section must keep " + label + ".", true);
+			}
+		}
+	}
+
+	private static boolean isInfrastructureRegistry(Type type) {
+		return Type.PROFILECOMPONENTREGISTRY.equals(type)
+				|| Type.CONFORMANCEPROFILEREGISTRY.equals(type)
+				|| Type.COMPOSITEPROFILEREGISTRY.equals(type)
+				|| Type.SEGMENTREGISTRY.equals(type)
+				|| Type.DATATYPEREGISTRY.equals(type)
+				|| Type.COCONSTRAINTGROUPREGISTRY.equals(type)
+				|| Type.VALUESETREGISTRY.equals(type)
+				|| Type.CONFORMANCESTATEMENTSUMMARY.equals(type);
+	}
+
+	private static TextSection findTopLevel(Type type, Set<TextSection> content) {
+		if (content == null || type == null) {
+			return null;
+		}
+		for (TextSection section : content) {
+			if (section != null && type.equals(section.getType())) {
+				return section;
+			}
+		}
+		return null;
+	}
+
+	private static TextSection findChild(TextSection parent, String id) {
+		if (parent.getChildren() == null || id == null) {
+			return null;
+		}
+		for (TextSection child : parent.getChildren()) {
+			if (child != null && id.equals(child.getId())) {
+				return child;
+			}
+		}
+		return null;
+	}
+
 	private TextSection findRegistryByType(Type type, Set<TextSection> content) {
 		for(TextSection section: content) {
 			if(section.getType().equals(Type.PROFILE)) {

@@ -13,9 +13,13 @@ import gov.nist.hit.hl7.igamt.compositeprofile.repository.CompositeProfileStruct
 import gov.nist.hit.hl7.igamt.conformanceprofile.domain.ConformanceProfile;
 import gov.nist.hit.hl7.igamt.conformanceprofile.repository.ConformanceProfileRepository;
 import gov.nist.hit.hl7.igamt.display.service.DisplayInfoService;
+import gov.nist.hit.hl7.igamt.examples.domain.ActorCapability;
+import gov.nist.hit.hl7.igamt.examples.domain.ExampleActor;
 import gov.nist.hit.hl7.igamt.examples.domain.ExampleMessage;
+import gov.nist.hit.hl7.igamt.examples.domain.ExampleScenario;
 import gov.nist.hit.hl7.igamt.examples.domain.IgExampleMessages;
 import gov.nist.hit.hl7.igamt.examples.domain.MessageSnippet;
+import gov.nist.hit.hl7.igamt.examples.domain.ScenarioStep;
 import gov.nist.hit.hl7.igamt.examples.domain.ProfileInfo;
 import gov.nist.hit.hl7.igamt.examples.dto.*;
 import gov.nist.hit.hl7.igamt.examples.repository.IgExampleMessagesRepository;
@@ -26,9 +30,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -103,9 +112,24 @@ public class ExampleMessagesService {
         igExampleMessagesDTO.setId(igExampleMessages.getId());
         igExampleMessagesDTO.setTitle(ig.getMetadata().getTitle());
         igExampleMessagesDTO.setViewOnly(isViewOnly(ig));
-        List<DisplayElement> profiles = new ArrayList<>();
+        igExampleMessagesDTO.setActors(igExampleMessages.getActors());
+        igExampleMessagesDTO.setScenarios(igExampleMessages.getScenarios());
+        // Registry conversion returns HashSet, so sort by position or the TOC reshuffles on every load.
+        List<DisplayElement> profiles = new ArrayList<DisplayElement>();
         profiles.addAll(this.displayInfoService.convertConformanceProfileRegistry(ig.getConformanceProfileRegistry()));
         profiles.addAll(this.displayInfoService.convertCompositeProfileRegistry(ig.getCompositeProfileRegistry()));
+        Collections.sort(profiles, new Comparator<DisplayElement>() {
+            @Override
+            public int compare(DisplayElement left, DisplayElement right) {
+                int byPosition = Integer.compare(left.getPosition(), right.getPosition());
+                if (byPosition != 0) {
+                    return byPosition;
+                }
+                String leftId = left.getId() == null ? "" : left.getId();
+                String rightId = right.getId() == null ? "" : right.getId();
+                return leftId.compareTo(rightId);
+            }
+        });
         for(DisplayElement profile: profiles) {
             ProfileExampleMessages profileExampleMessages = new ProfileExampleMessages();
             profileExampleMessages.setProfile(profile);
@@ -271,6 +295,192 @@ public class ExampleMessagesService {
         return copy;
     }
 
+    public IgExampleMessagesDTO saveExchange(String igId, ExampleExchangeDTO exchange) throws ResourceNotFoundException, GenericException {
+        assertWritable(igId);
+        IgExampleMessages document = requireMessages(igId);
+        List<ExampleActor> actors = normalizeActors(exchange == null ? null : exchange.getActors());
+        List<ExampleScenario> scenarios = normalizeScenarios(exchange == null ? null : exchange.getScenarios(), actors, document);
+        document.setActors(actors);
+        document.setScenarios(scenarios);
+        exampleMessagesRepository.save(document);
+        return toDTO(document);
+    }
+
+    private List<ExampleActor> normalizeActors(List<ExampleActor> incoming) throws GenericException {
+        List<ExampleActor> actors = new ArrayList<ExampleActor>();
+        Set<String> ids = new HashSet<String>();
+        Set<String> names = new HashSet<String>();
+        if (incoming == null) {
+            return actors;
+        }
+        for (ExampleActor actor : incoming) {
+            if (actor == null) {
+                continue;
+            }
+            String name = actor.getName() == null ? "" : actor.getName().trim();
+            if (name.isEmpty()) {
+                throw new GenericException("An actor needs a name.");
+            }
+            if (!names.add(name.toLowerCase())) {
+                throw new GenericException("Two actors cannot share the name \"" + name + "\".");
+            }
+            String id = actor.getId() == null || actor.getId().trim().isEmpty() ? new ObjectId().toString() : actor.getId().trim();
+            if (!ids.add(id)) {
+                throw new GenericException("Two actors share the same id.");
+            }
+            ExampleActor stored = new ExampleActor();
+            stored.setId(id);
+            stored.setName(name);
+            stored.setSystem(actor.getSystem() == null ? "" : actor.getSystem().trim());
+            stored.setOrganization(actor.getOrganization() == null ? "" : actor.getOrganization().trim());
+            String icon = actor.getIcon() == null ? "" : actor.getIcon().trim();
+            stored.setIcon(icon.matches("^fa-[a-z0-9-]{1,40}$") ? icon : "");
+            stored.setCapability(actor.getCapability() == null ? ActorCapability.BOTH : actor.getCapability());
+            actors.add(stored);
+        }
+        return actors;
+    }
+
+    private List<ExampleScenario> normalizeScenarios(List<ExampleScenario> incoming, List<ExampleActor> actors, IgExampleMessages document) throws GenericException {
+        Map<String, ExampleActor> actorById = new HashMap<String, ExampleActor>();
+        for (ExampleActor actor : actors) {
+            actorById.put(actor.getId(), actor);
+        }
+        Map<String, ExampleMessage> messageById = new HashMap<String, ExampleMessage>();
+        for (ExampleMessage message : document.getExampleMessages()) {
+            messageById.put(message.getId(), message);
+        }
+        List<ExampleScenario> scenarios = new ArrayList<ExampleScenario>();
+        Set<String> ids = new HashSet<String>();
+        if (incoming == null) {
+            return scenarios;
+        }
+        for (ExampleScenario scenario : incoming) {
+            if (scenario == null) {
+                continue;
+            }
+            String name = scenario.getName() == null ? "" : scenario.getName().trim();
+            if (name.isEmpty()) {
+                throw new GenericException("A scenario needs a name.");
+            }
+            String id = scenario.getId() == null || scenario.getId().trim().isEmpty() ? new ObjectId().toString() : scenario.getId().trim();
+            if (!ids.add(id)) {
+                throw new GenericException("Two scenarios share the same id.");
+            }
+            ExampleScenario stored = new ExampleScenario();
+            stored.setId(id);
+            stored.setName(name);
+            stored.setSummary(scenario.getSummary() == null ? "" : scenario.getSummary().trim());
+            String left = blank(scenario.getLeftActorId()) ? "" : scenario.getLeftActorId().trim();
+            String right = blank(scenario.getRightActorId()) ? "" : scenario.getRightActorId().trim();
+            if (!left.isEmpty() && actorById.get(left) == null) {
+                throw new GenericException("The left actor of \"" + name + "\" does not exist.");
+            }
+            if (!right.isEmpty() && actorById.get(right) == null) {
+                throw new GenericException("The right actor of \"" + name + "\" does not exist.");
+            }
+            if (!left.isEmpty() && left.equals(right)) {
+                throw new GenericException("\"" + name + "\" needs two different actors.");
+            }
+            stored.setLeftActorId(left);
+            stored.setRightActorId(right);
+            Set<String> stepIds = new HashSet<String>();
+            for (ScenarioStep step : scenario.getSteps()) {
+                if (step == null) {
+                    continue;
+                }
+                if (left.isEmpty() || right.isEmpty()) {
+                    throw new GenericException("Choose the two actors of \"" + name + "\" before adding a line.");
+                }
+                stored.getSteps().add(normalizeStep(step, stepIds, actorById, messageById, left, right, name));
+            }
+            scenarios.add(stored);
+        }
+        return scenarios;
+    }
+
+    private ScenarioStep normalizeStep(ScenarioStep step, Set<String> stepIds, Map<String, ExampleActor> actorById, Map<String, ExampleMessage> messageById, String leftId, String rightId, String scenarioName) throws GenericException {
+        ExampleActor from = actorById.get(step.getFromActorId());
+        ExampleActor to = actorById.get(step.getToActorId());
+        if (from == null || to == null) {
+            throw new GenericException("Each line in \"" + scenarioName + "\" needs a sender and a receiver.");
+        }
+        if (from.getId().equals(to.getId())) {
+            throw new GenericException("A line in \"" + scenarioName + "\" cannot start and end on the same actor.");
+        }
+        if (!isPair(from.getId(), to.getId(), leftId, rightId)) {
+            throw new GenericException("Lines in \"" + scenarioName + "\" stay between its two actors.");
+        }
+        if (from.getCapability() == ActorCapability.RECEIVER) {
+            throw new GenericException(from.getName() + " can only receive, so it cannot send a line in \"" + scenarioName + "\".");
+        }
+        if (to.getCapability() == ActorCapability.SENDER) {
+            throw new GenericException(to.getName() + " can only send, so it cannot receive a line in \"" + scenarioName + "\".");
+        }
+        String profileId = step.getProfileId() == null ? "" : step.getProfileId().trim();
+        List<String> exampleIds = new ArrayList<String>();
+        for (String messageId : step.getExampleMessageIds()) {
+            if (messageId == null || messageId.trim().isEmpty() || exampleIds.contains(messageId)) {
+                continue;
+            }
+            ExampleMessage message = messageById.get(messageId);
+            if (message == null) {
+                throw new GenericException("A line in \"" + scenarioName + "\" points at an example message that no longer exists.");
+            }
+            if (profileId.isEmpty()) {
+                profileId = message.getProfileId();
+            }
+            if (!profileId.equals(message.getProfileId())) {
+                throw new GenericException("Examples on a line must belong to that line's profile.");
+            }
+            exampleIds.add(messageId);
+        }
+        if (profileId.isEmpty()) {
+            throw new GenericException("Each line in \"" + scenarioName + "\" needs a profile.");
+        }
+        String id = step.getId() == null || step.getId().trim().isEmpty() ? new ObjectId().toString() : step.getId().trim();
+        if (!stepIds.add(id)) {
+            id = new ObjectId().toString();
+            stepIds.add(id);
+        }
+        ScenarioStep stored = new ScenarioStep();
+        stored.setId(id);
+        stored.setFromActorId(from.getId());
+        stored.setToActorId(to.getId());
+        stored.setProfileId(profileId);
+        stored.setExampleMessageIds(exampleIds);
+        stored.setTitle(clip(step.getTitle(), 120));
+        stored.setDescription(clip(step.getDescription(), 2000));
+        stored.setTrigger(clip(step.getTrigger(), 200));
+        Set<String> attachedSnippetIds = new HashSet<String>();
+        for (String messageId : exampleIds) {
+            for (MessageSnippet snippet : messageById.get(messageId).getSnippets()) {
+                attachedSnippetIds.add(snippet.getId());
+            }
+        }
+        List<String> pinned = new ArrayList<String>();
+        for (String snippetId : step.getPinnedSnippetIds()) {
+            if (snippetId != null && attachedSnippetIds.contains(snippetId) && !pinned.contains(snippetId)) {
+                pinned.add(snippetId);
+            }
+        }
+        stored.setPinnedSnippetIds(pinned);
+        return stored;
+    }
+
+    private static String clip(String value, int max) {
+        String trimmed = value == null ? "" : value.trim();
+        return trimmed.length() > max ? trimmed.substring(0, max) : trimmed;
+    }
+
+    private static boolean isPair(String fromId, String toId, String leftId, String rightId) {
+        return (fromId.equals(leftId) && toId.equals(rightId)) || (fromId.equals(rightId) && toId.equals(leftId));
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
     public List<ExampleMessageUsage> findUsages(String igId, String messageId, String snippetId) throws ResourceNotFoundException {
         Ig ig = requireIg(igId);
         requireMessage(igId, messageId);
@@ -293,6 +503,13 @@ public class ExampleMessagesService {
         List<ExampleMessageUsage> usages = exampleMessageReferenceService.findUsages(ig, messageId, null);
         if (!usages.isEmpty()) {
             throw new GenericException("This example message is still used in the guide. Detach those references before deleting it.");
+        }
+        for (ExampleScenario scenario : igExampleMessages.getScenarios()) {
+            for (ScenarioStep step : scenario.getSteps()) {
+                if (step.getExampleMessageIds().contains(messageId)) {
+                    throw new GenericException("This example message is still attached to a line in the scenario \"" + scenario.getName() + "\". Remove it from that line before deleting it.");
+                }
+            }
         }
         boolean removed = false;
         Iterator<ExampleMessage> iterator = igExampleMessages.getExampleMessages().iterator();
@@ -324,6 +541,11 @@ public class ExampleMessagesService {
         boolean removed = exampleMessage.getSnippets().removeIf((snippet) -> snippetId.equals(snippet.getId()));
         if (!removed) {
             throw new ResourceNotFoundException(snippetId, null);
+        }
+        for (ExampleScenario scenario : igExampleMessages.getScenarios()) {
+            for (ScenarioStep step : scenario.getSteps()) {
+                step.getPinnedSnippetIds().remove(snippetId);
+            }
         }
         exampleMessagesRepository.save(igExampleMessages);
         return toDTO(igExampleMessages);
@@ -396,6 +618,110 @@ public class ExampleMessagesService {
 
     private String normalizeName(String name) {
         return name == null ? "" : name.trim().toLowerCase();
+    }
+
+    /**
+     * A clone keeps the narrative widgets, which point at example-message and snippet ids.
+     * Those messages live in their own document, so the clone needs its own copy or the
+     * widgets resolve as missing. Message and snippet ids stay the same. Profile ids move
+     * to the cloned profile when the clone created one.
+     */
+    public void copyForClone(String sourceIgId, String targetIgId, Map<String, String> profileIds) {
+        if (sourceIgId == null || targetIgId == null || sourceIgId.equals(targetIgId)) {
+            return;
+        }
+        IgExampleMessages source = exampleMessagesRepository.findById(sourceIgId).orElse(null);
+        if (source == null || source.getExampleMessages().isEmpty() && source.getActors().isEmpty() && source.getScenarios().isEmpty()) {
+            return;
+        }
+        IgExampleMessages copy = new IgExampleMessages();
+        copy.setId(targetIgId);
+        for (ExampleMessage message : source.getExampleMessages()) {
+            if (message == null) {
+                continue;
+            }
+            copy.getExampleMessages().add(copyMessage(message, profileIds));
+        }
+        for (ExampleActor actor : source.getActors()) {
+            if (actor == null) {
+                continue;
+            }
+            copy.getActors().add(copyActor(actor));
+        }
+        for (ExampleScenario scenario : source.getScenarios()) {
+            if (scenario == null) {
+                continue;
+            }
+            copy.getScenarios().add(copyScenario(scenario, profileIds));
+        }
+        exampleMessagesRepository.save(copy);
+    }
+
+    private ExampleMessage copyMessage(ExampleMessage message, Map<String, String> profileIds) {
+        ExampleMessage copy = new ExampleMessage();
+        copy.setId(message.getId());
+        copy.setName(message.getName());
+        copy.setDescription(message.getDescription());
+        copy.setMessage(message.getMessage());
+        copy.setNarrativeHTML(message.getNarrativeHTML());
+        copy.setProfileId(mapped(profileIds, message.getProfileId()));
+        for (MessageSnippet snippet : message.getSnippets()) {
+            if (snippet == null) {
+                continue;
+            }
+            MessageSnippet snippetCopy = new MessageSnippet();
+            snippetCopy.setId(snippet.getId());
+            snippetCopy.setName(snippet.getName());
+            snippetCopy.setDescription(snippet.getDescription());
+            snippetCopy.setNarrativeHTML(snippet.getNarrativeHTML());
+            snippetCopy.setMessageReferences(new HashSet<String>(snippet.getMessageReferences()));
+            copy.getSnippets().add(snippetCopy);
+        }
+        return copy;
+    }
+
+    private ExampleActor copyActor(ExampleActor actor) {
+        ExampleActor copy = new ExampleActor();
+        copy.setId(actor.getId());
+        copy.setName(actor.getName());
+        copy.setSystem(actor.getSystem());
+        copy.setOrganization(actor.getOrganization());
+        copy.setIcon(actor.getIcon());
+        copy.setCapability(actor.getCapability());
+        return copy;
+    }
+
+    private ExampleScenario copyScenario(ExampleScenario scenario, Map<String, String> profileIds) {
+        ExampleScenario copy = new ExampleScenario();
+        copy.setId(scenario.getId());
+        copy.setName(scenario.getName());
+        copy.setSummary(scenario.getSummary());
+        copy.setLeftActorId(scenario.getLeftActorId());
+        copy.setRightActorId(scenario.getRightActorId());
+        for (ScenarioStep step : scenario.getSteps()) {
+            if (step == null) {
+                continue;
+            }
+            ScenarioStep stepCopy = new ScenarioStep();
+            stepCopy.setId(step.getId());
+            stepCopy.setFromActorId(step.getFromActorId());
+            stepCopy.setToActorId(step.getToActorId());
+            stepCopy.setProfileId(mapped(profileIds, step.getProfileId()));
+            stepCopy.setExampleMessageIds(new ArrayList<String>(step.getExampleMessageIds()));
+            stepCopy.setTitle(step.getTitle());
+            stepCopy.setDescription(step.getDescription());
+            stepCopy.setTrigger(step.getTrigger());
+            stepCopy.setPinnedSnippetIds(new ArrayList<String>(step.getPinnedSnippetIds()));
+            copy.getSteps().add(stepCopy);
+        }
+        return copy;
+    }
+
+    private static String mapped(Map<String, String> profileIds, String profileId) {
+        if (profileId == null || profileIds == null || !profileIds.containsKey(profileId)) {
+            return profileId;
+        }
+        return profileIds.get(profileId);
     }
 
     private ProfileInfo getProfileInfo(String profileId) {

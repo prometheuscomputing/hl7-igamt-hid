@@ -1,0 +1,325 @@
+<div class="sb" *ngIf="scenario; else missing">
+  <header class="sb-head">
+    <div>
+      <div class="eyebrow"><i class="fa fa-exchange"></i> Scenario</div>
+      <h2>{{ scenario.name }}</h2>
+      <p *ngIf="scenario.summary">{{ scenario.summary }}</p>
+    </div>
+    <div class="sb-meta">
+      <span class="saving" *ngIf="saving"><i class="fa fa-circle-o-notch fa-spin"></i> Saving</span>
+      <span class="count">{{ scenario.steps.length }} {{ scenario.steps.length === 1 ? 'message' : 'messages' }}</span>
+      <div class="view-switch" role="group" aria-label="View">
+        <button type="button" [class.active]="view === 'compact'" (click)="setView('compact')" title="Names, profiles and examples only">
+          <i class="fa fa-list"></i> Compact
+        </button>
+        <button type="button" [class.active]="view === 'detailed'" (click)="setView('detailed')" title="Include details and pinned snippets">
+          <i class="fa fa-th-large"></i> Detailed
+        </button>
+      </div>
+      <button type="button" class="btn-ghost" *ngIf="!viewOnly && lifelinesReady" (click)="swapSides()" title="Swap the two actors">
+        <i class="fa fa-exchange"></i> Swap sides
+      </button>
+    </div>
+  </header>
+
+  <div class="notice" *ngIf="notice"><i class="fa fa-info-circle"></i> {{ notice }}</div>
+
+  <div class="stage">
+    <div class="lifeline left" [class.ghost]="!left"></div>
+    <div class="lifeline right" [class.ghost]="!right"></div>
+
+    <div class="actors-row">
+      <ng-container *ngTemplateOutlet="actorSlot; context: { side: 'left' }"></ng-container>
+      <div class="actors-gap">
+        <span *ngIf="!lifelinesReady">Pick the two actors of this exchange</span>
+      </div>
+      <ng-container *ngTemplateOutlet="actorSlot; context: { side: 'right' }"></ng-container>
+    </div>
+
+    <div class="sequence">
+      <ng-container *ngFor="let step of scenario.steps; let i = index">
+        <ng-container *ngTemplateOutlet="insertion; context: { $implicit: i }"></ng-container>
+
+        <div class="msg-row" *ngIf="!composer || composer.editingId !== step.id; else composerTpl" [class.rtl]="directionOf(step) === 'rtl'">
+          <div class="msg-card" (click)="editStep(step, i)" [class.readonly]="viewOnly" [class.wide]="isWide(step)">
+            <div class="msg-top">
+              <span class="msg-index">{{ i + 1 }}</span>
+              <span class="msg-title" [class.fallback]="!step.title">{{ stepName(step) }}</span>
+              <span class="msg-actions" *ngIf="!viewOnly" (click)="$event.stopPropagation()">
+                <button type="button" title="Move up" [disabled]="i === 0" (click)="moveStep(i, -1)"><i class="fa fa-arrow-up"></i></button>
+                <button type="button" title="Move down" [disabled]="i === scenario.steps.length - 1" (click)="moveStep(i, 1)"><i class="fa fa-arrow-down"></i></button>
+                <button type="button" title="Edit" (click)="editStep(step, i)"><i class="fa fa-pencil"></i></button>
+                <button type="button" title="Remove" class="danger" (click)="removeStep(step)"><i class="fa fa-trash-o"></i></button>
+              </span>
+            </div>
+            <div class="msg-profile-row">
+              <ng-container *ngTemplateOutlet="profileIdentity; context: { $implicit: step.profileId }"></ng-container>
+            </div>
+            <ng-container *ngIf="view === 'detailed'">
+              <div class="msg-meta" *ngIf="step.trigger">
+                <span class="meta" title="Trigger"><i class="fa fa-bolt"></i> {{ step.trigger }}</span>
+              </div>
+              <p class="msg-desc" *ngIf="step.description">{{ step.description }}</p>
+            </ng-container>
+            <div class="examples" *ngIf="stepExamples(step).length; else noExamples" [class.compact]="view === 'compact'">
+              <div class="ex" *ngFor="let example of stepExamples(step)" [class.open]="isShown(step, example)">
+                <div class="ex-head" (click)="$event.stopPropagation()">
+                  <a class="ex-name" [routerLink]="['/example-messages', doc.id, 'message', example.id]">
+                    <i class="fa fa-envelope-o"></i> {{ example.name }}
+                  </a>
+                  <span class="ex-count" *ngIf="view === 'detailed'">{{ segmentCount(example) }} segments</span>
+                  <ng-container *ngIf="view === 'compact'">
+                    <a class="pin-chip pinned" *ngFor="let snippet of pinnedOf(step, example)"
+                       [routerLink]="['/example-messages', doc.id, 'message', example.id, 'snippet', snippet.id]">
+                      <i class="fa fa-thumb-tack"></i> {{ snippet.name }}
+                    </a>
+                  </ng-container>
+                  <span class="ex-snips" *ngIf="view === 'detailed'">
+                    <button type="button" class="pin-chip" *ngFor="let snippet of (viewOnly ? [] : unpinnedOf(step, example))"
+                            (click)="togglePin(step, snippet.id, $event)" [title]="'Pin ' + snippet.name">
+                      <i class="fa fa-thumb-tack"></i> {{ snippet.name }}
+                    </button>
+                  </span>
+                  <button type="button" class="show-msg" [class.on]="isShown(step, example)" (click)="toggleShown(step, example)">
+                    <i class="fa" [ngClass]="isShown(step, example) ? 'fa-eye-slash' : 'fa-code'"></i>
+                    {{ isShown(step, example) ? 'Hide message' : 'Show message' }}
+                  </button>
+                </div>
+
+                <div class="pins" *ngIf="view === 'detailed' && pinnedOf(step, example).length" (click)="$event.stopPropagation()">
+                  <div class="pin-card" *ngFor="let snippet of pinnedOf(step, example)">
+                    <div class="pin-head">
+                      <i class="fa fa-thumb-tack"></i>
+                      <a [routerLink]="['/example-messages', doc.id, 'message', example.id, 'snippet', snippet.id]">{{ snippet.name }}</a>
+                      <span class="pin-path" *ngFor="let part of render(example.id, snippet.id)?.parts">{{ part.hl7Path }} · {{ part.elementName }}</span>
+                      <i class="fa fa-circle-o-notch fa-spin muted" *ngIf="!render(example.id, snippet.id)"></i>
+                      <button type="button" class="unpin" *ngIf="!viewOnly" (click)="togglePin(step, snippet.id, $event)" title="Unpin">
+                        <i class="fa fa-times"></i>
+                      </button>
+                    </div>
+                    <p *ngIf="plainText(snippet.description)">{{ plainText(snippet.description) }}</p>
+                  </div>
+                </div>
+
+                <div class="er7" *ngIf="isShown(step, example)" (click)="$event.stopPropagation()">
+                  <div class="er7-scroll">
+                    <div class="er7-body">
+                      <ng-container *ngFor="let row of previewRows(step, example); trackBy: trackRow">
+                        <div class="er7-line" *ngIf="row.kind === 'line'" [class.pinned]="row.pinned">
+                          <span class="ln">{{ row.n }}</span>
+                          <span class="code"><span class="seg">{{ row.segment }}</span>{{ row.before }}<mark *ngIf="row.mark">{{ row.mark }}</mark>{{ row.after }}</span>
+                          <span class="pin-label" *ngIf="row.pinned"><i class="fa fa-thumb-tack"></i> {{ row.pinLabel }}</span>
+                        </div>
+                        <button type="button" class="er7-gap" *ngIf="row.kind === 'gap'" (click)="toggleExpanded(step, example)">
+                          <i class="fa fa-ellipsis-h"></i> {{ row.hidden }} more {{ row.hidden === 1 ? 'segment' : 'segments' }}
+                        </button>
+                      </ng-container>
+                    </div>
+                  </div>
+                  <button type="button" class="er7-gap" *ngIf="expanded[previewKey(step, example)]" (click)="toggleExpanded(step, example)">
+                    <i class="fa fa-angle-up"></i> Collapse
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ng-template #noExamples>
+              <div class="msg-empty">No example attached<span *ngIf="!viewOnly"> · click to attach</span></div>
+            </ng-template>
+          </div>
+          <div class="arrow"><span class="arrow-head"></span></div>
+        </div>
+      </ng-container>
+
+      <ng-container *ngTemplateOutlet="insertion; context: { $implicit: scenario.steps.length }"></ng-container>
+
+      <div class="first-hint" *ngIf="lifelinesReady && !scenario.steps.length && !composer && !viewOnly">
+        Add the first message of the exchange
+      </div>
+    </div>
+  </div>
+</div>
+
+<ng-template #actorSlot let-side="side">
+  <div class="actor-slot">
+    <button type="button" class="actor-card" [class.empty]="!sideActor(side)" [class.open]="actorPicker === side"
+            [disabled]="viewOnly" (click)="toggleActorPicker(side)">
+      <ng-container *ngIf="sideActor(side) as actor; else emptyActor">
+        <span class="avatar">
+          <i *ngIf="actor.icon" class="fa" [ngClass]="actor.icon"></i>
+          <span *ngIf="!actor.icon">{{ initials(actor) }}</span>
+        </span>
+        <span class="actor-name">{{ actor.name }}</span>
+        <span class="actor-detail" *ngIf="actorDetail(actor)">{{ actorDetail(actor) }}</span>
+        <span class="actor-cap">{{ capabilityLabel(actor) }}</span>
+      </ng-container>
+      <ng-template #emptyActor>
+        <span class="avatar placeholder"><i class="fa fa-plus"></i></span>
+        <span class="actor-name">Choose actor</span>
+        <span class="actor-detail">{{ side === 'left' ? 'Left' : 'Right' }} lifeline</span>
+      </ng-template>
+    </button>
+
+    <div class="actor-pop" *ngIf="actorPicker === side">
+      <div class="pop-search">
+        <i class="fa fa-search"></i>
+        <input type="text" placeholder="Search actors" [(ngModel)]="actorSearch" autofocus>
+      </div>
+      <div class="pop-list">
+        <button type="button" class="actor-opt" *ngFor="let actor of filteredActors()"
+                [class.current]="sideActor(side)?.id === actor.id" (click)="chooseActor(side, actor)">
+          <span class="avatar small">
+            <i *ngIf="actor.icon" class="fa" [ngClass]="actor.icon"></i>
+            <span *ngIf="!actor.icon">{{ initials(actor) }}</span>
+          </span>
+          <span class="opt-text">
+            <strong>{{ actor.name }}</strong>
+            <small>{{ actorDetail(actor) || capabilityLabel(actor) }}</small>
+          </span>
+          <i class="fa fa-check" *ngIf="sideActor(side)?.id === actor.id"></i>
+        </button>
+        <div class="pop-empty" *ngIf="!filteredActors().length">
+          {{ actors.length ? 'No actor matches.' : 'No actors yet.' }}
+        </div>
+      </div>
+      <a class="pop-manage" [routerLink]="['/example-messages', doc.id, 'actors']"><i class="fa fa-users"></i> Manage actors</a>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #insertion let-index>
+  <ng-container *ngIf="composer && !composer.editingId && composer.index === index; else plusRow">
+    <ng-container *ngTemplateOutlet="composerTpl"></ng-container>
+  </ng-container>
+  <ng-template #plusRow>
+    <div class="plus-row" *ngIf="!viewOnly && lifelinesReady && !composer"
+         [class.primary]="!scenario.steps.length" [class.last]="index === scenario.steps.length">
+      <button type="button" class="plus" (click)="openComposer(index)" [title]="'Add a message here'">
+        <i class="fa fa-plus"></i>
+      </button>
+    </div>
+  </ng-template>
+</ng-template>
+
+<ng-template #composerTpl>
+  <div class="composer" (click)="$event.stopPropagation()">
+    <div class="composer-head">
+      <span class="head-label">{{ composer.editingId ? 'Edit message ' + (composer.index + 1) : 'New message' }}</span>
+      <button type="button" class="icon-btn" (click)="closeComposer()" title="Close"><i class="fa fa-times"></i></button>
+    </div>
+    <div class="name-row">
+      <label for="step-display-name">Display name</label>
+      <input id="step-display-name" type="text" maxlength="120" autofocus
+             [placeholder]="composer.profileId ? profileTitle(composer.profileId) : 'e.g. Submit administered vaccine'"
+             [(ngModel)]="composer.title">
+      <small *ngIf="!composer.title && composer.profileId">Leave empty to use the profile name</small>
+    </div>
+
+    <section>
+      <div class="section-label"><span class="n">1</span> Direction</div>
+      <div class="dir-tiles">
+        <button type="button" class="dir-tile" *ngFor="let dir of ['ltr', 'rtl']"
+                [class.active]="composer.direction === dir" [disabled]="!directionAllowed(dir)"
+                (click)="setDirection(dir)">
+          <span class="mini">
+            <span class="avatar tiny">
+              <i *ngIf="(dir === 'ltr' ? left : right).icon" class="fa" [ngClass]="(dir === 'ltr' ? left : right).icon"></i>
+              <span *ngIf="!(dir === 'ltr' ? left : right).icon">{{ initials(dir === 'ltr' ? left : right) }}</span>
+            </span>
+            {{ (dir === 'ltr' ? left : right).name }}
+          </span>
+          <i class="fa fa-long-arrow-right dir-arrow"></i>
+          <span class="mini">
+            <span class="avatar tiny">
+              <i *ngIf="(dir === 'ltr' ? right : left).icon" class="fa" [ngClass]="(dir === 'ltr' ? right : left).icon"></i>
+              <span *ngIf="!(dir === 'ltr' ? right : left).icon">{{ initials(dir === 'ltr' ? right : left) }}</span>
+            </span>
+            {{ (dir === 'ltr' ? right : left).name }}
+          </span>
+          <span class="blocked" *ngIf="directionBlockedReason(dir)">{{ directionBlockedReason(dir) }}</span>
+        </button>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label"><span class="n">2</span> Message profile</div>
+      <div class="pop-search inline">
+        <i class="fa fa-search"></i>
+        <input type="text" placeholder="Search profiles" [(ngModel)]="composer.search">
+      </div>
+      <div class="profile-grid">
+        <button type="button" class="profile-opt" *ngFor="let group of filteredProfiles()"
+                [class.active]="composer.profileId === group.profile.id" (click)="chooseProfile(group.profile.id)">
+          <span class="opt-text">
+            <span class="identity" [title]="profileLabel(group)"><app-display-section [element]="group.profile"></app-display-section></span>
+            <small>{{ (group.exampleMessages || []).length }} {{ (group.exampleMessages || []).length === 1 ? 'example' : 'examples' }}</small>
+          </span>
+          <i class="fa fa-check-circle" *ngIf="composer.profileId === group.profile.id"></i>
+        </button>
+        <div class="pop-empty" *ngIf="!filteredProfiles().length">No profile matches.</div>
+      </div>
+    </section>
+
+    <section *ngIf="composer.profileId">
+      <div class="section-label"><span class="n">3</span> Attach examples <span class="optional">optional</span></div>
+      <div class="example-grid" *ngIf="examplesOf(composer.profileId).length; else noProfileExamples">
+        <div class="example-item" *ngFor="let example of examplesOf(composer.profileId)" [class.active]="isPicked(example.id)">
+          <button type="button" class="example-opt" [class.active]="isPicked(example.id)" (click)="toggleExample(example.id)">
+            <span class="check"><i class="fa fa-check"></i></span>
+            <span class="opt-text">
+              <strong>{{ example.name }}</strong>
+              <small>{{ snippetCount(example) }} {{ snippetCount(example) === 1 ? 'snippet' : 'snippets' }}</small>
+            </span>
+          </button>
+          <div class="pin-picker" *ngIf="isPicked(example.id) && snippetCount(example)">
+            <span class="pin-hint">Pin snippets to feature them</span>
+            <button type="button" class="pin-chip" *ngFor="let snippet of example.snippets"
+                    [class.pinned]="isComposerPinned(snippet.id)" (click)="toggleComposerPin(snippet.id, $event)">
+              <i class="fa fa-thumb-tack"></i> {{ snippet.name }}
+            </button>
+          </div>
+        </div>
+      </div>
+      <ng-template #noProfileExamples>
+        <div class="pop-empty">This profile has no example messages yet. The message can still be added and examples attached later.</div>
+      </ng-template>
+    </section>
+
+    <section *ngIf="composer.profileId">
+      <div class="section-label"><span class="n">4</span> Details <span class="optional">optional</span></div>
+      <div class="details">
+        <label class="field wide">
+          <span><i class="fa fa-bolt"></i> Trigger</span>
+          <input type="text" maxlength="200" placeholder="e.g. Vaccine administered at the clinic" [(ngModel)]="composer.trigger">
+        </label>
+        <label class="field wide">
+          <span>Description</span>
+          <textarea rows="2" maxlength="2000" placeholder="What this message does in the exchange, what the receiver is expected to do" [(ngModel)]="composer.description"></textarea>
+        </label>
+      </div>
+    </section>
+
+    <div class="composer-foot">
+      <span class="summary" *ngIf="composer.profileId">
+        {{ composer.direction === 'ltr' ? left.name : right.name }} sends {{ composer.title || profileTitle(composer.profileId) }}
+        to {{ composer.direction === 'ltr' ? right.name : left.name }}<ng-container *ngIf="composer.exampleIds.length"> · {{ composer.exampleIds.length }} attached</ng-container><ng-container *ngIf="composer.pinnedIds.length"> · {{ composer.pinnedIds.length }} pinned</ng-container>
+      </span>
+      <button type="button" class="btn-ghost" (click)="closeComposer()">Cancel</button>
+      <button type="button" class="btn-primary" [disabled]="!canSaveComposer()" (click)="saveComposer()">
+        {{ composer.editingId ? 'Save message' : 'Add message' }}
+      </button>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #profileIdentity let-profileId>
+  <span class="identity" *ngIf="profileOf(profileId) as profile; else unknownProfile" [title]="profileTitle(profileId)">
+    <app-display-section [element]="profile"></app-display-section>
+  </span>
+  <ng-template #unknownProfile><span class="muted">Unknown profile</span></ng-template>
+</ng-template>
+
+<div class="backdrop" *ngIf="actorPicker" (click)="actorPicker = null"></div>
+
+<ng-template #missing>
+  <div class="sb"><p class="muted">This scenario is not on the guide.</p></div>
+</ng-template>

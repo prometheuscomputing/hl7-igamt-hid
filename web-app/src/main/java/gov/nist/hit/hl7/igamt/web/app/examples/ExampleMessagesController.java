@@ -58,6 +58,23 @@ public class ExampleMessagesController {
     @Autowired
     InMemoryDomainExtensionService inMemoryDomainExtensionService;
 
+    @RequestMapping(value = "/api/example-messages/{id}/exchange", method = RequestMethod.POST, produces = {"application/json" })
+    public @ResponseBody
+    ResponseMessage<IgExampleMessagesDTO> saveExchange(
+            @PathVariable("id") String id,
+            @RequestBody ExampleExchangeDTO exchange,
+            Authentication authentication
+    ) throws Exception {
+        IgExampleMessagesDTO saved = this.exampleMessagesService.saveExchange(id, exchange);
+        return new ResponseMessage<>(
+                ResponseMessage.Status.SUCCESS,
+                "Scenario saved",
+                saved.getId(),
+                saved,
+                new Date()
+        );
+    }
+
     @RequestMapping(value = "/api/example-messages/{id}", method = RequestMethod.GET, produces = {"application/json" })
     public @ResponseBody
     IgExampleMessagesDTO getExampleMessages(
@@ -267,8 +284,9 @@ public class ExampleMessagesController {
     }
 
     /**
-     * The same folder the guide links to. Dropping it into a guide export keeps the
-     * relative links working, including the link back to index.html.
+     * A package that opens on its own: a root index plus the examples folder. Copy that
+     * folder, not index.html, into a guide export. The relative links still resolve and
+     * the guide index stays where it is.
      */
     @RequestMapping(value = "/api/example-messages/{id}/export", method = RequestMethod.GET)
     @PreAuthorize("AccessResource('IGDOCUMENT', #id, READ)")
@@ -287,8 +305,7 @@ public class ExampleMessagesController {
             dataExtensionTokens.addAll(igDataModel.getDataExtensionTokens());
             ExampleMessageExportConfiguration configuration = ExampleMessageExportDataService.replacementFolder(guideExampleMessages());
             exampleMessageExportDataService.populate(igDataModel, configuration);
-            Map<String, byte[]> files = exampleMessageExportDataService.collectStaticPages(igDataModel, configuration, true);
-            files.putAll(exampleMessageExportDataService.collectFiles(igDataModel, configuration));
+            Map<String, byte[]> files = exampleMessageExportDataService.collectStandalonePackage(igDataModel, configuration);
             byte[] zip = exampleMessageExportDataService.zipFiles(files);
             response.setContentType("application/zip");
             response.setHeader("Content-disposition", "attachment;filename=ExampleMessages-" + id + ".zip");

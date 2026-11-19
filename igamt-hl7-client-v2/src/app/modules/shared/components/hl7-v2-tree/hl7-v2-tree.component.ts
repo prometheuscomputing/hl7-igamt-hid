@@ -148,6 +148,10 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
   resourceName: string;
   _resource: IResource;
   highlightLocation: string;
+  highlightPulse = false;
+  highlightFlashOn = false;
+  private blinkTimer: any;
+  private scrollTimer: any;
 
   @Input()
   set resource(resource: IResource) {
@@ -219,6 +223,10 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
   }
 
   isHighlighted(pathId: string): boolean {
+    return this.highlightPulse && this.locationMatches(pathId);
+  }
+
+  locationMatches(pathId: string): boolean {
     return !!this.highlightLocation && pathId === this.highlightLocation;
   }
 
@@ -232,9 +240,121 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
           this.treeExpandedNodes.push(prefix);
         }
       });
+      this.startHighlightPulse();
+    } else {
+      this.stopHighlightPulse();
     }
     this.recoverExpandState(this.nodes, this.treeExpandedNodes);
     this.refreshTree();
+    this.scheduleScrollToHighlight();
+  }
+
+  private startHighlightPulse() {
+    this.stopHighlightPulse();
+    this.highlightPulse = true;
+    this.highlightFlashOn = true;
+    let ticks = 0;
+    this.paintHighlight();
+    this.blinkTimer = setInterval(() => {
+      ticks++;
+      this.highlightFlashOn = !this.highlightFlashOn;
+      this.paintHighlight();
+      if (ticks >= 10) {
+        this.stopHighlightPulse();
+      }
+    }, 500);
+  }
+
+  private stopHighlightPulse() {
+    this.highlightPulse = false;
+    this.highlightFlashOn = false;
+    this.clearHighlightPaint();
+    if (this.blinkTimer) {
+      clearInterval(this.blinkTimer);
+      this.blinkTimer = null;
+    }
+  }
+
+  private paintHighlight() {
+    const row = this.findHighlightRow();
+    if (!row) {
+      return;
+    }
+    const color = this.highlightFlashOn ? '#fff3cd' : '';
+    this.paintElement(row, color);
+    const cells = row.querySelectorAll('td');
+    for (let i = 0; i < cells.length; i++) {
+      this.paintElement(cells[i] as HTMLElement, color);
+    }
+  }
+
+  private clearHighlightPaint() {
+    const row = this.findHighlightRow();
+    if (!row) {
+      return;
+    }
+    this.paintElement(row, '');
+    const cells = row.querySelectorAll('td');
+    for (let i = 0; i < cells.length; i++) {
+      this.paintElement(cells[i] as HTMLElement, '');
+    }
+  }
+
+  private paintElement(element: HTMLElement, color: string) {
+    if (!element || !element.style) {
+      return;
+    }
+    if (color) {
+      element.style.setProperty('background-color', color, 'important');
+    } else {
+      element.style.removeProperty('background-color');
+    }
+  }
+
+  private scheduleScrollToHighlight() {
+    if (this.scrollTimer) {
+      clearInterval(this.scrollTimer);
+      this.scrollTimer = null;
+    }
+    if (!this.highlightLocation) {
+      return;
+    }
+    let attempts = 0;
+    const scroll = () => {
+      const row = this.findHighlightRow();
+      if (!row) {
+        return false;
+      }
+      const options = { block: 'center', inline: 'nearest', behavior: 'smooth' } as ScrollIntoViewOptions;
+      row.scrollIntoView(options);
+      this.paintHighlight();
+      return true;
+    };
+    this.scrollTimer = setInterval(() => {
+      attempts++;
+      const found = scroll();
+      if (found || attempts >= 25) {
+        clearInterval(this.scrollTimer);
+        this.scrollTimer = null;
+        if (found) {
+          setTimeout(() => scroll(), 400);
+        }
+      }
+    }, 200);
+  }
+
+  private findHighlightRow(): HTMLElement {
+    if (!this.highlightLocation || !document || !document.querySelectorAll) {
+      return null;
+    }
+    const rows = document.querySelectorAll('[data-ig-location]');
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] as HTMLElement;
+      if (this.locationMatches(row.getAttribute('data-ig-location'))) {
+        return row;
+      }
+    }
+    return null;
   }
 
   private locationPrefixes(location: string): string[] {
@@ -333,6 +453,9 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
         if (!this.treeExpandedNodes.includes(node.data.pathId)) {
           this.treeExpandedNodes.push(node.data.pathId);
         }
+        if (this.highlightLocation) {
+          this.scheduleScrollToHighlight();
+        }
       },
       transform: (children: IHL7v2TreeNode[]) => {
         this.recoverExpandState(children, expanded);
@@ -346,6 +469,11 @@ export class Hl7V2TreeComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.stopHighlightPulse();
+    if (this.scrollTimer) {
+      clearInterval(this.scrollTimer);
+      this.scrollTimer = null;
+    }
     this.close(this.s_resource);
     this.close(this.s_highlight);
     for (const sub of this.treeSubscriptions) {

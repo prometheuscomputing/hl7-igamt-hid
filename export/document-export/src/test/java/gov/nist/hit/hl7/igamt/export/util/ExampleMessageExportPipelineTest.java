@@ -506,4 +506,194 @@ public class ExampleMessageExportPipelineTest {
     assertThat(snippet.select("table.fr-exmsg-info a").first().attr("href")).isEqualTo(MESSAGE_PAGE);
     assertThat(Jsoup.parse(export(xml, "docx")).select(".fr-exmsg a[href$=.html]")).isEmpty();
   }
+
+  @Test
+  public void standaloneExportListsEveryPageAndAReplacedFolderLeavesTheGuideIndex() throws Exception {
+    String message = "MSH|full\nPID|Patient^Ada\nRXA|08^HepB";
+    ExampleMessage full = message("msg-full", "Full update", "cp-z22", message);
+    MessageSnippet focused = snippet(full, "snip-focused", "Vaccine product");
+    MessageSnippet scattered = snippet(full, "snip-scattered", "Patient and vaccine");
+    ExampleMessageDataModel fullModel = page("Z22", full, "ExampleMessages/Z22/Full update.txt");
+    fullModel.getSnippets().put(focused.getId(), render(focused, message, "PID|Patient^Ada"));
+    fullModel.getSnippetFilePaths().put(focused.getId(), "ExampleMessages/Z22/Full update - Vaccine product.txt");
+    fullModel.getSnippets().put(scattered.getId(), render(scattered, message, "PID|Patient^Ada", "RXA|08^HepB"));
+    fullModel.getSnippetFilePaths().put(scattered.getId(), "ExampleMessages/Z22/Full update - Patient and vaccine.txt");
+    fullModel.markReferenced(null);
+    fullModel.markReferenced(focused.getId());
+    fullModel.markReferenced(scattered.getId());
+
+    ExampleMessage unreferenced = message("msg-unreferenced", "Unreferenced whitespace", "cp-z23", "MSA|AA|  spaces  ");
+    ExampleMessageDataModel unreferencedModel = page("Z23", unreferenced, "ExampleMessages/Z23/Unreferenced whitespace.txt");
+
+    IgDataModel model = new IgDataModel();
+    Ig ig = new Ig();
+    ig.setId("ig-1");
+    model.setModel(ig);
+    Map<String, ExampleMessageDataModel> messages = new LinkedHashMap<String, ExampleMessageDataModel>();
+    messages.put(full.getId(), fullModel);
+    messages.put(unreferenced.getId(), unreferencedModel);
+    model.setExampleMessages(messages);
+
+    ExampleMessageExportConfiguration guideConfiguration = configuration(ExampleMessageExportMode.SEPARATE_FILES, ExampleMessageSnippetExportMode.HIGHLIGHT);
+    ExampleMessageExportDataService download = new ExampleMessageExportDataService();
+    Map<String, byte[]> guidePages = download.collectStaticPages(model, guideConfiguration);
+    String fullPage = "ExampleMessages/Z22/Full update.html";
+    String focusedPage = "ExampleMessages/Z22/Full update - Vaccine product.html";
+    String scatteredPage = "ExampleMessages/Z22/Full update - Patient and vaccine.html";
+    String unreferencedPage = "ExampleMessages/Z23/Unreferenced whitespace.html";
+
+    assertThat(guidePages).containsKeys(fullPage, focusedPage, scatteredPage);
+    assertThat(guidePages).doesNotContainKeys("index.html", unreferencedPage, "ExampleMessages/index.html");
+    assertThat(text(guidePages.get(fullPage))).contains("Back to the guide").doesNotContain("Back to index");
+    assertThat(text(guidePages.get(focusedPage))).contains("Back to the guide");
+    assertThat(Jsoup.parse(text(guidePages.get(focusedPage))).select("mark")).hasSize(1);
+    assertThat(Jsoup.parse(text(guidePages.get(scatteredPage))).select("mark")).hasSize(2);
+    assertThat(Jsoup.parse(text(guidePages.get(fullPage))).select("mark")).isEmpty();
+
+    Map<String, byte[]> standalone = download.collectStandalonePackage(model, ExampleMessageExportDataService.replacementFolder(guideConfiguration));
+    assertThat(standalone).containsKeys("index.html", fullPage, focusedPage, scatteredPage, unreferencedPage);
+    assertThat(standalone).doesNotContainKey("ExampleMessages/index.html");
+    String index = text(standalone.get("index.html"));
+    for (String page : new String[] {fullPage, focusedPage, scatteredPage, unreferencedPage}) {
+      assertThat(index).contains("href=\"" + ExampleMessageExportConfiguration.relativeHref(page) + "\"");
+      String html = text(standalone.get(page));
+      assertThat(html).contains("Back to index").doesNotContain("Back to the guide");
+      assertThat(Jsoup.parse(html).select("a").first().attr("href")).isEqualTo("../../index.html");
+    }
+    assertThat(Jsoup.parse(text(standalone.get(focusedPage))).select("mark")).hasSize(1);
+    assertThat(Jsoup.parse(text(standalone.get(scatteredPage))).select("mark")).hasSize(2);
+    assertThat(Jsoup.parse(text(standalone.get(fullPage))).select("mark")).isEmpty();
+    assertThat(Jsoup.parse(text(standalone.get(unreferencedPage))).select("mark")).isEmpty();
+    assertEveryLocalLinkResolves(standalone);
+
+    byte[] guideIndex = "<!DOCTYPE html><html><head><title>Implementation guide</title></head><body><h1>Guide body</h1></body></html>"
+        .getBytes(StandardCharsets.UTF_8);
+    Map<String, byte[]> replaced = new LinkedHashMap<String, byte[]>();
+    replaced.put("index.html", guideIndex);
+    replaced.put("ExampleMessages/stale.html", "<html><body>old example</body></html>".getBytes(StandardCharsets.UTF_8));
+    java.util.Iterator<String> existing = replaced.keySet().iterator();
+    while (existing.hasNext()) {
+      if (existing.next().startsWith("ExampleMessages/")) {
+        existing.remove();
+      }
+    }
+    for (Map.Entry<String, byte[]> entry : standalone.entrySet()) {
+      if (entry.getKey().startsWith("ExampleMessages/")) {
+        replaced.put(entry.getKey(), entry.getValue());
+      }
+    }
+    assertThat(replaced.get("index.html")).isEqualTo(guideIndex);
+    assertThat(replaced).doesNotContainKey("ExampleMessages/index.html");
+    assertThat(replaced).doesNotContainKey("ExampleMessages/stale.html");
+    assertThat(text(replaced.get("index.html"))).contains("Guide body").doesNotContain("Example messages");
+    assertEveryLocalLinkResolves(replaced);
+
+    ExampleMessageExportDataService.Download oneMessage = download.exportMessageFile(full, "html", null);
+    assertThat(text(oneMessage.body)).doesNotContain("Back to");
+  }
+
+  private static String text(byte[] bytes) {
+    return new String(bytes, StandardCharsets.UTF_8);
+  }
+
+  private static ExampleMessage message(String id, String name, String profileId, String body) {
+    ExampleMessage message = new ExampleMessage();
+    message.setId(id);
+    message.setName(name);
+    message.setProfileId(profileId);
+    message.setMessage(body);
+    message.setDescription("<p>Described.</p>");
+    return message;
+  }
+
+  private static MessageSnippet snippet(ExampleMessage message, String id, String name) {
+    MessageSnippet snippet = new MessageSnippet();
+    snippet.setId(id);
+    snippet.setName(name);
+    snippet.setDescription("<p>" + name + ".</p>");
+    message.getSnippets().add(snippet);
+    return snippet;
+  }
+
+  private static ExampleMessageDataModel page(String profile, ExampleMessage message, String filePath) {
+    ExampleMessageDataModel dataModel = new ExampleMessageDataModel();
+    dataModel.setModel(message);
+    dataModel.setProfileId(message.getProfileId());
+    dataModel.setProfileLabel(profile);
+    dataModel.setFilePath(filePath);
+    return dataModel;
+  }
+
+  private static SnippetRenderResult render(MessageSnippet snippet, String full, String... lines) {
+    SnippetRenderResult render = new SnippetRenderResult();
+    render.setSnippetId(snippet.getId());
+    render.setSnippetName(snippet.getName());
+    render.setFullMessage(full);
+    render.setRenderedContent(String.join("\n", lines));
+    String[] rows = full.split("\n", -1);
+    List<SnippetPart> parts = new ArrayList<SnippetPart>();
+    for (String line : lines) {
+      for (int i = 0; i < rows.length; i++) {
+        int column = rows[i].indexOf(line);
+        if (column < 0) {
+          continue;
+        }
+        SnippetPart part = new SnippetPart();
+        part.setStartLine(i + 1);
+        part.setEndLine(i + 1);
+        part.setHighlightStart(new Point(1, column + 1));
+        part.setHighlightEnd(new Point(1, column + 1 + line.length()));
+        parts.add(part);
+      }
+    }
+    render.setParts(parts);
+    return render;
+  }
+
+  private static void assertEveryLocalLinkResolves(Map<String, byte[]> files) throws Exception {
+    for (Map.Entry<String, byte[]> entry : files.entrySet()) {
+      if (!entry.getKey().endsWith(".html")) {
+        continue;
+      }
+      Document page = Jsoup.parse(text(entry.getValue()));
+      for (Element link : page.select("a[href]")) {
+        String href = link.attr("href");
+        if (href.startsWith("http:") || href.startsWith("https:") || href.startsWith("mailto:") || href.startsWith("#")) {
+          continue;
+        }
+        assertThat(href).as(entry.getKey()).doesNotStartWith("/");
+        assertThat(files).as(entry.getKey() + " -> " + href).containsKey(resolveRelative(entry.getKey(), href));
+      }
+    }
+  }
+
+  private static String resolveRelative(String fromFile, String href) throws Exception {
+    String decoded = java.net.URLDecoder.decode(href, "UTF-8");
+    java.util.ArrayDeque<String> stack = new java.util.ArrayDeque<String>();
+    int slash = fromFile.lastIndexOf('/');
+    if (slash > 0) {
+      for (String part : fromFile.substring(0, slash).split("/")) {
+        stack.add(part);
+      }
+    }
+    for (String part : decoded.split("/")) {
+      if (part.isEmpty() || ".".equals(part)) {
+        continue;
+      }
+      if ("..".equals(part)) {
+        assertThat(stack).as(fromFile + " leaves the package through " + href).isNotEmpty();
+        stack.removeLast();
+      } else {
+        stack.add(part);
+      }
+    }
+    StringBuilder path = new StringBuilder();
+    for (String part : stack) {
+      if (path.length() > 0) {
+        path.append('/');
+      }
+      path.append(part);
+    }
+    return path.toString();
+  }
 }

@@ -5,7 +5,10 @@ import { DataLoaderGuard } from '../dam-framework/guards/data-loader.guard';
 import { WidgetDeactivateGuard } from '../dam-framework/guards/widget-deactivate.guard';
 import { WidgetSetupGuard } from '../dam-framework/guards/widget-setup.guard';
 import { EXAMPLE_MESSAGES_WIDGET_ID, ExampleMessagesContainerComponent } from './components/example-messages-container/example-messages-container.component';
-import { ExampleMessagesActionTypes, LoadExampleMessages, OpenExampleMessageEditor, OpenExampleSnippetEditor } from 'src/app/root-store/example-messages/example-messages.actions';
+import { ExampleMessagesActionTypes, LoadExampleMessages, OpenExampleActorsEditor, OpenExampleMessageEditor, OpenExampleScenarioEditor, OpenExampleScenarioListEditor, OpenExampleSnippetEditor } from 'src/app/root-store/example-messages/example-messages.actions';
+import { ScenarioBoardComponent } from './components/scenario-board/scenario-board.component';
+import { ActorsEditorComponent } from './components/actors-editor/actors-editor.component';
+import { ScenarioListComponent } from './components/scenario-list/scenario-list.component';
 import { MessageEditorComponent } from './components/message-editor/message-editor.component';
 import { SnippetEditorComponent } from './components/snippet-editor/snippet-editor.component';
 import { EditorActivateGuard, EditorDeactivateGuard } from '../dam-framework';
@@ -49,6 +52,45 @@ const routes: Routes = [
           },
           action: OpenExampleMessageEditor,
           idKey: 'messageId',
+        },
+      },
+      {
+        path: 'actors',
+        component: ActorsEditorComponent,
+        canActivate: [EditorActivateGuard],
+        data: {
+          editorMetadata: {
+            id: EditorID.EXAMPLE_ACTORS,
+            title: 'Actors',
+          },
+          action: OpenExampleActorsEditor,
+          idKey: 'igId',
+        },
+      },
+      {
+        path: 'scenarios',
+        component: ScenarioListComponent,
+        canActivate: [EditorActivateGuard],
+        data: {
+          editorMetadata: {
+            id: EditorID.EXAMPLE_SCENARIO_LIST,
+            title: 'Scenarios',
+          },
+          action: OpenExampleScenarioListEditor,
+          idKey: 'igId',
+        },
+      },
+      {
+        path: 'scenario/:scenarioId',
+        component: ScenarioBoardComponent,
+        canActivate: [EditorActivateGuard],
+        data: {
+          editorMetadata: {
+            id: EditorID.EXAMPLE_SCENARIO,
+            title: 'Scenario',
+          },
+          action: OpenExampleScenarioEditor,
+          idKey: 'scenarioId',
         },
       },
       {

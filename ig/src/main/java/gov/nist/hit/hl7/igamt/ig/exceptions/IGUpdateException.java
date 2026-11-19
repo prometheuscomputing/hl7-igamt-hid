@@ -20,6 +20,10 @@ public class IGUpdateException extends GenericException {
     super("Could not update IG with=" + id);
   }
 
+  public IGUpdateException(String message, boolean literal) {
+    super(message);
+  }
+
   public IGUpdateException(Exception error) {
     super(error);
   }

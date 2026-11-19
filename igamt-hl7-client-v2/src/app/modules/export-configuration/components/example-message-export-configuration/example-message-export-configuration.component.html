@@ -1,6 +1,6 @@
 <ng-container *ngIf="config?.exampleMessages">
   <div class="exmsg-config">
-    <div class="exmsg-row">
+    <div class="exmsg-row exmsg-row-top">
       <div class="card card-configuration">
         <h5 class="card-title title-text custom-card-title">Include</h5>
         <ul class="list-group list-group-flush">
@@ -22,7 +22,7 @@
     </div>
 
     <ng-container *ngIf="config.exampleMessages.include">
-      <div class="exmsg-row">
+      <div class="exmsg-row exmsg-row-choices">
         <div class="card card-configuration">
           <h5 class="card-title title-text custom-card-title">Content</h5>
           <ul class="list-group list-group-flush">
@@ -58,7 +58,7 @@
         </div>
       </div>
 
-      <div class="exmsg-row">
+      <div class="exmsg-row exmsg-row-bottom">
         <div class="card card-configuration">
           <h5 class="card-title title-text custom-card-title">Description</h5>
           <ul class="list-group list-group-flush">

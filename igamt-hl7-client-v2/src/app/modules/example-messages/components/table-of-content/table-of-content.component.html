@@ -2,12 +2,9 @@
   <tree-root #treeroot [nodes]="nodes" [options]="options">
     <ng-template #treeNodeTemplate let-index="index" let-node>
       <ng-container [ngSwitch]="node.data.type">
-        <div [routerLink]="['message', node.data.id]" routerLinkActive="active-node"  *ngSwitchCase="'EXAMPLEMESSAGE'" [contextMenu]="messageContextMenu" style="display: flex; align-items: center; padding: 3px 6px; gap: 5px;">
-          <span class="badge badge-primary">
-            <i class="fa fa-envelope"></i>
-            Message
-          </span>
-          {{ node.data.label }}
+        <div class="em-toc-entry" [routerLink]="['message', node.data.id]" routerLinkActive="active-node"  *ngSwitchCase="'EXAMPLEMESSAGE'" [contextMenu]="messageContextMenu">
+          <span class="badge badge-primary em-toc-mark" title="Message">M</span>
+          <span class="em-toc-label">{{ node.data.label }}</span>
           <context-menu #messageContextMenu>
             <ng-template (execute)="exportExampleMessage(node, 'html')" contextMenuItem>
               <i class="fa fa-download"></i> Export HTML
@@ -26,12 +23,9 @@
             </ng-template>
           </context-menu>
         </div>
-        <div *ngSwitchCase="'EXAMPLEMESSAGESNIPPET'" [routerLink]="['message', node.data.messageId, 'snippet', node.data.id]" routerLinkActive="active-node" [contextMenu]="snippetContextMenu" style="display: flex; align-items: center; padding: 3px 6px; gap: 5px;">
-          <span class="badge badge-primary">
-            <i class="fa fa-scissors"></i>
-            Snippet
-          </span>
-          {{ node.data.label }}
+        <div class="em-toc-entry" *ngSwitchCase="'EXAMPLEMESSAGESNIPPET'" [routerLink]="['message', node.data.messageId, 'snippet', node.data.id]" routerLinkActive="active-node" [contextMenu]="snippetContextMenu">
+          <span class="badge em-toc-mark em-toc-mark-snippet" title="Snippet">S</span>
+          <span class="em-toc-label">{{ node.data.label }}</span>
           <context-menu #snippetContextMenu>
             <ng-template (execute)="exportSnippet(node, 'html')" contextMenuItem>
               <i class="fa fa-download"></i> Export HTML

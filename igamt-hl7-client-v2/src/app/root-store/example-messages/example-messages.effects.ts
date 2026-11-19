@@ -8,7 +8,7 @@ import * as fromDAM from 'src/app/modules/dam-framework/store/index';
 import * as fromRouterSelector from '../../modules/dam-framework/store/router/router.selectors';
 import { DamWidgetEffect } from '../../modules/dam-framework/store/dam-widget-effect.class';
 import { Type } from '../../modules/shared/constants/type.enum';
-import { ExampleMessagesActionTypes, LoadExampleMessages, LoadExampleMessagesSuccess, OpenExampleMessageEditor, OpenExampleSnippetEditor } from './example-messages.actions';
+import { ExampleMessagesActionTypes, LoadExampleMessages, LoadExampleMessagesSuccess, OpenExampleActorsEditor, OpenExampleMessageEditor, OpenExampleScenarioEditor, OpenExampleScenarioListEditor, OpenExampleSnippetEditor } from './example-messages.actions';
 import { EXAMPLE_MESSAGES_WIDGET_ID } from 'src/app/modules/example-messages/components/example-messages-container/example-messages-container.component';
 import { ExampleMessagesService } from 'src/app/modules/example-messages/services/example-messages.service';
 import { EditorID } from 'src/app/modules/shared/models/editor.enum';
@@ -113,6 +113,58 @@ export class ExampleMessagesEffects extends DamWidgetEffect {
         })
       );
     })
+  );
+
+  @Effect()
+  openScenarioEditor$ = this.actions$.pipe(
+    ofType(ExampleMessagesActionTypes.OpenExampleScenarioEditor),
+    concatMap((action: OpenExampleScenarioEditor) => {
+      return this.store.select(selectIgExampleMessages).pipe(
+        take(1),
+        map((data) => {
+          const scenario = (data.scenarios || []).find((item) => item.id === action.payload.id);
+          return new fromDamActions.OpenEditor({
+            id: action.payload.id,
+            editor: {
+              id: EditorID.EXAMPLE_SCENARIO,
+              title: 'Scenario',
+            },
+            display: {
+              id: action.payload.id,
+              variableName: scenario ? scenario.name : 'Scenario',
+              type: Type.EXAMPLESCENARIO,
+            },
+            initial: scenario || { id: action.payload.id, name: '', summary: '', steps: [] },
+          });
+        }),
+      );
+    }),
+  );
+
+  @Effect()
+  openActorsEditor$ = this.actions$.pipe(
+    ofType(ExampleMessagesActionTypes.OpenExampleActorsEditor),
+    concatMap((action: OpenExampleActorsEditor) => {
+      return of(new fromDamActions.OpenEditor({
+        id: action.payload.id,
+        editor: { id: EditorID.EXAMPLE_ACTORS, title: 'Actors' },
+        display: { id: action.payload.id, variableName: 'Actors', type: Type.EXAMPLEMESSAGES },
+        initial: {},
+      }));
+    }),
+  );
+
+  @Effect()
+  openScenarioListEditor$ = this.actions$.pipe(
+    ofType(ExampleMessagesActionTypes.OpenExampleScenarioListEditor),
+    concatMap((action: OpenExampleScenarioListEditor) => {
+      return of(new fromDamActions.OpenEditor({
+        id: action.payload.id,
+        editor: { id: EditorID.EXAMPLE_SCENARIO_LIST, title: 'Scenarios' },
+        display: { id: action.payload.id, variableName: 'Scenarios', type: Type.EXAMPLEMESSAGES },
+        initial: {},
+      }));
+    }),
   );
 
   @Effect()
