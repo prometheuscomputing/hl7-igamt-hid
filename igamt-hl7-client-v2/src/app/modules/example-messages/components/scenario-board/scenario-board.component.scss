@@ -858,7 +858,8 @@ $pin-soft: #fff6e0;
   }
 }
 
-.view-switch {
+.view-switch,
+.zoom-switch {
   display: inline-flex;
   border: 1px solid $line;
   border-radius: 7px;
@@ -886,6 +887,19 @@ $pin-soft: #fff6e0;
       color: $blue;
       font-weight: 600;
     }
+  }
+}
+
+.zoom-switch {
+  button:disabled {
+    opacity: 0.4;
+    cursor: default;
+    background: #fff;
+  }
+
+  .zoom-level {
+    min-width: 50px;
+    font-variant-numeric: tabular-nums;
   }
 }
 
