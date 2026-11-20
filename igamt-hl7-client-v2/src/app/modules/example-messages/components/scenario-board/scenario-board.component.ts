@@ -228,7 +228,15 @@ export class ScenarioBoardComponent implements OnInit, OnDestroy {
   }
 
   plainText(html: string): string {
-    return (html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!html) {
+      return '';
+    }
+    // Tags become spaces so words from separate paragraphs stay apart; the parser then turns
+    // character references such as &gt; or &amp; back into the characters they stand for.
+    // DOMParser builds an inert document, so nothing in the description runs.
+    const withoutTags = html.replace(/<[^>]*>/g, ' ');
+    const text = new DOMParser().parseFromString(withoutTags, 'text/html').documentElement.textContent || '';
+    return text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   isPinned(step: IScenarioStep, snippetId: string): boolean {
