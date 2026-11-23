@@ -320,8 +320,8 @@ export class SelectMessageSnippetDialogComponent implements OnInit, OnDestroy {
 
   private entryFor(message: IAvailableMessage, term: string): IPickMessage {
     const snippets = message.snippets || [];
-    const ownMatch = !term || this.matches(term, [message.name, message.description, this.profileOf(message)]);
-    const shown = ownMatch ? snippets : snippets.filter((snippet) => this.matches(term, [snippet.name, snippet.description]));
+    const ownMatch = !term || this.matches(term, [message.name, this.profileOf(message)]);
+    const shown = ownMatch ? snippets : snippets.filter((snippet) => this.matches(term, [snippet.name]));
     if (!ownMatch && !shown.length) {
       return null;
     }
@@ -358,7 +358,7 @@ export class SelectMessageSnippetDialogComponent implements OnInit, OnDestroy {
       type: 'message',
       message,
       label: message.name,
-      detail: message.description ? message.description + ' · ' + size : 'Whole message · ' + size,
+      detail: 'Whole message · ' + size,
       current: message.id === this.data.selectedMessageId && !this.data.selectedSnippetId,
     };
   }
@@ -371,7 +371,7 @@ export class SelectMessageSnippetDialogComponent implements OnInit, OnDestroy {
       message,
       snippet,
       label: snippet.name,
-      detail: snippet.description || (count + (count === 1 ? ' element' : ' elements') + ' of the message'),
+      detail: (count + (count === 1 ? ' element' : ' elements') + ' of the message'),
       current: message.id === this.data.selectedMessageId && snippet.id === this.data.selectedSnippetId,
     };
   }

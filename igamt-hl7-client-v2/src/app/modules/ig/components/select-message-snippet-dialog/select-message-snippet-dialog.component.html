@@ -100,9 +100,6 @@
         </div>
         <div class="pick-preview-name">{{ selected.label }}</div>
         <div class="pick-preview-profile"><i class="fa fa-file-text-o"></i> {{ selected.message.profileName }}</div>
-        <div class="pick-preview-description" *ngIf="selected.type === 'message' ? selected.message.description : selected.snippet.description">
-          {{ selected.type === 'message' ? selected.message.description : selected.snippet.description }}
-        </div>
 
         <div class="pick-preview-loading" *ngIf="preview.loading"><i class="fa fa-spinner fa-spin"></i> Loading the text</div>
         <div class="pick-preview-note" *ngIf="preview.note">{{ preview.note }}</div>
