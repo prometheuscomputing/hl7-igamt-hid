@@ -39,7 +39,7 @@
   background-color: #fff;
   font-family: monospace;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.9;
 }
 
 .er7-text:focus {
@@ -47,7 +47,14 @@
   outline-offset: -1px;
 }
 
-.er7-line {
+.er7-lines {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow: visible;
+  font: inherit;
+  color: black;
   white-space: pre;
 }
 

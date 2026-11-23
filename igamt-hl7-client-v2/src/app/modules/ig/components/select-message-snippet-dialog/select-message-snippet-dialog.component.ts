@@ -4,6 +4,8 @@ import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { IAvailableMessage, IExampleMessageSnippet } from '../../../example-messages/domain/example-messages.model';
 import { ExampleMessagesService } from '../../../example-messages/services/example-messages.service';
+import { IExampleMessageHighlightRange } from '../../../shared/froala/example-message.plugin';
+import { snippetHighlights } from '../../../shared/functions/snippet-highlights';
 
 export interface ISelectMessageSnippetDialogData {
   availableMessages: IAvailableMessage[];
@@ -39,7 +41,6 @@ export interface IPickRow {
   message: IAvailableMessage;
   snippet?: IExampleMessageSnippet;
   label: string;
-  detail: string;
   current: boolean;
 }
 
@@ -59,6 +60,8 @@ interface IPreview {
   text: string;
   loading: boolean;
   note: string;
+  /** The elements a snippet selects, marked as the guide marks them. */
+  highlights?: IExampleMessageHighlightRange[];
 }
 
 /** Opens every message's snippets when the whole list still fits in the dialog without much scrolling. */
@@ -351,27 +354,22 @@ export class SelectMessageSnippetDialogComponent implements OnInit, OnDestroy {
   }
 
   private messageRow(message: IAvailableMessage): IPickRow {
-    const count = (message.snippets || []).length;
-    const size = count ? count + (count === 1 ? ' snippet' : ' snippets') : 'No snippet';
     return {
       key: 'message:' + message.id,
       type: 'message',
       message,
       label: message.name,
-      detail: 'Whole message · ' + size,
       current: message.id === this.data.selectedMessageId && !this.data.selectedSnippetId,
     };
   }
 
   private snippetRow(message: IAvailableMessage, snippet: IExampleMessageSnippet): IPickRow {
-    const count = (snippet.messageReferences || []).length;
     return {
       key: 'snippet:' + message.id + ':' + snippet.id,
       type: 'snippet',
       message,
       snippet,
       label: snippet.name,
-      detail: (count + (count === 1 ? ' element' : ' elements') + ' of the message'),
       current: message.id === this.data.selectedMessageId && snippet.id === this.data.selectedSnippetId,
     };
   }
@@ -393,6 +391,7 @@ export class SelectMessageSnippetDialogComponent implements OnInit, OnDestroy {
           text,
           loading: false,
           note: text ? '' : 'This snippet selects nothing in the message as it is now.',
+          highlights: text ? snippetHighlights(result, false) : [],
         });
       },
       () => done({ text: '', loading: false, note: 'The text of this snippet could not be loaded.' }),

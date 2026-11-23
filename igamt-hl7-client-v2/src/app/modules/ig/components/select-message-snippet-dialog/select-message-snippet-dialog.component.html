@@ -66,7 +66,6 @@
               <span class="badge badge-primary pick-mark" title="Message">M</span>
               <span class="pick-row-body">
                 <span class="pick-label">{{ entry.row.label }}</span>
-                <span class="pick-detail">{{ entry.row.detail }}</span>
               </span>
               <span class="pick-current" *ngIf="entry.row.current">Attached now</span>
             </div>
@@ -77,7 +76,6 @@
                 <span class="badge pick-mark pick-mark-snippet" title="Snippet">S</span>
                 <span class="pick-row-body">
                   <span class="pick-label">{{ row.label }}</span>
-                  <span class="pick-detail">{{ row.detail }}</span>
                 </span>
                 <span class="pick-current" *ngIf="row.current">Attached now</span>
               </div>
@@ -104,7 +102,7 @@
         <div class="pick-preview-loading" *ngIf="preview.loading"><i class="fa fa-spinner fa-spin"></i> Loading the text</div>
         <div class="pick-preview-note" *ngIf="preview.note">{{ preview.note }}</div>
         <app-er7-view *ngIf="!preview.loading && !preview.note"
-                      [text]="preview.text" [showSummary]="selected.type === 'message'" maxHeight="300px"
+                      [text]="preview.text" [highlights]="preview.highlights" [showSummary]="selected.type === 'message'" maxHeight="300px"
                       emptyLabel="This message has no text yet."></app-er7-view>
       </ng-container>
     </div>

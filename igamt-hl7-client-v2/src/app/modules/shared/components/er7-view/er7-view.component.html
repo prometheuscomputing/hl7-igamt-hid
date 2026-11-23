@@ -5,7 +5,7 @@
   <span class="er7-fact"><span class="er7-fact-name">Segments</span>{{ summary.segments }}</span>
 </div>
 <div class="er7-text" *ngIf="showText" [style.max-height]="maxHeight" tabindex="0" aria-label="Message text">
-  <div class="er7-line" *ngFor="let line of lines"><span *ngFor="let token of line" [className]="token.cls">{{ token.text }}</span></div>
+  <pre class="er7-lines" *ngIf="html" [innerHTML]="html"></pre>
   <div class="er7-more" *ngIf="hidden">and {{ hidden }} more {{ hidden === 1 ? 'segment' : 'segments' }}</div>
-  <div class="er7-empty" *ngIf="!lines.length">{{ emptyLabel }}</div>
+  <div class="er7-empty" *ngIf="!html">{{ emptyLabel }}</div>
 </div>

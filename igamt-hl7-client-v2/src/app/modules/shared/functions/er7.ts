@@ -1,9 +1,3 @@
-/** One coloured piece of a line of ER7 text. The class names are those of the editor's hl7v2 mode. */
-export interface IEr7Token {
-  text: string;
-  cls: string;
-}
-
 /** What the MSH segment says about a message. */
 export interface IEr7Summary {
   segments: number;
@@ -12,13 +6,6 @@ export interface IEr7Summary {
   version: string;
   profile: string;
 }
-
-const SEPARATOR_CLASS: { [separator: string]: string } = {
-  '|': 'cm-field-separator',
-  '^': 'cm-component-separator',
-  '&': 'cm-subcomponent-separator',
-  '~': 'cm-continuation-separator',
-};
 
 /** Pasted or uploaded text as the editor stores it: one segment per line, no framing bytes, no blank lines. */
 export function normalizeEr7(text: string): string {
@@ -31,27 +18,6 @@ export function er7Lines(text: string): string[] {
     .split(/\r\n|\n|\r/)
     .map((line) => line.replace(/\s+$/, ''))
     .filter((line) => line.length > 0);
-}
-
-export function tokenizeEr7Line(line: string): IEr7Token[] {
-  const tokens: IEr7Token[] = [{ text: line.substring(0, 3), cls: 'cm-segment-name' }];
-  let plain = '';
-  for (let i = 3; i < line.length; i++) {
-    const cls = SEPARATOR_CLASS[line.charAt(i)];
-    if (cls) {
-      if (plain) {
-        tokens.push({ text: plain, cls: '' });
-        plain = '';
-      }
-      tokens.push({ text: line.charAt(i), cls });
-    } else {
-      plain += line.charAt(i);
-    }
-  }
-  if (plain) {
-    tokens.push({ text: plain, cls: '' });
-  }
-  return tokens;
 }
 
 export function summarizeEr7(text: string): IEr7Summary {
