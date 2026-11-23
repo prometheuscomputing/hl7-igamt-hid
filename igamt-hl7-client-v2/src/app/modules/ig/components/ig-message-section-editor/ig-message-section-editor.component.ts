@@ -473,6 +473,12 @@ export class IgMessageSectionEditorComponent extends AbstractEditorComponent imp
     ).subscribe();
   }
 
+  /** The profile's name as the pickers and the table of contents write it. */
+  get profileLabel(): string {
+    const profile = this.exampleMessage && this.exampleMessage.profile;
+    return profile ? [profile.fixedName, profile.variableName].filter((part) => !!part).join('#') : '';
+  }
+
   openAttachDialog() {
     const dialogRef = this.dialog.open(SelectMessageSnippetDialogComponent, {
       data: {

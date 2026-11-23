@@ -218,12 +218,17 @@ export class SelectMessageSnippetDialogComponent implements OnInit, OnDestroy {
 
   /** Arrow keys walk the list from the search box too, so that typing and choosing need no mouse. */
   onKey(event: KeyboardEvent) {
-    const inSearch = !!event.target && (event.target as HTMLElement).tagName === 'INPUT';
+    const field = event.target as HTMLElement;
+    const inSearch = !!field && field.tagName === 'INPUT';
     if (event.key === 'Enter') {
       if (this.canConfirm) {
         event.preventDefault();
         this.confirm();
       }
+      return;
+    }
+    // The name field keeps its own keys: walking the list from it would also rename the section.
+    if (inSearch && field.id === 'pick-name') {
       return;
     }
     if (!inSearch && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
