@@ -1,20 +1,42 @@
-<h2 mat-dialog-title>Open in IG</h2>
-<mat-dialog-content>
-  <p class="locate-path" *ngIf="data.hl7Path || data.name">
-    {{ data.hl7Path || data.name }}
-  </p>
-  <p class="locate-hint">Choose which IG resource to open this location from.</p>
-  <mat-radio-group class="locate-options" [(ngModel)]="selectedKey">
-    <mat-radio-button *ngFor="let context of data.contexts" class="locate-option" [value]="contextKey(context)">
-      <span class="locate-option-body">
-        <span class="locate-kind">{{ kindLabel(context) }}</span>
-        <span class="locate-label">{{ context.resourceName || context.label }}</span>
-        <span class="locate-detail" *ngIf="context.detail && context.detail !== context.resourceName && context.detail !== context.label">{{ context.detail }}</span>
-      </span>
-    </mat-radio-button>
-  </mat-radio-group>
+<h2 mat-dialog-title class="locate-title">
+  <span>Open in IG</span>
+  <button type="button" class="locate-close" [mat-dialog-close]="" title="Close" aria-label="Close">
+    <i class="fa fa-times"></i>
+  </button>
+</h2>
+<mat-dialog-content class="locate-content">
+  <div class="locate-element" *ngIf="data.hl7Path || data.name">
+    <span class="locate-path" *ngIf="data.hl7Path">{{ data.hl7Path }}</span>
+    <span class="locate-name" *ngIf="data.name">{{ data.name }}</span>
+  </div>
+  <p class="locate-hint">This element is described in more than one place. Choose the one to open.</p>
+
+  <ng-container *ngIf="structure.length">
+    <div class="locate-group-title">Where it is defined</div>
+    <div class="locate-trail">
+      <button *ngFor="let context of structure; let last = last" type="button" class="locate-row"
+              [class.locate-row-last]="last" (click)="open(context)">
+        <app-entity-bagde [type]="badgeType(context)"></app-entity-bagde>
+        <span class="locate-row-body">
+          <span class="locate-label">{{ context.resourceName || context.label }}</span>
+          <span class="locate-detail">{{ detail(context) }}</span>
+        </span>
+        <i class="fa fa-angle-right locate-go"></i>
+      </button>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="valueSets.length">
+    <div class="locate-group-title">Value sets bound to it</div>
+    <div class="locate-list">
+      <button *ngFor="let context of valueSets" type="button" class="locate-row" (click)="open(context)">
+        <app-entity-bagde [type]="badgeType(context)"></app-entity-bagde>
+        <span class="locate-row-body">
+          <span class="locate-label">{{ context.resourceName || context.label }}</span>
+          <span class="locate-detail">{{ detail(context) }}</span>
+        </span>
+        <i class="fa fa-angle-right locate-go"></i>
+      </button>
+    </div>
+  </ng-container>
 </mat-dialog-content>
-<mat-dialog-actions style="justify-content: flex-end;">
-  <button [mat-dialog-close]="" class="btn btn-sm btn-secondary" style="margin-right: 5px;">Cancel</button>
-  <button class="btn btn-sm btn-success" [disabled]="!selectedKey" (click)="openSelected()">Open</button>
-</mat-dialog-actions>

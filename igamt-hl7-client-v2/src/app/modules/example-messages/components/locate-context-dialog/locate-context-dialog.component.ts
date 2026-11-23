@@ -1,7 +1,13 @@
 import { Component, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { Type } from '../../../shared/constants/type.enum';
 import { IExampleMessageLocation, IExampleMessageLocationContext } from '../../domain/example-messages.model';
 
+/**
+ * An element of a message is described by its profile, its segment, the datatypes on the way
+ * down to it, and the value sets bound to it. This lists them, outermost first, and one click
+ * opens the chosen one.
+ */
 @Component({
   selector: 'app-locate-context-dialog',
   templateUrl: './locate-context-dialog.component.html',
@@ -9,48 +15,45 @@ import { IExampleMessageLocation, IExampleMessageLocationContext } from '../../d
 })
 export class LocateContextDialogComponent {
 
-  selectedKey: string;
+  structure: IExampleMessageLocationContext[];
+  valueSets: IExampleMessageLocationContext[];
 
   constructor(
     public dialogRef: MatDialogRef<LocateContextDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: IExampleMessageLocation,
   ) {
-    const preferred = this.defaultContext();
-    this.selectedKey = preferred ? this.contextKey(preferred) : null;
+    const contexts = data.contexts || [];
+    this.structure = contexts.filter((context) => context.kind !== 'VALUESET');
+    this.valueSets = contexts.filter((context) => context.kind === 'VALUESET');
   }
 
-  contextKey(context: IExampleMessageLocationContext): string {
-    return (context.routeType || '') + '::' + (context.resourceId || '');
+  badgeType(context: IExampleMessageLocationContext): Type {
+    switch (context && context.kind) {
+      case 'PROFILE': return Type.CONFORMANCEPROFILE;
+      case 'SEGMENT': return Type.SEGMENT;
+      case 'VALUESET': return Type.VALUESET;
+      default: return Type.DATATYPE;
+    }
   }
 
-  kindLabel(context: IExampleMessageLocationContext): string {
-    if (!context || !context.kind) {
-      return '';
-    }
-    if (context.kind === 'PROFILE') {
-      return 'Profile';
-    }
-    if (context.kind === 'SEGMENT') {
-      return 'Segment';
-    }
-    if (context.kind === 'VALUESET') {
-      return 'Value set';
-    }
-    return 'Datatype';
+  /** What the resource is, and what the server says about its use here when that adds something. */
+  detail(context: IExampleMessageLocationContext): string {
+    const kind = this.kindLabel(context);
+    const name = context.resourceName || context.label;
+    const more = context.detail && context.detail !== name && context.detail !== context.label ? context.detail : '';
+    return more ? kind + ' · ' + more : kind;
   }
 
-  openSelected() {
-    const selected = (this.data.contexts || []).find((context) => this.contextKey(context) === this.selectedKey);
-    this.dialogRef.close(selected || null);
+  open(context: IExampleMessageLocationContext) {
+    this.dialogRef.close(context);
   }
 
-  private defaultContext(): IExampleMessageLocationContext {
-    const contexts = this.data.contexts || [];
-    if (!contexts.length) {
-      return null;
+  private kindLabel(context: IExampleMessageLocationContext): string {
+    switch (context && context.kind) {
+      case 'PROFILE': return 'Conformance profile';
+      case 'SEGMENT': return 'Segment';
+      case 'VALUESET': return 'Value set';
+      default: return 'Datatype';
     }
-    const match = contexts.find((context) =>
-      context.routeType === this.data.routeType && context.resourceId === this.data.resourceId);
-    return match || contexts[contexts.length - 1];
   }
 }

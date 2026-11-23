@@ -159,6 +159,27 @@
                         name="message"
                         [options]="messageEditorOptions"
                     ></ngx-codemirror>
+                    <context-menu #textContextMenu (close)="onTextMenuClosed()">
+                        <ng-template contextMenuItem [passive]="true" let-item>
+                            <span class="er7-menu-head">
+                                <span class="er7-menu-path">{{ item?.hl7Path }}</span>
+                                <span class="er7-menu-name">{{ item?.name }}</span>
+                            </span>
+                        </ng-template>
+                        <ng-template contextMenuItem [divider]="true"></ng-template>
+                        <ng-template contextMenuItem (execute)="openElementInIg($event.item)">
+                            <i class="fa fa-external-link"></i> Open in IG
+                        </ng-template>
+                        <ng-template contextMenuItem (execute)="showElementInTree($event.item)">
+                            <i class="fa fa-sitemap"></i> Show in Message Tree
+                        </ng-template>
+                        <ng-template contextMenuItem (execute)="createSnippet($event.item)" [enabled]="!viewOnly && !staleMessageTree">
+                            <i class="fa fa-scissors"></i> Create Snippet
+                        </ng-template>
+                        <ng-template contextMenuItem let-item (execute)="toggleSelect($event.item)" [enabled]="!staleMessageTree">
+                            <i class="fa fa-check-square-o"></i> {{ item && isElementSelected(item) ? 'Deselect' : 'Add to Selection' }}
+                        </ng-template>
+                    </context-menu>
                 </div>
             </div>
 
