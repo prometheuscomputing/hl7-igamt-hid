@@ -137,7 +137,7 @@ export class SideBarComponent {
     this.toc.expandAll();
   }
 
-  createExampleMessage(data: { name: string, profileId: string }) {
+  createExampleMessage(data: { name: string, profileId: string, message?: string }) {
     this.mutateExampleMessages(
       (id) => this.exampleMessageService.createExampleMessage(id, data),
       (createdId) => this.router.navigate(['message', createdId], { relativeTo: this.route }),

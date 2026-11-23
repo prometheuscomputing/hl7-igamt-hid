@@ -16,7 +16,7 @@ import { Type } from '../../../shared/constants/type.enum';
 import { EditorID } from '../../../shared/models/editor.enum';
 import { IgService } from '../../services/ig.service';
 import { ExampleMessagesService, ISnippetRenderResult } from '../../../example-messages/services/example-messages.service';
-import { IAvailableMessage, IExampleMessageDTO, IExampleMessageSnippet, MessageElement } from '../../../example-messages/domain/example-messages.model';
+import { IAvailableMessage, IExampleMessageDTO, IExampleMessageSnippet, MessageElement, toAvailableMessages } from '../../../example-messages/domain/example-messages.model';
 import { CodemirrorComponent } from '@ctrl/ngx-codemirror';
 import * as CodeMirror from 'codemirror';
 import { ConfirmDialogComponent } from '../../../dam-framework/components/fragments/confirm-dialog/confirm-dialog.component';
@@ -337,23 +337,7 @@ export class IgMessageSectionEditorComponent extends AbstractEditorComponent imp
     this.loadingMessages = true;
     this.exampleMessagesService.getIgExampleMessages(igId).pipe(
       map((igExampleMessages) => {
-        this.availableMessages = [];
-        if (igExampleMessages && igExampleMessages.profileExampleMessages) {
-          for (const profileMessages of igExampleMessages.profileExampleMessages) {
-            const profileLabel = profileMessages.profile
-              ? (profileMessages.profile.fixedName || '') +
-                (profileMessages.profile.variableName ? '#' + profileMessages.profile.variableName : '')
-              : 'Unknown Profile';
-            for (const msg of profileMessages.exampleMessages) {
-              this.availableMessages.push({
-                id: msg.id,
-                name: msg.name,
-                profileName: profileLabel,
-                snippets: msg.snippets || [],
-              });
-            }
-          }
-        }
+        this.availableMessages = toAvailableMessages(igExampleMessages);
         this.loadingMessages = false;
       }),
       catchError(() => {
@@ -493,6 +477,11 @@ export class IgMessageSectionEditorComponent extends AbstractEditorComponent imp
     const dialogRef = this.dialog.open(SelectMessageSnippetDialogComponent, {
       data: {
         availableMessages: this.availableMessages,
+        igId: this.igId,
+        title: this.selectedMessageId ? 'Change the attached example' : 'Attach an example',
+        confirmLabel: this.selectedMessageId ? 'Change to' : 'Attach',
+        selectedMessageId: this.selectedMessageId,
+        selectedSnippetId: this.selectedSnippetId,
       },
     });
     dialogRef.afterClosed().pipe(

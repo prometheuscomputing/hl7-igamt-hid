@@ -159,6 +159,8 @@ public class ExampleMessagesService {
         return exampleMessageDTO;
     }
 
+    static final int MAX_CREATED_MESSAGE_LENGTH = 1024 * 1024;
+
     public IgExampleMessagesDTO createExampleMessage(String id, CreateMessageDTO createMessageDTO) throws ResourceNotFoundException, GenericException {
         assertWritable(id);
         ProfileInfo profile = this.getProfileInfo(createMessageDTO.getProfileId());
@@ -176,6 +178,13 @@ public class ExampleMessagesService {
         exampleMessage.setId(new ObjectId().toString());
         exampleMessage.setName(createMessageDTO.getName());
         exampleMessage.setProfileId(createMessageDTO.getProfileId());
+        if (createMessageDTO.getMessage() != null && !createMessageDTO.getMessage().trim().isEmpty()) {
+            // All the example messages of a guide are kept in one document, so one message must stay small.
+            if (createMessageDTO.getMessage().length() > MAX_CREATED_MESSAGE_LENGTH) {
+                throw new GenericException("The message text is larger than 1 MB, which is too large for an example message");
+            }
+            exampleMessage.setMessage(createMessageDTO.getMessage());
+        }
         igExampleMessages.getExampleMessages().add(exampleMessage);
         this.exampleMessagesRepository.save(igExampleMessages);
         IgExampleMessagesDTO dto = this.toDTO(igExampleMessages);

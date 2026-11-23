@@ -1,0 +1,67 @@
+.create-description {
+  margin-bottom: 12px;
+  color: #555;
+  font-size: 13px;
+}
+
+.create-error {
+  margin-top: 6px;
+  color: #c62828;
+  font-size: 12px;
+}
+
+.create-warning {
+  margin-top: 6px;
+  color: #8a5a00;
+  font-size: 12px;
+}
+
+.create-message-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.create-message-head label {
+  margin-bottom: 0;
+}
+
+.create-message-head .btn {
+  margin-left: 5px;
+}
+
+.create-optional {
+  margin-left: 6px;
+  font-size: 12px;
+  color: #6b7785;
+}
+
+.create-text {
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.create-text:focus-within {
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.create-text ::ng-deep .CodeMirror {
+  height: 190px;
+  font-family: Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.create-text-drop {
+  border-color: #1976d2;
+}
+
+.create-text-drop ::ng-deep .CodeMirror {
+  background-color: #eaf3fd;
+}
+
+.create-facts {
+  margin-top: 8px;
+}

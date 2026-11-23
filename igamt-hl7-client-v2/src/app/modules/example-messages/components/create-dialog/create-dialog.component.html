@@ -1,18 +1,42 @@
 <h2 mat-dialog-title>{{ data.title }}</h2>
 <mat-dialog-content>
-  <div *ngIf="data.description" style="margin-bottom: 12px; color: #555; font-size: 13px;">{{ data.description }}</div>
+  <div *ngIf="data.description" class="create-description">{{ data.description }}</div>
   <div class="form-group">
-    <label>Name</label>
-    <input class="form-control" type="text" [(ngModel)]="name" [class.is-invalid]="nameTaken" />
-    <div *ngIf="nameTaken" style="color: #c62828; font-size: 12px; margin-top: 6px;">
+    <label for="create-dialog-name">Name</label>
+    <input id="create-dialog-name" class="form-control" type="text" [(ngModel)]="name" [class.is-invalid]="nameTaken"
+           cdkFocusInitial (keydown.enter)="submit()" autocomplete="off" />
+    <div *ngIf="nameTaken" class="create-error">
       {{ (name || '').trim() }} is already used
     </div>
-    <div *ngIf="nameEmpty" style="color: #c62828; font-size: 12px; margin-top: 6px;">
+    <div *ngIf="nameEmpty" class="create-error">
       Name is required.
     </div>
   </div>
+
+  <div class="form-group create-message" *ngIf="data.allowMessage">
+    <div class="create-message-head">
+      <label>Message text <span class="create-optional">optional</span></label>
+      <span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" *ngIf="hasMessage" (click)="clearMessage()">Clear</button>
+        <button type="button" class="btn btn-sm btn-outline-primary" (click)="fileInput.click()">
+          <i class="fa fa-upload"></i> Choose a file
+        </button>
+        <input #fileInput type="file" accept=".hl7,.er7,.txt,text/plain" hidden (change)="pickFile(fileInput)" />
+      </span>
+    </div>
+    <div class="create-text" [class.create-text-drop]="dragging"
+         (dragover)="onDragOver($event)" (dragleave)="dragging = false" (drop)="onDrop($event)">
+      <ngx-codemirror [(ngModel)]="message" name="create-dialog-message" [options]="editorOptions"></ngx-codemirror>
+    </div>
+    <div *ngIf="fileError" class="create-error">{{ fileError }}</div>
+    <div *ngIf="tooLarge" class="create-error">This text is larger than 1 MB, which is too large for an example message.</div>
+    <div *ngIf="notAMessage" class="create-warning">
+      <i class="fa fa-exclamation-triangle"></i> This text does not start with an MSH segment. It will be saved as it is.
+    </div>
+    <app-er7-view *ngIf="hasMessage && !notAMessage && !tooLarge" class="create-facts" [text]="message" [showText]="false"></app-er7-view>
+  </div>
 </mat-dialog-content>
 <mat-dialog-actions style="justify-content: flex-end;">
-  <button [mat-dialog-close]="" class="btn btn-sm btn-secondary" style="margin-right: 5px;">Cancel</button>
-  <button (click)="submit()" [disabled]="!canSubmit" class="btn btn-sm btn-success">{{ data.confirmLabel || 'Done' }}</button>
+  <button type="button" [mat-dialog-close]="" class="btn btn-sm btn-secondary" style="margin-right: 5px;">Cancel</button>
+  <button type="button" (click)="submit()" [disabled]="!canSubmit" class="btn btn-sm btn-success">{{ data.confirmLabel || 'Done' }}</button>
 </mat-dialog-actions>

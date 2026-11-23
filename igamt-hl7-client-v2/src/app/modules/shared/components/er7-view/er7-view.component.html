@@ -1,0 +1,11 @@
+<div class="er7-summary" *ngIf="showSummary && summary.startsWithMsh">
+  <span class="er7-fact" *ngIf="summary.messageType" title="MSH-9, message type"><span class="er7-fact-name">Type</span>{{ summary.messageType }}</span>
+  <span class="er7-fact" *ngIf="summary.version" title="MSH-12, version"><span class="er7-fact-name">Version</span>{{ summary.version }}</span>
+  <span class="er7-fact" *ngIf="summary.profile" title="MSH-21, message profile identifier"><span class="er7-fact-name">Profile</span>{{ summary.profile }}</span>
+  <span class="er7-fact"><span class="er7-fact-name">Segments</span>{{ summary.segments }}</span>
+</div>
+<div class="er7-text" *ngIf="showText" [style.max-height]="maxHeight" tabindex="0" aria-label="Message text">
+  <div class="er7-line" *ngFor="let line of lines"><span *ngFor="let token of line" [className]="token.cls">{{ token.text }}</span></div>
+  <div class="er7-more" *ngIf="hidden">and {{ hidden }} more {{ hidden === 1 ? 'segment' : 'segments' }}</div>
+  <div class="er7-empty" *ngIf="!lines.length">{{ emptyLabel }}</div>
+</div>

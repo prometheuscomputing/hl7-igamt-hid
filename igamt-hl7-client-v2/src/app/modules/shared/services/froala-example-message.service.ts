@@ -2,7 +2,7 @@ import { Injectable, NgZone } from '@angular/core';
 import { MatDialog } from '@angular/material';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
-import { IAvailableMessage, IgExampleMessages } from '../../example-messages/domain/example-messages.model';
+import { IAvailableMessage, toAvailableMessages } from '../../example-messages/domain/example-messages.model';
 import { ExampleMessagesService } from '../../example-messages/services/example-messages.service';
 import {
   ISelectMessageSnippetDialogResult,
@@ -39,12 +39,15 @@ export class FroalaExampleMessageService {
       }
       this.exampleMessagesService.getIgExampleMessages(igId).pipe(
         take(1),
-        map((data) => this.toAvailableMessages(data)),
-        catchError(() => of([] as IAvailableMessage[])),
-        switchMap((availableMessages) => {
+        map((data) => ({ availableMessages: toAvailableMessages(data), loadFailed: false })),
+        catchError(() => of({ availableMessages: [] as IAvailableMessage[], loadFailed: true })),
+        switchMap((loaded) => {
           return this.dialog.open(SelectMessageSnippetDialogComponent, {
             data: {
-              availableMessages,
+              availableMessages: loaded.availableMessages,
+              loadFailed: loaded.loadFailed,
+              igId,
+              title: 'Insert an example',
               confirmLabel: 'Insert',
             },
           }).afterClosed();
@@ -88,28 +91,6 @@ export class FroalaExampleMessageService {
         }
       });
     });
-  }
-
-  toAvailableMessages(igExampleMessages: IgExampleMessages): IAvailableMessage[] {
-    const available: IAvailableMessage[] = [];
-    if (!igExampleMessages || !igExampleMessages.profileExampleMessages) {
-      return available;
-    }
-    for (const profileMessages of igExampleMessages.profileExampleMessages) {
-      const profileLabel = profileMessages.profile
-        ? (profileMessages.profile.fixedName || '') +
-          (profileMessages.profile.variableName ? '#' + profileMessages.profile.variableName : '')
-        : 'Unknown Profile';
-      for (const msg of profileMessages.exampleMessages) {
-        available.push({
-          id: msg.id,
-          name: msg.name,
-          profileName: profileLabel,
-          snippets: msg.snippets || [],
-        });
-      }
-    }
-    return available;
   }
 
   private renderWidget(widget: HTMLElement, igId: string): Observable<boolean> {

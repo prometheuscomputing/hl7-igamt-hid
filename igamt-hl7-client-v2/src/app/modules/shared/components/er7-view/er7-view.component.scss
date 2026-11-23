@@ -1,0 +1,63 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.er7-summary {
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.er7-fact {
+  margin: 0 6px 4px 0;
+  padding: 2px 8px;
+  border: 1px solid #dfe6ee;
+  border-radius: 3px;
+  background-color: #f4f7fb;
+  font-family: Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: #1c2733;
+  overflow-wrap: anywhere;
+}
+
+.er7-fact-name {
+  margin-right: 6px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6b7785;
+}
+
+.er7-text {
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid #dfe6ee;
+  border-radius: 4px;
+  background-color: #fff;
+  font-family: Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.er7-text:focus {
+  outline: 2px solid #90caf9;
+  outline-offset: -1px;
+}
+
+.er7-line {
+  white-space: pre;
+}
+
+.er7-more,
+.er7-empty {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: #6b7785;
+}
+
+.er7-more {
+  margin-top: 4px;
+}

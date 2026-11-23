@@ -123,6 +123,34 @@ export interface IAvailableMessage {
     name: string;
     profileName: string;
     snippets: IExampleMessageSnippet[];
+    description?: string;
+    /** The ER7 text, so that a picker can show it without another request. */
+    message?: string;
+}
+
+/** Every example message of a guide, in the guide's order, as a picker lists them. */
+export function toAvailableMessages(igExampleMessages: IgExampleMessages): IAvailableMessage[] {
+    const available: IAvailableMessage[] = [];
+    if (!igExampleMessages || !igExampleMessages.profileExampleMessages) {
+        return available;
+    }
+    for (const profileMessages of igExampleMessages.profileExampleMessages) {
+        const profile = profileMessages.profile;
+        const profileName = profile
+            ? [profile.fixedName, profile.variableName].filter((part) => !!part).join('#') || 'Unnamed profile'
+            : 'Unknown Profile';
+        for (const msg of (profileMessages.exampleMessages || [])) {
+            available.push({
+                id: msg.id,
+                name: msg.name,
+                profileName,
+                snippets: msg.snippets || [],
+                description: msg.description,
+                message: msg.message,
+            });
+        }
+    }
+    return available;
 }
 
 export interface ISnippetValidationInfo {
