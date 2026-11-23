@@ -824,3 +824,51 @@
         margin-left: 8px;
     }
 }
+
+/* Pointing at a value in the message text: the element is tinted and a tip names it. */
+.message-content-panel ::ng-deep .cm-er7-hover {
+    background-color: rgba(21, 101, 192, 0.14);
+    border-radius: 2px;
+}
+
+/* The tip is added to the page body, outside this component. */
+::ng-deep .er7-hover-tip {
+    position: fixed;
+    z-index: 1500;
+    display: none;
+    max-width: 420px;
+    padding: 6px 10px;
+    border: 1px solid #c8c8c8;
+    border-radius: 4px;
+    background-color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    font-size: 12px;
+    line-height: 1.4;
+    color: #222;
+    pointer-events: none;
+}
+
+::ng-deep .er7-hover-tip .er7-hover-path,
+.er7-menu-path {
+    font-family: Menlo, Monaco, Consolas, monospace;
+    font-weight: 700;
+    margin-right: 8px;
+}
+
+::ng-deep .er7-hover-tip .er7-hover-foot {
+    margin-top: 2px;
+    color: #6b7785;
+    font-size: 11px;
+}
+
+.er7-menu-head {
+    display: block;
+    max-width: 340px;
+    white-space: normal;
+    font-size: 12px;
+    color: #222;
+}
+
+.er7-menu-name {
+    color: #444;
+}

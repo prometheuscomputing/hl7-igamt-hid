@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatDialog } from '@angular/material';
@@ -23,6 +23,7 @@ import { MessageService } from 'src/app/modules/dam-framework/services/message.s
 import { TreeComponent, TreeNode } from 'angular-tree-component';
 import { CodemirrorComponent } from '@ctrl/ngx-codemirror';
 import * as CodeMirror from 'codemirror';
+import { ContextMenuComponent, ContextMenuService } from 'ngx-contextmenu';
 import { Type } from '../../../shared/constants/type.enum';
 import { exampleNameError, exampleNameValidator, IExampleMessageLocation, IExampleMessageLocationContext, IExampleMessageSnippet, IExampleMessageValidationEntry, IExampleMessageValidationResult, MessageElement, siblingMessageNames, withUpdatedMessageName } from '../../domain/example-messages.model';
 import { CreateDialogComponent } from '../create-dialog/create-dialog.component';
@@ -81,11 +82,19 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   sheetDragging = false;
   activeValidationEntry: IExampleMessageValidationEntry = null;
   private sheetDragStart: { y: number, height: number } = null;
+  /** The element under the pointer in the message text, its marker, and the tip that names it. */
+  private hovered: MessageElement | null = null;
+  private hoverMarker: CodeMirror.TextMarker | null = null;
+  private hoverTip: HTMLElement | null = null;
+  private hoverFrame: number | null = null;
+  private textMenuOpen = false;
+  private detachTextListeners: () => void = null;
 
   @ViewChild('codemirror') private codeEditor!: CodemirrorComponent;
   @ViewChild('treeroot') private parsedTree: TreeComponent;
   @ViewChild('reportHost') private reportHost: ElementRef;
   @ViewChild('contentStage') private contentStage: ElementRef;
+  @ViewChild('textContextMenu') private textContextMenu: ContextMenuComponent;
 
   constructor(
     actions$: Actions,
@@ -97,6 +106,8 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     private exampleMessagesService: ExampleMessagesService,
     private sanitizer: DomSanitizer,
     private router: Router,
+    private zone: NgZone,
+    private contextMenuService: ContextMenuService,
   ) {
     super({
       id: EditorID.EXAMPLE_MESSAGE,
@@ -921,7 +932,9 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     if (contexts.length > 1) {
       this.dialog.open(LocateContextDialogComponent, {
         data: location,
-        width: '460px',
+        width: '540px',
+        maxWidth: '94vw',
+        autoFocus: false,
       }).afterClosed().pipe(take(1)).subscribe((context: IExampleMessageLocationContext) => {
         if (context) {
           this.goToIgResource(location.igId, context);
@@ -1193,6 +1206,7 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   }
 
   private resetEditorState() {
+    this.clearHover();
     this.clearAllSelections();
     this.parsed = [];
     this.parseError = '';
@@ -1329,6 +1343,10 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
   }
 
   ngOnDestroy() {
+    if (this.detachTextListeners) {
+      this.detachTextListeners();
+    }
+    this.clearHover();
   }
 
   setupEditorClickHandler() {
@@ -1352,19 +1370,210 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
         }
       }
     });
+    this.setupTextHover(editor);
+  }
+
+  /**
+   * Pointing at a value in the message text names the element it belongs to, and a right-click
+   * on it offers the same actions as the message tree. Pointer moves stay outside Angular: the
+   * tip is plain DOM, so nothing on the page has to be checked again for each move.
+   */
+  private setupTextHover(editor: CodeMirror.Editor) {
+    const wrapper = editor.getWrapperElement();
+    const onMove = (event: MouseEvent) => {
+      if (this.textMenuOpen || this.hoverFrame !== null) {
+        return;
+      }
+      this.hoverFrame = requestAnimationFrame(() => {
+        this.hoverFrame = null;
+        this.showHover(editor, event);
+      });
+    };
+    const onLeave = () => {
+      if (!this.textMenuOpen) {
+        this.clearHover();
+      }
+    };
+    const onMenu = (event: MouseEvent) => {
+      const element = this.elementUnderPointer(editor, event);
+      if (!element) {
+        // Nothing the profile knows here: leave the browser's own menu.
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.zone.run(() => {
+        this.setHovered(editor, element);
+        this.hideHoverTip();
+        this.textMenuOpen = true;
+        this.contextMenuService.show.next({
+          contextMenu: this.textContextMenu,
+          event,
+          item: element,
+        });
+      });
+    };
+    const onScroll = () => {
+      if (!this.textMenuOpen) {
+        this.clearHover();
+      }
+    };
+    this.zone.runOutsideAngular(() => {
+      wrapper.addEventListener('mousemove', onMove);
+      wrapper.addEventListener('mouseleave', onLeave);
+      wrapper.addEventListener('contextmenu', onMenu);
+      editor.on('scroll', onScroll);
+      editor.on('change', onScroll);
+    });
+    this.detachTextListeners = () => {
+      wrapper.removeEventListener('mousemove', onMove);
+      wrapper.removeEventListener('mouseleave', onLeave);
+      wrapper.removeEventListener('contextmenu', onMenu);
+      editor.off('scroll', onScroll);
+      editor.off('change', onScroll);
+      if (this.hoverFrame !== null) {
+        cancelAnimationFrame(this.hoverFrame);
+        this.hoverFrame = null;
+      }
+    };
+  }
+
+  /** The deepest element whose text is under the pointer, or null (stale tree, blank area). */
+  private elementUnderPointer(editor: CodeMirror.Editor, event: MouseEvent): MessageElement | null {
+    if (!this.parsed || this.staleMessageTree || this.loading) {
+      return null;
+    }
+    const pos: any = editor.coordsChar({ left: event.clientX, top: event.clientY }, 'window');
+    if (!pos || pos.outside) {
+      return null;
+    }
+    // coordsChar answers with the nearest gap between two characters; xRel says on which side
+    // of that gap the pointer is, which gives the character it is really over.
+    const index = pos.xRel < 0 ? pos.ch - 1 : pos.ch;
+    if (index < 0 || index >= editor.getDoc().getLine(pos.line).length) {
+      return null;
+    }
+    return this.findElementAtPosition(this.parsed, pos.line + 1, index + 1, true);
+  }
+
+  private showHover(editor: CodeMirror.Editor, event: MouseEvent) {
+    const element = this.elementUnderPointer(editor, event);
+    if (!element) {
+      this.clearHover();
+      return;
+    }
+    if (element !== this.hovered) {
+      this.setHovered(editor, element);
+    }
+    this.placeHoverTip(editor, element, event);
+  }
+
+  private setHovered(editor: CodeMirror.Editor, element: MessageElement) {
+    if (this.hoverMarker) {
+      this.hoverMarker.clear();
+    }
+    this.hovered = element;
+    this.hoverMarker = editor.getDoc().markText(
+      CodeMirror.Pos(element.start.line - 1, element.start.column - 1),
+      CodeMirror.Pos(element.end.line - 1, element.end.column - 1),
+      { className: 'cm-er7-hover' },
+    );
+  }
+
+  private placeHoverTip(editor: CodeMirror.Editor, element: MessageElement, event: MouseEvent) {
+    if (!this.hoverTip) {
+      this.hoverTip = document.createElement('div');
+      this.hoverTip.className = 'er7-hover-tip';
+      document.body.appendChild(this.hoverTip);
+    }
+    const tip = this.hoverTip;
+    if (tip.getAttribute('data-path') !== element.positionalPath) {
+      tip.setAttribute('data-path', element.positionalPath || '');
+      tip.innerHTML = '';
+      const head = tip.appendChild(document.createElement('div'));
+      head.className = 'er7-hover-head';
+      const path = head.appendChild(document.createElement('span'));
+      path.className = 'er7-hover-path';
+      path.textContent = element.hl7Path || '';
+      const name = head.appendChild(document.createElement('span'));
+      name.className = 'er7-hover-name';
+      name.textContent = element.name || '';
+      const foot = tip.appendChild(document.createElement('div'));
+      foot.className = 'er7-hover-foot';
+      foot.textContent = this.elementKindLabel(element) + ' · right-click for options';
+    }
+    tip.style.display = 'block';
+    const type = (element as any).type;
+    const start = editor.charCoords(CodeMirror.Pos(element.start.line - 1, element.start.column - 1), 'window');
+    const box = editor.getWrapperElement().getBoundingClientRect();
+    // A segment or a group runs the whole line, so its tip follows the pointer instead.
+    const wide = type === 'SEGMENT' || type === 'GROUP' || start.left < box.left;
+    const width = tip.offsetWidth;
+    const height = tip.offsetHeight;
+    let left = wide ? event.clientX - 14 : start.left;
+    left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+    let top = start.top - height - 6;
+    if (top < 8) {
+      top = start.bottom + 6;
+    }
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+
+  elementKindLabel(element: MessageElement): string {
+    switch (element && (element as any).type) {
+      case 'GROUP': return 'Group';
+      case 'SEGMENT':
+      case 'SEGMENTREF': return 'Segment';
+      case 'FIELD': return 'Field';
+      case 'COMPONENT': return 'Component';
+      case 'SUBCOMPONENT': return 'Sub-component';
+      default: return 'Element';
+    }
+  }
+
+  private hideHoverTip() {
+    if (this.hoverTip) {
+      this.hoverTip.style.display = 'none';
+    }
+  }
+
+  private clearHover() {
+    this.hovered = null;
+    if (this.hoverMarker) {
+      this.hoverMarker.clear();
+      this.hoverMarker = null;
+    }
+    if (this.hoverTip && this.hoverTip.parentNode) {
+      this.hoverTip.parentNode.removeChild(this.hoverTip);
+    }
+    this.hoverTip = null;
+  }
+
+  onTextMenuClosed() {
+    this.textMenuOpen = false;
+    this.clearHover();
+  }
+
+  showElementInTree(element: MessageElement) {
+    if (!element) {
+      return;
+    }
+    this.highlight(element);
+    this.revealInTree(element);
   }
 
   /**
    * Find the deepest element in the parsed tree that contains the given position.
    */
-  findElementAtPosition(node: any, line: number, column: number): MessageElement | null {
+  findElementAtPosition(node: any, line: number, column: number, exact: boolean = false): MessageElement | null {
     if (!node) {
       return null;
     }
     const children = node.children || [];
     // Search children first (deepest match wins)
     for (const child of children) {
-      const found = this.findElementAtPosition(child, line, column);
+      const found = this.findElementAtPosition(child, line, column, exact);
       if (found) {
         return found;
       }
@@ -1372,7 +1581,10 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     // Check if this node contains the position
     if (node.start && node.end) {
       const afterStart = (line > node.start.line) || (line === node.start.line && column >= node.start.column);
-      const beforeEnd = (line < node.end.line) || (line === node.end.line && column <= node.end.column);
+      // An element's end column is the one after its last character: a click there still counts,
+      // a pointer over that character (exact) does not.
+      const beforeEnd = (line < node.end.line)
+        || (line === node.end.line && (exact ? column < node.end.column : column <= node.end.column));
       if (afterStart && beforeEnd) {
         return node as MessageElement;
       }
