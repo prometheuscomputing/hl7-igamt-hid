@@ -60,6 +60,8 @@ interface IPreview {
   text: string;
   loading: boolean;
   note: string;
+  /** Shown above the text when the snippet no longer fits the message. */
+  warning?: string;
   /** The elements a snippet selects, marked as the guide marks them. */
   highlights?: IExampleMessageHighlightRange[];
 }
@@ -387,10 +389,15 @@ export class SelectMessageSnippetDialogComponent implements OnInit, OnDestroy {
     this.rendering = this.exampleMessagesService.renderSnippet(this.data.igId, row.message.id, row.snippet.id).subscribe(
       (result) => {
         const text = result && !result.snippetNotFound ? (result.renderedContent || '') : '';
+        const found = ((result && result.parts) || []).length;
+        const stale = !!text && ((result.warnings || []).length > 0);
         done({
           text,
           loading: false,
           note: text ? '' : 'This snippet selects nothing in the message as it is now.',
+          warning: !stale ? '' : (found
+            ? 'Part of this snippet is no longer in the message. What is left is marked.'
+            : 'What this snippet selects is no longer in the message. The whole message is shown, with nothing marked.'),
           highlights: text ? snippetHighlights(result, false) : [],
         });
       },

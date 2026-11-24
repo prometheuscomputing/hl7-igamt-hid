@@ -8,6 +8,10 @@ export function snippetHighlights(result: ISnippetRenderResult, useFullMessage: 
   if (ranges.length) {
     return ranges;
   }
+  // The snippet could not be found in the message as it is now: nothing is marked, since yellow means "this is the snippet".
+  if (result && result.warnings && result.warnings.length) {
+    return [];
+  }
   const body = useFullMessage ? result.fullMessage : (result.renderedContent || result.fullMessage || '');
   const lines = String(body || '').split(/\r\n|\n|\r/);
   if (!lines.length) {

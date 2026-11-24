@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, Input, OnChanges } from '@angular/core';
-import { IExampleMessageHighlightRange, styleEr7Html } from '../../froala/example-message.plugin';
+import { ChangeDetectionStrategy, Component, ElementRef, Input, OnChanges } from '@angular/core';
+import { IExampleMessageHighlightRange, revealFirstHighlight, styleEr7Html } from '../../froala/example-message.plugin';
 import { er7Lines, IEr7Summary, summarizeEr7 } from '../../functions/er7';
 
 /**
@@ -31,11 +31,15 @@ export class Er7ViewComponent implements OnChanges {
   hidden = 0;
   summary: IEr7Summary = summarizeEr7('');
 
+  constructor(private host: ElementRef) { }
+
   ngOnChanges() {
     // Lines are kept as they are, blank ones too, so that the highlights still point at the right place.
     const all = String(this.text || '').replace(/[\r\n]+$/, '').split(/\r\n|\n|\r/);
     this.summary = summarizeEr7(this.text);
     this.hidden = Math.max(0, all.length - Er7ViewComponent.MAX_LINES);
     this.html = er7Lines(this.text).length ? styleEr7Html(all.slice(0, Er7ViewComponent.MAX_LINES).join('\n'), this.highlights || []) : '';
+    // Once the text is drawn, bring the marked part into view.
+    setTimeout(() => revealFirstHighlight(this.host.nativeElement.querySelector('.er7-text')));
   }
 }

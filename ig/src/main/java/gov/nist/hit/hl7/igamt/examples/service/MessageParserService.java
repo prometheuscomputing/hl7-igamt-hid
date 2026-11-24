@@ -92,6 +92,10 @@ public class MessageParserService {
                     Point end = new Point(subComponent.location().line(), subComponent.location().column() + subComponent.value().raw().length());
                     child.setEnd(end);
                     element.getChildren().add(child);
+                    // A component made of subcomponents ends where its last subcomponent ends.
+                    if (element.getEnd() == null || end.getColumn() > element.getEnd().getColumn()) {
+                        element.setEnd(end);
+                    }
                 }
             }
         } else if (component instanceof SimpleComponent) {
