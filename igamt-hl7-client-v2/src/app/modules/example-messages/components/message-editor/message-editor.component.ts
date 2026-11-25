@@ -1555,14 +1555,6 @@ export class MessageEditorComponent extends DamAbstractEditorComponent implement
     this.clearHover();
   }
 
-  showElementInTree(element: MessageElement) {
-    if (!element) {
-      return;
-    }
-    this.highlight(element);
-    this.revealInTree(element);
-  }
-
   /**
    * Find the deepest element in the parsed tree that contains the given position.
    */

@@ -2,13 +2,13 @@ import { Injectable, NgZone } from '@angular/core';
 import { MatDialog } from '@angular/material';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
-import { IAvailableMessage, IgExampleMessages } from '../../example-messages/domain/example-messages.model';
+import { IAvailableMessage, toAvailableMessages } from '../../example-messages/domain/example-messages.model';
 import { ExampleMessagesService } from '../../example-messages/services/example-messages.service';
 import {
   ISelectMessageSnippetDialogResult,
   SelectMessageSnippetDialogComponent,
 } from '../../ig/components/select-message-snippet-dialog/select-message-snippet-dialog.component';
-import { ISnippetPart, ISnippetRenderResult } from '../../example-messages/services/example-messages.service';
+import { snippetHighlights } from '../functions/snippet-highlights';
 import {
   buildExampleMessageWidgetHtml,
   ensureEditableAroundExampleMessages,
@@ -39,12 +39,15 @@ export class FroalaExampleMessageService {
       }
       this.exampleMessagesService.getIgExampleMessages(igId).pipe(
         take(1),
-        map((data) => this.toAvailableMessages(data)),
-        catchError(() => of([] as IAvailableMessage[])),
-        switchMap((availableMessages) => {
+        map((data) => ({ availableMessages: toAvailableMessages(data), loadFailed: false })),
+        catchError(() => of({ availableMessages: [] as IAvailableMessage[], loadFailed: true })),
+        switchMap((loaded) => {
           return this.dialog.open(SelectMessageSnippetDialogComponent, {
             data: {
-              availableMessages,
+              availableMessages: loaded.availableMessages,
+              loadFailed: loaded.loadFailed,
+              igId,
+              title: 'Insert an example',
               confirmLabel: 'Insert',
             },
           }).afterClosed();
@@ -90,28 +93,6 @@ export class FroalaExampleMessageService {
     });
   }
 
-  toAvailableMessages(igExampleMessages: IgExampleMessages): IAvailableMessage[] {
-    const available: IAvailableMessage[] = [];
-    if (!igExampleMessages || !igExampleMessages.profileExampleMessages) {
-      return available;
-    }
-    for (const profileMessages of igExampleMessages.profileExampleMessages) {
-      const profileLabel = profileMessages.profile
-        ? (profileMessages.profile.fixedName || '') +
-          (profileMessages.profile.variableName ? '#' + profileMessages.profile.variableName : '')
-        : 'Unknown Profile';
-      for (const msg of profileMessages.exampleMessages) {
-        available.push({
-          id: msg.id,
-          name: msg.name,
-          profileName: profileLabel,
-          snippets: msg.snippets || [],
-        });
-      }
-    }
-    return available;
-  }
-
   private renderWidget(widget: HTMLElement, igId: string): Observable<boolean> {
     const messageId = widget.getAttribute('data-message-id');
     const snippetId = widget.getAttribute('data-snippet-id');
@@ -152,41 +133,4 @@ export class FroalaExampleMessageService {
       catchError(() => of(apply('The attached example message could not be found.', true))),
     );
   }
-}
-
-function snippetHighlights(result: ISnippetRenderResult, useFullMessage: boolean): IExampleMessageHighlightRange[] {
-  const parts = (result && result.parts) || [];
-  const ranges = parts.map((part) => toHighlightRange(part, useFullMessage)).filter((range) => !!range);
-  if (ranges.length) {
-    return ranges;
-  }
-  const body = useFullMessage ? result.fullMessage : (result.renderedContent || result.fullMessage || '');
-  const lines = String(body || '').split(/\r\n|\n|\r/);
-  if (!lines.length) {
-    return [];
-  }
-  return [{
-    startLine: 0,
-    startCol: 0,
-    endLine: lines.length - 1,
-    endCol: (lines[lines.length - 1] || '').length,
-  }];
-}
-
-function toHighlightRange(part: ISnippetPart, useFullMessage: boolean): IExampleMessageHighlightRange {
-  if (!part || !part.highlightStart || !part.highlightEnd) {
-    return null;
-  }
-  const startLine = useFullMessage
-    ? (part.startLine || part.highlightStart.line) - 1
-    : part.highlightStart.line - 1;
-  const endLine = useFullMessage
-    ? (part.endLine || part.highlightEnd.line) - 1
-    : part.highlightEnd.line - 1;
-  return {
-    startLine,
-    startCol: part.highlightStart.column - 1,
-    endLine,
-    endCol: part.highlightEnd.column - 1,
-  };
 }

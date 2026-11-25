@@ -7,45 +7,36 @@
   overflow: auto;
 }
 
-/* Snippet highlight uses the same yellow as example messages */
-::ng-deep .cm-snippet-highlight {
+/*
+ * The text looks as it does in the Example Messages editor and in an example placed in a text section:
+ * the colours of the hl7v2 mode come from styles.scss, and nothing here may restyle them, because a
+ * ::ng-deep rule would change every editor in the application once this section has been opened.
+ */
+.message-section-editor ::ng-deep .cm-snippet-highlight {
   background-color: #f3c60b !important;
-  border-radius: 2px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  box-shadow: 0px 5px 2px -2px gray;
 }
 
-/* HL7v2 syntax coloring */
-::ng-deep .cm-segment-name {
-  color: #d32f2f;
-  font-weight: bold;
-}
-
-::ng-deep .cm-field-separator {
-  color: #1565C0;
-  font-weight: bold;
-}
-
-::ng-deep .cm-component-separator {
-  color: #2e7d32;
-  font-weight: bold;
-}
-
-::ng-deep .cm-subcomponent-separator {
-  color: #6a1b9a;
-  font-weight: bold;
-}
-
-::ng-deep .cm-continuation-separator {
-  color: #ef6c00;
-  font-weight: bold;
-}
-
-::ng-deep .CodeMirror {
+.message-section-editor ::ng-deep .CodeMirror {
   height: 100% !important;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 13px;
+  font-size: 16px;
+  // Room for the mark and its shadow, so that they do not run over the line below.
+  line-height: 1.9;
 }
 
-::ng-deep .CodeMirror-cursors {
+.message-section-editor ::ng-deep .CodeMirror-cursors {
   display: none !important;
 }
+
+.section-mark {
+  min-width: 20px;
+}
+
+.section-mark-snippet {
+  background-color: #6a1b9a;
+  color: #fff;
+}
+
 

@@ -1,45 +1,120 @@
-<h2 mat-dialog-title>Select Example Message or Snippet</h2>
-<mat-dialog-content style="min-width: 450px; max-height: 400px; overflow-y: auto;">
+<h2 mat-dialog-title class="pick-title">
+  <span>{{ data.title || 'Select an example message or a snippet' }}</span>
+  <button type="button" class="pick-close" (click)="cancel()" title="Close" aria-label="Close">
+    <i class="fa fa-times"></i>
+  </button>
+</h2>
 
-  <div *ngIf="tree.length === 0" style="padding: 20px; text-align: center; color: #888;">
-    No example messages available.
+<mat-dialog-content class="pick-content" (keydown)="onKey($event)">
+
+  <div class="pick-name" *ngIf="data.askName">
+    <label for="pick-name">{{ data.nameLabel || 'Name' }}</label>
+    <input id="pick-name" type="text" class="form-control" [ngModel]="name" (ngModelChange)="typeName($event)"
+           [class.is-invalid]="!nameGiven" autocomplete="off" />
+    <span class="pick-name-hint" *ngIf="nameGiven">It takes the name of the example chosen below until it is typed.</span>
+    <span class="pick-name-hint pick-name-missing" *ngIf="!nameGiven">A name is required.</span>
   </div>
 
-  <div *ngFor="let profile of tree" style="margin-bottom: 10px;">
-    <!-- Profile header -->
-    <div style="padding: 6px 10px; background-color: #e3f2fd; border-radius: 4px; font-weight: 600; color: #1565C0; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-      <i class="fa fa-file-text-o"></i>
-      {{ profile.label }}
-    </div>
+  <div class="pick-empty" *ngIf="data.loadFailed">
+    <i class="fa fa-exclamation-triangle pick-empty-icon"></i>
+    <div class="pick-empty-title">The example messages could not be loaded</div>
+    <div>Close this window and try again.</div>
+  </div>
 
-    <!-- Messages under this profile -->
-    <div *ngFor="let message of profile.children" style="margin-left: 16px;">
-      <div
-        (click)="selectNode(message)"
-        [class.selected-node]="isSelected(message)"
-        style="padding: 6px 10px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 6px; margin-bottom: 2px;"
-        [style.background-color]="isSelected(message) ? '#bbdefb' : 'transparent'">
-        <span style="font-weight: bold; color: #1565C0; font-size: 13px;">M</span>
-        <span>{{ message.label }}</span>
+  <div class="pick-empty" *ngIf="!data.loadFailed && total === 0">
+    <i class="fa fa-file-text-o pick-empty-icon"></i>
+    <div class="pick-empty-title">This guide has no example message yet</div>
+    <div>Example messages are written in the Example Messages area of the guide, one profile at a time.</div>
+    <button *ngIf="data.igId" type="button" class="btn btn-sm btn-outline-primary pick-empty-action" (click)="openExampleMessages()">
+      Open Example Messages
+    </button>
+  </div>
+
+  <div class="pick-body" *ngIf="!data.loadFailed && total > 0">
+    <div class="pick-side">
+      <div class="pick-search">
+        <i class="fa fa-search"></i>
+        <input type="text" cdkFocusInitial [ngModel]="term" (ngModelChange)="search($event)"
+               placeholder="Search a message, a snippet or a profile" aria-label="Search" autocomplete="off"
+               role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="pick-list"
+               [attr.aria-activedescendant]="selected ? 'pick-row-' + indexOf(selected) : null" />
+        <button type="button" class="pick-clear" *ngIf="term" (click)="search('')" title="Clear the search" aria-label="Clear the search">
+          <i class="fa fa-times-circle"></i>
+        </button>
       </div>
 
-      <!-- Snippets under this message -->
-      <div *ngFor="let snippet of message.children" style="margin-left: 24px;">
-        <div
-          (click)="selectNode(snippet)"
-          [class.selected-node]="isSelected(snippet)"
-          style="padding: 5px 10px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 6px; margin-bottom: 2px;"
-          [style.background-color]="isSelected(snippet) ? '#e1bee7' : 'transparent'">
-          <i class="fa fa-scissors" style="color: #6a1b9a; font-size: 12px;"></i>
-          <span>{{ snippet.label }}</span>
+      <div class="pick-list" id="pick-list" #list role="listbox" tabindex="0" aria-label="Example messages and snippets"
+           [attr.aria-activedescendant]="selected ? 'pick-row-' + indexOf(selected) : null">
+        <div class="pick-none" *ngIf="!groups.length">
+          Nothing matches “{{ term.trim() }}”.
+          <button type="button" class="btn btn-link btn-sm" (click)="search('')">Show everything</button>
         </div>
+
+        <ng-container *ngFor="let group of groups">
+          <div class="pick-group" [title]="group.label">{{ group.label }}</div>
+          <ng-container *ngFor="let entry of group.messages">
+            <div class="pick-row" role="option" [id]="'pick-row-' + indexOf(entry.row)"
+                 [class.pick-row-selected]="isSelected(entry.row)" [attr.aria-selected]="isSelected(entry.row)"
+                 (click)="select(entry.row)" (dblclick)="choose(entry.row)">
+              <button type="button" class="pick-toggle" tabindex="-1" *ngIf="entry.total && !searching"
+                      (click)="toggle(entry, $event)" (dblclick)="$event.stopPropagation()"
+                      [title]="entry.open ? 'Hide the snippets' : 'Show the snippets'"
+                      [attr.aria-label]="entry.open ? 'Hide the snippets' : 'Show the snippets'">
+                <i class="fa" [class.fa-caret-down]="entry.open" [class.fa-caret-right]="!entry.open"></i>
+              </button>
+              <span class="pick-toggle" *ngIf="!entry.total || searching"></span>
+              <span class="badge badge-primary pick-mark" title="Message">M</span>
+              <span class="pick-row-body">
+                <span class="pick-label">{{ entry.row.label }}</span>
+              </span>
+              <span class="pick-current" *ngIf="entry.row.current">Attached now</span>
+            </div>
+            <ng-container *ngIf="entry.open">
+              <div class="pick-row pick-row-snippet" role="option" *ngFor="let row of entry.snippets" [id]="'pick-row-' + indexOf(row)"
+                   [class.pick-row-selected]="isSelected(row)" [attr.aria-selected]="isSelected(row)"
+                   (click)="select(row)" (dblclick)="choose(row)">
+                <span class="badge pick-mark pick-mark-snippet" title="Snippet">S</span>
+                <span class="pick-row-body">
+                  <span class="pick-label">{{ row.label }}</span>
+                </span>
+                <span class="pick-current" *ngIf="row.current">Attached now</span>
+              </div>
+            </ng-container>
+          </ng-container>
+        </ng-container>
       </div>
     </div>
+
+    <div class="pick-preview">
+      <div class="pick-preview-empty" *ngIf="!selected">
+        <i class="fa fa-hand-o-left"></i>
+        <div>Choose a message to use all of it, or one of its snippets to use only that part.</div>
+        <div class="pick-keys">Arrow keys move through the list, Enter confirms, a double click does both.</div>
+      </div>
+
+      <ng-container *ngIf="selected">
+        <div class="pick-preview-kind">
+          {{ selected.type === 'message' ? 'Whole message' : 'Snippet of ' + selected.message.name }}
+        </div>
+        <div class="pick-preview-name">{{ selected.label }}</div>
+        <div class="pick-preview-profile"><i class="fa fa-file-text-o"></i> {{ selected.message.profileName }}</div>
+
+        <div class="pick-preview-loading" *ngIf="preview.loading"><i class="fa fa-spinner fa-spin"></i> Loading the text</div>
+        <div class="pick-preview-note" *ngIf="preview.note">{{ preview.note }}</div>
+        <div class="pick-preview-warning" *ngIf="preview.warning" role="status"><i class="fa fa-exclamation-triangle"></i> {{ preview.warning }}</div>
+        <app-er7-view *ngIf="!preview.loading && !preview.note"
+                      [text]="preview.text" [highlights]="preview.highlights" [showSummary]="selected.type === 'message'" maxHeight="300px"
+                      emptyLabel="This message has no text yet."></app-er7-view>
+      </ng-container>
+    </div>
   </div>
-
 </mat-dialog-content>
-<mat-dialog-actions style="justify-content: flex-end;">
-  <button (click)="cancel()" class="btn btn-sm btn-secondary" style="margin-right: 5px;">Cancel</button>
-  <button (click)="confirm()" [disabled]="!selectedNode" class="btn btn-sm btn-primary">{{ data.confirmLabel || 'Attach' }}</button>
-</mat-dialog-actions>
 
+<mat-dialog-actions class="pick-actions">
+  <span class="pick-choice" *ngIf="selected">{{ selected.type === 'message' ? 'Message' : 'Snippet' }}: {{ selected.label }}{{ selected.current ? ' (attached now)' : '' }}</span>
+  <span class="pick-choice" *ngIf="!selected"></span>
+  <button type="button" (click)="cancel()" class="btn btn-sm btn-secondary" style="margin-right: 5px;">Cancel</button>
+  <button type="button" *ngIf="data.askName && data.withoutExampleLabel" (click)="confirmWithoutExample()" [disabled]="!nameGiven"
+          class="btn btn-sm btn-outline-primary" style="margin-right: 5px;">{{ data.withoutExampleLabel }}</button>
+  <button type="button" (click)="confirm()" [disabled]="!canConfirm" class="btn btn-sm btn-primary">{{ confirmText }}</button>
+</mat-dialog-actions>

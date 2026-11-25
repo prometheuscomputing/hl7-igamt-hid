@@ -53,7 +53,7 @@ export class ExampleMessagesService {
     return this.http.get<IExampleMessageDTO>(`api/example-messages/${id}/message/${messageId}`);
   }
 
-  public createExampleMessage(id: string, data: { name: string, profileId: string }): Observable<IMessage<IgExampleMessages>> {
+  public createExampleMessage(id: string, data: { name: string, profileId: string, message?: string }): Observable<IMessage<IgExampleMessages>> {
     return this.http.post<IMessage<IgExampleMessages>>(`api/example-messages/${id}/message`, data);
   }
 

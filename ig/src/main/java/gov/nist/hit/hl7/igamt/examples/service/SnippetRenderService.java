@@ -84,7 +84,7 @@ public class SnippetRenderService {
             return result;
         }
 
-        String[] allLines = exampleMessage.getMessage().split("\n", -1);
+        String[] allLines = linesOf(exampleMessage.getMessage());
 
         // Process each messageReference in the snippet
         Set<String> references = snippet.getMessageReferences();
@@ -188,7 +188,7 @@ public class SnippetRenderService {
 
             result.getParts().add(part);
         }
-
+        inReadingOrder(result.getParts());
 
         return result;
     }
@@ -219,7 +219,7 @@ public class SnippetRenderService {
             return result;
         }
 
-        String[] allLines = exampleMessage.getMessage().split("\n", -1);
+        String[] allLines = linesOf(exampleMessage.getMessage());
         TreeSet<Integer> allLineNumbers = new TreeSet<>();
 
         // First pass: find all referenced elements and collect their line ranges
@@ -303,7 +303,7 @@ public class SnippetRenderService {
 
             result.getParts().add(part);
         }
-
+        inReadingOrder(result.getParts());
 
         return result;
     }
@@ -411,5 +411,16 @@ public class SnippetRenderService {
         }
         return null;
     }
-}
 
+    /** A snippet keeps its paths as a set: its parts are listed as they come in the message, top to bottom and left to right. */
+    private static void inReadingOrder(List<SnippetRenderResult.SnippetPart> parts) {
+        parts.sort(Comparator
+                .comparingInt((SnippetRenderResult.SnippetPart part) -> part.getStartLine())
+                .thenComparingInt(part -> part.getHighlightStart().getColumn()));
+    }
+
+    /** The lines of the message, whichever line end it was saved with (CR LF, LF, or the CR of HL7). */
+    private static String[] linesOf(String message) {
+        return message.split("\\r\\n|\\n|\\r", -1);
+    }
+}

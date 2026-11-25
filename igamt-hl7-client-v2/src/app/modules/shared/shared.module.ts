@@ -98,6 +98,7 @@ import { DtmStructureComponent } from "./components/dtm-stucture/dtm-structure.c
 import { AddMappingDialgComponent } from "./components/dynamic-mapping/add-mapping-dialg/add-mapping-dialg.component";
 import { DynamicMappingComponent } from "./components/dynamic-mapping/dynamic-mapping.component";
 import { EntityBagdeComponent } from "./components/entity-bagde/entity-bagde.component";
+import { Er7ViewComponent } from './components/er7-view/er7-view.component';
 import { EntityBrowseDialogComponent } from "./components/entity-browse-dialog/entity-browse-dialog.component";
 import { ExportToolComponent } from "./components/export-tool/export-tool.component";
 import { ExportXmlDialogComponent } from "./components/export-xml-dialog/export-xml-dialog.component";
@@ -190,6 +191,7 @@ import { SlicingViewerDialogComponent } from "./components/slicing-viewer-dialog
     UserProfileFormComponent,
     RegisterFormComponent,
     EntityBagdeComponent,
+    Er7ViewComponent,
     MetadataDateComponent,
     ScopeBadgeComponent,
     ResetPasswordRequestFormComponent,
@@ -400,6 +402,7 @@ import { SlicingViewerDialogComponent } from "./components/slicing-viewer-dialog
     NewPasswordFromComponent,
     FileSelectInputComponent,
     EntityBagdeComponent,
+    Er7ViewComponent,
     MetadataDateComponent,
     ScopeBadgeComponent,
     ToastyModule,

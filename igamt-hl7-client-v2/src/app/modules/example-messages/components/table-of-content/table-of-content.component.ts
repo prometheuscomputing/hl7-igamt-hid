@@ -19,7 +19,7 @@ export class TableOfContentComponent implements OnInit, OnChanges {
   @Input()
   viewOnly = false;
   @Output()
-  onCreateExampleMessage: EventEmitter<{ profileId: string, name: string }>;
+  onCreateExampleMessage: EventEmitter<{ profileId: string, name: string, message?: string }>;
   @Output()
   onDeleteExampleMessage: EventEmitter<{ messageId: string, name: string }>;
   @Output()
@@ -115,12 +115,15 @@ export class TableOfContentComponent implements OnInit, OnChanges {
         title: 'Create Example Message',
         kind: 'example message',
         existingNames,
+        allowMessage: true,
+        confirmLabel: 'Create',
       }
     }).afterClosed().subscribe((data) => {
       if (data && data.name) {
         this.onCreateExampleMessage.emit({
           name: data.name,
           profileId: id,
+          message: data.message,
         });
       }
     });

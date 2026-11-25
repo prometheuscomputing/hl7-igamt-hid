@@ -16,7 +16,8 @@ import { Store } from '@ngrx/store';
 import { TREE_ACTIONS, TreeComponent, TreeModel, TreeNode } from 'angular-tree-component';
 import { ContextMenuComponent } from 'ngx-contextmenu';
 import { SelectItem } from 'primeng/api';
-import { map, take } from 'rxjs/operators';
+import { of } from 'rxjs';
+import { catchError, map, switchMap, take } from 'rxjs/operators';
 import * as fromIgDocumentEdit from 'src/app/root-store/ig/ig-edit/ig-edit.index';
 import { IAddNewWrapper, IAddWrapper } from '../../../document/models/document/add-wrapper.class';
 import { Scope } from '../../../shared/constants/scope.enum';
@@ -27,6 +28,9 @@ import { NodeHelperService } from '../../../shared/services/node-helper.service'
 import { ValueSetService } from '../../../value-set/service/value-set.service';
 import { IgDocument, IGroupValueSetWrapper } from '../../models/ig/ig-document.class';
 import { IgService } from '../../services/ig.service';
+import { IAvailableMessage, toAvailableMessages } from '../../../example-messages/domain/example-messages.model';
+import { ExampleMessagesService } from '../../../example-messages/services/example-messages.service';
+import { ISelectMessageSnippetDialogResult, SelectMessageSnippetDialogComponent } from '../select-message-snippet-dialog/select-message-snippet-dialog.component';
 import { IVerificationEnty } from './../../../dam-framework/models/data/workspace';
 import { IContent } from './../../../shared/models/content.interface';
 import { ManageProfileStructureComponent } from './../manage-profile-structure/manage-profile-structure.component';
@@ -122,7 +126,8 @@ export class IgTocComponent implements OnInit, AfterViewInit {
     private activatedRoute: ActivatedRoute,
     private igService: IgService,
     private store: Store<any>,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private exampleMessagesService: ExampleMessagesService,
   ) {
     this.options = {
       allowDrag: (node: TreeNode) => {
@@ -227,9 +232,36 @@ export class IgTocComponent implements OnInit, AfterViewInit {
     this.update();
   }
 
+  /** Asks for the section's name and its example in one step, then adds the section with the example attached. */
   addMessageSectionToNode(node) {
-    this.nodeHelperService.addMessageSectionNode(node, null, null, 'Message Example');
-    this.update();
+    this.store.select(fromIgDocumentEdit.selectIgId).pipe(
+      take(1),
+      switchMap((igId) => this.exampleMessagesService.getIgExampleMessages(igId).pipe(
+        take(1),
+        map((data) => ({ availableMessages: toAvailableMessages(data), loadFailed: false })),
+        catchError(() => of({ availableMessages: [] as IAvailableMessage[], loadFailed: true })),
+        switchMap((loaded) => this.dialog.open(SelectMessageSnippetDialogComponent, {
+          data: {
+            availableMessages: loaded.availableMessages,
+            loadFailed: loaded.loadFailed,
+            igId,
+            title: 'Add a message example',
+            confirmLabel: 'Add',
+            askName: true,
+            nameLabel: 'Section name',
+            name: 'Message Example',
+            withoutExampleLabel: 'Add empty section',
+          },
+        }).afterClosed()),
+      )),
+      take(1),
+    ).subscribe((result: ISelectMessageSnippetDialogResult) => {
+      if (!result || !result.name) {
+        return;
+      }
+      this.nodeHelperService.addMessageSectionNode(node, result.messageId, result.snippetId, result.name);
+      this.update();
+    });
   }
 
   addSectionToIG() {

@@ -21,6 +21,7 @@ import { ScenarioListComponent } from './components/scenario-list/scenario-list.
 
 import * as CodeMirror from 'codemirror';
 
+import 'codemirror/addon/display/placeholder';
 import 'codemirror/addon/selection/active-line';
 import 'codemirror/addon/search/searchcursor';
 import 'codemirror/addon/search/search';

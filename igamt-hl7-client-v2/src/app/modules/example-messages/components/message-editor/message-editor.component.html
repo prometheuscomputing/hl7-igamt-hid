@@ -170,9 +170,6 @@
                         <ng-template contextMenuItem (execute)="openElementInIg($event.item)">
                             <i class="fa fa-external-link"></i> Open in IG
                         </ng-template>
-                        <ng-template contextMenuItem (execute)="showElementInTree($event.item)">
-                            <i class="fa fa-sitemap"></i> Show in Message Tree
-                        </ng-template>
                         <ng-template contextMenuItem (execute)="createSnippet($event.item)" [enabled]="!viewOnly && !staleMessageTree">
                             <i class="fa fa-scissors"></i> Create Snippet
                         </ng-template>

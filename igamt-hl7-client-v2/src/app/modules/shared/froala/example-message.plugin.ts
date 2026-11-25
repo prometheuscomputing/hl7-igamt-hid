@@ -448,6 +448,7 @@ export function setExampleMessageWidgetBody(
     jq(widget).append(pre);
   }
   pre.html(styleEr7Html(body || '', highlights || []));
+  revealFirstHighlight(pre[0]);
   jq(widget).toggleClass('fr-exmsg-missing', !!missing);
   ensureRemoveButton(widget);
   ensureViewToggle(widget);
@@ -476,6 +477,26 @@ export function ensureViewToggle(widget: HTMLElement) {
       '<button type="button" class="' + VIEW_BTN_CLASS + (view === 'full' ? ' active' : '') + '" data-view="full">Full Message</button>' +
     '</div>'
   );
+}
+
+/**
+ * Scrolls a box of ER7 text so that the first marked part is in view. A field far along a long
+ * segment is otherwise off to the right, and the box looks as if nothing were marked.
+ */
+export function revealFirstHighlight(scroller: HTMLElement) {
+  const mark = scroller ? scroller.querySelector('.cm-highlight') as HTMLElement : null;
+  if (!mark) {
+    return;
+  }
+  const box = scroller.getBoundingClientRect();
+  const at = mark.getBoundingClientRect();
+  const margin = 40;
+  if (at.right > box.right - margin || at.left < box.left) {
+    scroller.scrollLeft = Math.max(0, scroller.scrollLeft + (at.left - box.left) - margin);
+  }
+  if (at.bottom > box.bottom || at.top < box.top) {
+    scroller.scrollTop = Math.max(0, scroller.scrollTop + (at.top - box.top) - margin);
+  }
 }
 
 const ER7_TOKEN_STYLE: { [token: string]: string } = {
